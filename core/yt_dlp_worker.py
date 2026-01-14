@@ -1,13 +1,158 @@
 import logging
+import os
 import subprocess
+import threading
+import sys
+import shutil
+import json
+import requests
+import tempfile
 from PyQt6.QtCore import QThread, pyqtSignal
 
 log = logging.getLogger(__name__)
 
+# Global variable to store the working yt-dlp path
+_YT_DLP_PATH = None
+
+
+def check_yt_dlp_available():
+    """Check if yt-dlp is available and return version info. Tries all found versions."""
+    global _YT_DLP_PATH
+    try:
+        # Check if yt-dlp is in PATH
+        yt_dlp_path = shutil.which("yt-dlp")
+        # Normalize the path: remove stray whitespace/newlines which can
+        # cause subprocess to fail on Windows when executing the path.
+        if yt_dlp_path:
+            yt_dlp_path = yt_dlp_path.strip()
+            # On Windows, ensure .exe extension if missing
+            import os as _os
+            if _os.name == 'nt' and not yt_dlp_path.lower().endswith('.exe'):
+                candidate = yt_dlp_path + '.exe'
+                if _os.path.exists(candidate):
+                    yt_dlp_path = candidate
+        if not yt_dlp_path:
+            return False, "yt-dlp not found in PATH"
+        
+        log.info(f"yt-dlp found at (first in PATH): {yt_dlp_path}")
+        
+        # Skip Python312 installations since Python312 was removed from PATH
+        skip_first = "Python312" in yt_dlp_path
+        
+        if not skip_first:
+            # Try the first one found in PATH
+            result = subprocess.run(
+                [yt_dlp_path, "--version"],  # Use full path instead of just "yt-dlp"
+                capture_output=True,
+                text=True,
+                timeout=5,
+                shell=False,
+                errors='replace'
+            )
+            
+            log.info(f"yt-dlp --version return code: {result.returncode}")
+            log.info(f"yt-dlp --version stdout: {result.stdout}")
+            log.info(f"yt-dlp --version stderr: {result.stderr}")
+            
+            if result.returncode == 0:
+                version = result.stdout.strip()
+                _YT_DLP_PATH = yt_dlp_path  # Store working path
+                return True, f"yt-dlp found at: {yt_dlp_path}, version: {version}"
+        else:
+            log.info(f"Skipping Python312 installation: {yt_dlp_path}")
+            result = None
+        
+        if skip_first or (result and result.returncode != 0):
+            # Try to find other yt-dlp installations
+            # Skip Python312 since it was removed from PATH
+            import os
+            possible_paths = [
+                # Python 313 installations (preferred)
+                r"C:\Python313\Scripts\yt-dlp.exe",
+                r"C:\Users\vince\AppData\Roaming\Python\Python313\Scripts\yt-dlp.exe",
+            ]
+            
+            # Also check common Python script locations (Python 313 only)
+            python_scripts = [
+                os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Python", "Python313", "Scripts", "yt-dlp.exe"),
+                os.path.join(os.environ.get("APPDATA", ""), "Python", "Python313", "Scripts", "yt-dlp.exe"),
+            ]
+            possible_paths.extend(python_scripts)
+            
+            # Only try Python312 if it's still in PATH (unlikely but check anyway)
+            python312_in_path = False
+            try:
+                path_result = subprocess.run(["where", "python"], capture_output=True, text=True, shell=True)
+                if "Python312" in path_result.stdout:
+                    python312_in_path = True
+            except Exception:
+                pass
+            
+            if python312_in_path:
+                possible_paths.append(r"C:\Program Files\Python312\Scripts\yt-dlp.exe")
+            
+            log.info(f"First yt-dlp failed, trying other locations...")
+            for alt_path in possible_paths:
+                if alt_path and os.path.exists(alt_path):
+                    log.info(f"Trying alternative: {alt_path}")
+                    try:
+                        alt_result = subprocess.run(
+                            [alt_path, "--version"],
+                            capture_output=True,
+                            text=True,
+                            timeout=5,
+                            shell=False,
+                            errors='replace'
+                        )
+                        if alt_result.returncode == 0:
+                            version = alt_result.stdout.strip()
+                            log.info(f"Working yt-dlp found at: {alt_path}, version: {version}")
+                            # Store this path for future use
+                            _YT_DLP_PATH = alt_path
+                            return True, f"yt-dlp found at: {alt_path}, version: {version}"
+                    except Exception as e:
+                        log.debug(f"Failed to test {alt_path}: {e}")
+            
+            error_details = f"return code: {result.returncode}"
+            if result.stderr:
+                error_details += f", stderr: {result.stderr.strip()}"
+            if result.stdout:
+                error_details += f", stdout: {result.stdout.strip()}"
+            return False, f"yt-dlp found but --version failed ({error_details}). Multiple installations may be conflicting."
+    except FileNotFoundError:
+        return False, "yt-dlp executable not found"
+    except subprocess.TimeoutExpired:
+        return False, "yt-dlp --version timed out"
+    except Exception as e:
+        return False, f"Error checking yt-dlp: {str(e)}"
+
+
+def fetch_metadata(url: str, timeout: int = 15):
+    """Fetch metadata for a URL using yt-dlp --dump-single-json.
+
+    Returns parsed JSON dict on success, or None on failure.
+    This function is safe to call from background threads.
+    """
+    global _YT_DLP_PATH
+    try:
+        yt_dlp_cmd = _YT_DLP_PATH if _YT_DLP_PATH else shutil.which("yt-dlp") or "yt-dlp"
+        meta_cmd = [yt_dlp_cmd, "--dump-single-json", url]
+        proc = subprocess.run(meta_cmd, capture_output=True, text=True, timeout=timeout, shell=False)
+        if proc.returncode == 0 and proc.stdout:
+            try:
+                info = json.loads(proc.stdout)
+                return info
+            except Exception:
+                return None
+        return None
+    except Exception:
+        return None
+
 
 class DownloadWorker(QThread):
     progress = pyqtSignal(dict)
-    finished = pyqtSignal(str, bool)
+    title_updated = pyqtSignal(str)
+    finished = pyqtSignal(str, bool, list)
     error = pyqtSignal(str, str)
 
     def __init__(self, url, opts, parent=None):
@@ -17,30 +162,485 @@ class DownloadWorker(QThread):
         self._is_cancelled = False
 
     def run(self):
-        cmd = ["yt-dlp"] + self.opts + [self.url]
-        log.debug(f"Running command: {' '.join(cmd)}")
-
-        process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            universal_newlines=True,
-        )
-
-        for line in process.stdout:
-            if self._is_cancelled:
-                process.terminate()
-                log.info(f"Cancelled download: {self.url}")
+        error_output = []
+        stdout_lines = []
+        try:
+            # First, verify yt-dlp is available
+            global _YT_DLP_PATH
+            is_available, status_msg = check_yt_dlp_available()
+            log.info(f"yt-dlp check: {status_msg}")
+            if not is_available:
+                error_msg = f"yt-dlp not available: {status_msg}"
+                log.error(error_msg)
+                self.error.emit(self.url, error_msg)
                 return
-            self.progress.emit({"url": self.url, "text": line.strip()})
-            log.debug(f"{self.url}: {line.strip()}")
+            
+            # Use the working path if we found one, otherwise use "yt-dlp" from PATH
+            yt_dlp_cmd = _YT_DLP_PATH if _YT_DLP_PATH else shutil.which("yt-dlp") or "yt-dlp"
+            # Attempt to extract metadata (title) first using yt-dlp JSON output so
+            # the UI can display the actual video title immediately.
+            try:
+                meta_cmd = [yt_dlp_cmd, "--dump-single-json", self.url]
+                meta_proc = subprocess.run(meta_cmd, capture_output=True, text=True, timeout=15, shell=False)
+                if meta_proc.returncode == 0 and meta_proc.stdout:
+                    try:
+                        info = json.loads(meta_proc.stdout)
+                        title = info.get("title") or info.get("id")
+                        # store metadata for later thumbnail handling
+                        self._meta_info = info
+                        if title:
+                            self.title_updated.emit(str(title))
+                    except Exception:
+                        pass
+            except Exception:
+                # Ignore metadata extraction failures and continue to download
+                pass
 
-        process.wait()
-        if process.returncode == 0:
-            self.finished.emit(self.url, True)
-        else:
-            self.error.emit(self.url, f"Error code {process.returncode}")
-            log.error(f"Download failed for {self.url} with code {process.returncode}")
+            cmd = [yt_dlp_cmd] + (self.opts if self.opts else []) + [self.url]
+            log.info(f"Running command: {' '.join(cmd)}")
+            log.info(f"Command args: {cmd}")
+
+            # If a temp directory was provided by the caller, snapshot its contents
+            temp_snapshot = {}
+            temp_dir = getattr(self, "temp_dir", None)
+            # Cleanup any leftover preferred-thumb debug files from older runs
+            try:
+                if temp_dir and os.path.isdir(temp_dir):
+                    for fn in os.listdir(temp_dir):
+                        if fn.startswith("preferred_thumb_") and fn.lower().endswith(('.jpg', '.jpeg', '.png')):
+                            try:
+                                os.remove(os.path.join(temp_dir, fn))
+                                log.info("Removed leftover debug thumbnail: %s", fn)
+                            except Exception:
+                                pass
+            except Exception:
+                pass
+            if temp_dir and os.path.isdir(temp_dir):
+                try:
+                    for root, _, files in os.walk(temp_dir):
+                        for f in files:
+                            p = os.path.join(root, f)
+                            try:
+                                temp_snapshot[p] = os.path.getmtime(p)
+                            except Exception:
+                                temp_snapshot[p] = 0
+                except Exception:
+                    temp_snapshot = {}
+
+            # Use separate pipes for stdout and stderr to capture all output
+            # Explicitly set shell=False to avoid any shell interpretation issues
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,  # Separate stderr to capture errors
+                universal_newlines=True,
+                bufsize=1,
+                errors='replace',  # Handle encoding errors gracefully
+                shell=False,  # Don't use shell to avoid % character interpretation
+            )
+
+            # Use communicate() to reliably capture all output, especially if process exits quickly
+            def read_stream(stream, is_stderr=False):
+                """Read from a stream and populate the appropriate list."""
+                try:
+                    for line in stream:
+                        if self._is_cancelled:
+                            process.terminate()
+                            return
+                        line = line.strip()
+                        if line:
+                            if is_stderr:
+                                error_output.append(line)
+                                log.warning(f"{self.url} stderr: {line}")
+                            else:
+                                stdout_lines.append(line)
+                                # Check if this looks like an error message
+                                if any(keyword in line.lower() for keyword in ["error", "failed", "unable", "cannot", "invalid", "not found", "unavailable"]):
+                                    error_output.append(line)
+                                # Emit progress for non-error lines
+                                if not any(keyword in line.lower() for keyword in ["error", "failed"]):
+                                    self.progress.emit({"url": self.url, "text": line})
+                                log.info(f"{self.url} stdout: {line}")
+                except Exception as e:
+                    log.warning(f"Error reading stream: {e}")
+            
+            # Read both streams in parallel using threads
+            stdout_thread = threading.Thread(target=lambda: read_stream(process.stdout, False), daemon=True)
+            stderr_thread = threading.Thread(target=lambda: read_stream(process.stderr, True), daemon=True)
+            stdout_thread.start()
+            stderr_thread.start()
+            
+            # Wait for process to complete
+            return_code = process.wait()
+            
+            # Wait for threads to finish reading
+            stdout_thread.join(timeout=2.0)
+            stderr_thread.join(timeout=2.0)
+            
+            # If we still have no output, try communicate() as fallback
+            if not stdout_lines and not error_output:
+                try:
+                    stdout_data, stderr_data = process.communicate(timeout=1)
+                    if stdout_data:
+                        for line in stdout_data.strip().split('\n'):
+                            line = line.strip()
+                            if line:
+                                stdout_lines.append(line)
+                                log.info(f"{self.url} stdout (fallback): {line}")
+                    if stderr_data:
+                        for line in stderr_data.strip().split('\n'):
+                            line = line.strip()
+                            if line:
+                                error_output.append(line)
+                                log.warning(f"{self.url} stderr (fallback): {line}")
+                except Exception as e:
+                    log.debug(f"Could not use communicate() fallback: {e}")
+            # If cancellation was requested, treat as cancelled rather than an error
+            try:
+                if self._is_cancelled:
+                    log.info(f"Download cancelled by user: {self.url}")
+                    # Emit finished with success=False and no created files
+                    self.finished.emit(self.url, False, [])
+                    return
+            except Exception:
+                pass
+
+            if return_code == 0:
+                # Attempt to discover created files from stdout lines
+                created_files = []
+                try:
+                    import re
+                    for line in stdout_lines:
+                        m = re.search(r"Destination:\s*(.+)$", line)
+                        if m:
+                            created_files.append(m.group(1).strip())
+                        m2 = re.search(r"Merging formats into\s*(.+)$", line)
+                        if m2:
+                            created_files.append(m2.group(1).strip())
+                except Exception:
+                    pass
+
+                # Also compare temp directory snapshot to find new/changed files
+                try:
+                    temp_dir = getattr(self, "temp_dir", None)
+                    if temp_dir and os.path.isdir(temp_dir):
+                        for root, _, files in os.walk(temp_dir):
+                            for f in files:
+                                p = os.path.join(root, f)
+                                try:
+                                    mtime = os.path.getmtime(p)
+                                except Exception:
+                                    mtime = 0
+                                if p not in temp_snapshot or mtime > temp_snapshot.get(p, 0):
+                                    created_files.append(p)
+                except Exception:
+                    pass
+
+                # Sanitize, deduplicate and normalize created file paths
+                def _sanitize(p):
+                    try:
+                        sp = str(p).strip()
+                    except Exception:
+                        return None
+                    # strip surrounding quotes
+                    if (sp.startswith('"') and sp.endswith('"')) or (sp.startswith("'") and sp.endswith("'")):
+                        sp = sp[1:-1].strip()
+                    sp = sp.strip()
+                    if not sp:
+                        return None
+                    try:
+                        return os.path.normpath(sp)
+                    except Exception:
+                        return sp
+
+                seen = set()
+                sanitized = []
+                for p in created_files:
+                    sp = _sanitize(p)
+                    if not sp:
+                        continue
+                    if sp in seen:
+                        continue
+                    seen.add(sp)
+                    sanitized.append(sp)
+                created_files = sanitized
+                # Attempt to download and embed preferred thumbnail based on metadata
+                try:
+                    self._handle_thumbnail_embedding(created_files)
+                except Exception:
+                    log.exception("Thumbnail handling failed")
+                self.finished.emit(self.url, True, created_files)
+            else:
+                # Build comprehensive error message
+                error_msg = f"yt-dlp error (code {return_code})"
+                
+                # If we have error output, use it
+                if error_output:
+                    # Get the most relevant error lines (usually the last ones)
+                    relevant_errors = error_output[-5:] if len(error_output) > 5 else error_output
+                    error_msg += f"\n\n{chr(10).join(relevant_errors)}"
+                # Otherwise, check stdout for error-like messages
+                elif stdout_lines:
+                    # Look for error patterns in stdout
+                    error_lines = [line for line in stdout_lines 
+                                 if any(keyword in line.lower() for keyword in ["error", "failed", "unable", "cannot", "invalid", "not found", "permission", "access denied", "denied"])]
+                    if error_lines:
+                        error_msg += f"\n\n{chr(10).join(error_lines[-3:])}"
+                    else:
+                        # Last resort: show last few stdout lines
+                        error_msg += f"\n\nLast output: {chr(10).join(stdout_lines[-3:])}"
+                else:
+                    error_msg += "\n\nNo error details captured. Check logs for more information."
+                    # Check for common issues
+                    if "invalid char" in str(stdout_lines).lower() or "invalid char" in str(error_output).lower():
+                        error_msg += "\n\nPossible issues:"
+                        error_msg += "\n- Invalid character in output path or template"
+                        error_msg += "\n- Permission denied (check if output directory is writable)"
+                        error_msg += "\n- yt-dlp version incompatibility"
+                
+                # Log full details
+                log.error(f"Download failed for {self.url} with code {return_code}")
+                log.error(f"Command: {' '.join(cmd)}")
+                if error_output:
+                    log.error(f"Error output: {chr(10).join(error_output)}")
+                if stdout_lines:
+                    log.error(f"Stdout output: {chr(10).join(stdout_lines[-10:])}")
+                
+                self.error.emit(self.url, error_msg)
+        except FileNotFoundError:
+            error_msg = "yt-dlp not found. Please install yt-dlp: pip install yt-dlp"
+            log.error(error_msg)
+            self.error.emit(self.url, error_msg)
+        except Exception as e:
+            error_msg = f"Download error: {str(e)}"
+            if error_output:
+                error_msg += f" | {' '.join(error_output[-2:])}"
+            log.exception(error_msg)
+            self.error.emit(self.url, error_msg)
 
     def cancel(self):
         self._is_cancelled = True
+
+    def _handle_thumbnail_embedding(self, created_files):
+            try:
+                info = getattr(self, "_meta_info", None)
+                if not info:
+                    log.debug("No metadata available for thumbnail handling")
+                    return
+
+                vid_id = info.get("id")
+                thumbs = info.get("thumbnails") or []
+                thumb_url = None
+                # choose largest thumbnail by area
+                best_area = 0
+                for t in thumbs:
+                    url = t.get("url") if isinstance(t, dict) else None
+                    if not url:
+                        continue
+                    w = t.get("width") or 0
+                    h = t.get("height") or 0
+                    area = (w or 0) * (h or 0)
+                    if area > best_area:
+                        best_area = area
+                        thumb_url = url
+                if not thumb_url:
+                    thumb_url = info.get("thumbnail")
+
+                if not thumb_url:
+                    log.debug("No thumbnail URL found in metadata for %s", vid_id)
+                    return
+
+                # build candidate variants (YouTube-friendly)
+                candidates = [(thumb_url, "original")]
+                try:
+                    if "hqdefault" in thumb_url:
+                        candidates.append((thumb_url.replace("hqdefault", "maxresdefault"), "maxresdefault"))
+                    if "default" in thumb_url:
+                        candidates.append((thumb_url.replace("default", "maxresdefault"), "maxresdefault"))
+                    if "sddefault" in thumb_url:
+                        candidates.append((thumb_url.replace("sddefault", "maxresdefault"), "maxresdefault"))
+                except Exception:
+                    pass
+
+                headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+                # directory to store temporary thumbnail while embedding
+                temp_dir = getattr(self, "temp_dir", None)
+                download_dir = temp_dir or os.getcwd()
+                os.makedirs(download_dir, exist_ok=True)
+
+                downloaded_thumb = None
+                method = None
+                created_temp_files = []
+                for cand, label in candidates:
+                    try:
+                        log.info("Trying thumbnail candidate: %s", cand)
+                        head = requests.head(cand, headers=headers, timeout=8)
+                        ok = head.status_code == 200
+                        r = None
+                        if not ok:
+                            r = requests.get(cand, stream=True, headers=headers, timeout=12)
+                            ok = r.status_code == 200
+                        else:
+                            r = requests.get(cand, stream=True, headers=headers, timeout=12)
+                        if ok and r is not None and r.status_code == 200:
+                            # write to a temporary file so we don't leave debug artifacts
+                            with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg', dir=download_dir) as tf:
+                                for chunk in r.iter_content(1024 * 8):
+                                    if chunk:
+                                        tf.write(chunk)
+                                out_path = tf.name
+                            downloaded_thumb = out_path
+                            created_temp_files.append(out_path)
+                            method = label
+                            log.info("Downloaded thumbnail %s", out_path)
+                            break
+                    except Exception as e:
+                        log.debug("Thumbnail candidate failed: %s (%s)", cand, e)
+
+                if not downloaded_thumb:
+                    log.debug("No thumbnail could be downloaded for %s", vid_id)
+                    return
+
+                # select target media file among created_files (prefer existing files containing id)
+                targets = []
+                for p in created_files:
+                    try:
+                        sp = str(p).strip().strip('"').strip("'")
+                        sp = os.path.normpath(sp)
+                        if os.path.exists(sp):
+                            # prefer files with the id in the basename
+                            targets.append(sp)
+                    except Exception:
+                        continue
+
+                # prefer targets that contain the vid_id in the filename
+                id_targets = [t for t in targets if vid_id and vid_id in os.path.basename(t)]
+                if id_targets:
+                    targets = id_targets
+
+                # fallback: search temp and completed dirs for a file containing the id
+                if not targets:
+                    try:
+                        search_dirs = []
+                        if temp_dir and os.path.isdir(temp_dir):
+                            search_dirs.append(temp_dir)
+                        if completed_dir and os.path.isdir(completed_dir):
+                            search_dirs.append(completed_dir)
+                        for d in search_dirs:
+                            for root, _, files in os.walk(d):
+                                for fn in files:
+                                    if vid_id and vid_id in fn:
+                                        targets.append(os.path.join(root, fn))
+                    except Exception:
+                        log.exception("Error searching for target media files in temp/completed dirs")
+
+                if not targets:
+                    log.debug("No target media file to embed thumbnail into for %s", vid_id)
+                    # cleanup temp thumbnail
+                    for p in created_temp_files:
+                        try:
+                            if os.path.exists(p):
+                                os.remove(p)
+                        except Exception:
+                            pass
+                    return
+
+                targets = sorted(targets, key=lambda p: os.path.getmtime(p), reverse=True)
+                target = targets[0]
+                log.info("Embedding thumbnail into %s", target)
+
+                # ensure jpg
+                thumb_jpg = downloaded_thumb
+                conv = None
+                if not thumb_jpg.lower().endswith((".jpg", ".jpeg")):
+                    conv = os.path.join(download_dir, f"embed_thumb_{vid_id}.jpg")
+                    try:
+                        subprocess.run(["ffmpeg", "-y", "-i", downloaded_thumb, conv], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                        thumb_jpg = conv
+                        created_temp_files.append(conv)
+                    except Exception:
+                        log.exception("Failed to convert thumbnail to jpg; will try using original")
+
+                # create an output temp filename that preserves the original extension
+                root, ext = os.path.splitext(target)
+                if not ext:
+                    ext = ""
+                out_tmp = f"{root}.embedtmp{ext}"
+
+                def _ffprobe(path):
+                    try:
+                        p = subprocess.run(["ffprobe", "-v", "error", "-show_streams", "-show_format", "-print_format", "json", path], capture_output=True, text=True, check=False)
+                        return p.stdout, p.stderr, p.returncode
+                    except Exception as e:
+                        return None, str(e), 1
+
+                # ffprobe info for target before embedding
+                try:
+                    info_out, info_err, info_rc = _ffprobe(target)
+                except Exception:
+                    log.exception("ffprobe failed on target before embedding")
+
+                cmd = [
+                    "ffmpeg",
+                    "-y",
+                    "-i",
+                    target,
+                    "-i",
+                    thumb_jpg,
+                    "-map",
+                    "0",
+                    "-map",
+                    "1",
+                    "-c",
+                    "copy",
+                    "-metadata:s:v:1",
+                    "title=Album cover",
+                    "-metadata:s:v:1",
+                    "comment=Cover (front)",
+                    "-disposition:v:1",
+                    "attached_pic",
+                    out_tmp,
+                ]
+
+                try:
+                    res = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    # replace original
+                    try:
+                        os.replace(out_tmp, target)
+                        log.info("Embedded thumbnail into %s", target)
+                        # ffprobe after
+                        info_out2, info_err2, _ = _ffprobe(target)
+                    except Exception:
+                        log.exception("Failed to replace original file with embedded output")
+                    finally:
+                        # cleanup any temp thumbnail files
+                        for p in created_temp_files:
+                            try:
+                                if os.path.exists(p):
+                                    os.remove(p)
+                            except Exception:
+                                pass
+                        try:
+                            if os.path.exists(out_tmp):
+                                os.remove(out_tmp)
+                        except Exception:
+                            pass
+                except subprocess.CalledProcessError as e:
+                    stderr = e.stderr.decode(errors='replace') if isinstance(e.stderr, (bytes, bytearray)) else str(e.stderr)
+                    stdout = e.stdout.decode(errors='replace') if isinstance(e.stdout, (bytes, bytearray)) else str(e.stdout)
+                    log.error("ffmpeg embedding failed for %s: %s", target, stderr or stdout)
+                    # cleanup any temp thumbnail files
+                    for p in created_temp_files:
+                        try:
+                            if os.path.exists(p):
+                                os.remove(p)
+                        except Exception:
+                            pass
+                    try:
+                        if os.path.exists(out_tmp):
+                            os.remove(out_tmp)
+                    except Exception:
+                        pass
+                    return
+            except Exception:
+                log.exception("Error in thumbnail embedding helper")

@@ -17,6 +17,11 @@ class ConfigManager:
             self.save()
         else:
             self.config.read(self.ini_path, encoding="utf-8")
+            # Ensure required sections exist
+            if not self.config.has_section("General"):
+                self.config.add_section("General")
+            if not self.config.has_section("Paths"):
+                self.config.add_section("Paths")
             log.debug(f"Loaded configuration from {self.ini_path}")
 
     def _set_defaults(self):
@@ -41,9 +46,17 @@ class ConfigManager:
 
     def get(self, section, option=None, fallback=None):
         if option:
-            return self.config.get(section, option, fallback=fallback)
-        return dict(self.config[section])
+            try:
+                return self.config.get(section, option, fallback=fallback)
+            except (configparser.NoSectionError, configparser.NoOptionError):
+                return fallback
+        try:
+            return dict(self.config[section])
+        except configparser.NoSectionError:
+            return {}
 
     def set(self, section, option, value):
+        if not self.config.has_section(section):
+            self.config.add_section(section)
         self.config.set(section, option, value)
         self.save()

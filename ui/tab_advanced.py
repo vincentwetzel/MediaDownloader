@@ -99,18 +99,16 @@ class AdvancedSettingsTab(QWidget):
         """Prompt user to choose new output directory."""
         folder = QFileDialog.getExistingDirectory(self, "Select Output Folder")
         if folder:
-            self.config["Paths"]["completed_downloads_directory"] = folder
+            self.config.set("Paths", "completed_downloads_directory", folder)
             self.out_display.setText(folder)
-            self.main.config_manager.save()
             log.debug(f"Updated output directory: {folder}")
 
     def browse_temp(self):
         """Prompt user to choose new temp directory."""
         folder = QFileDialog.getExistingDirectory(self, "Select Temporary Folder")
         if folder:
-            self.config["Paths"]["temporary_downloads_directory"] = folder
+            self.config.set("Paths", "temporary_downloads_directory", folder)
             self.temp_display.setText(folder)
-            self.main.config_manager.save()
             log.debug(f"Updated temporary directory: {folder}")
 
     def on_cookies_browser_changed(self, val):
@@ -130,8 +128,7 @@ class AdvancedSettingsTab(QWidget):
 
     def _save_general(self, key, val):
         """Save a key to the General config section."""
-        self.config["General"][key] = val
-        self.main.config_manager.save()
+        self.config.set("General", key, val)
 
     def _restore_defaults(self):
         """Restore all settings to factory defaults."""
@@ -141,7 +138,11 @@ class AdvancedSettingsTab(QWidget):
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
         if confirm == QMessageBox.StandardButton.Yes:
-            self.main.config_manager.restore_defaults()
+            # Recreate config with defaults
+            import os
+            if os.path.exists(self.config.ini_path):
+                os.remove(self.config.ini_path)
+            self.config.load_config()
             QMessageBox.information(self, "Restored", "Defaults restored. Please restart the app.")
 
     def open_downloads_folder(self):

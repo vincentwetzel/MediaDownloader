@@ -4,8 +4,7 @@
 :: This matters if the script is being run from an external source such as a Razer macro hotkey.
 CD /D %~dp0
 
-:: python -x faulthandler %~dp0\MediaDownloaderApp.pyw
-python %~dp0\MediaDownloaderApp.pyw
+python %~dp0\main.pyw
 
-::pause
+pause
 exit

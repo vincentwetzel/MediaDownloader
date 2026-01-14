@@ -71,7 +71,7 @@ class StartTab(QWidget):
                 self.video_ext_combo.setCurrentIndex(idx)
         self.video_ext_combo.setToolTip("Preferred video file format.")
         self.video_ext_combo.currentIndexChanged.connect(
-            lambda _: self.config.set("General", "video_ext", self.video_ext_combo.itemData(i) or "")
+            lambda idx: self.config.set("General", "video_ext", self.video_ext_combo.itemData(idx) or "")
         )
 
         self.vcodec_combo = QComboBox()
@@ -85,7 +85,7 @@ class StartTab(QWidget):
                 self.vcodec_combo.setCurrentIndex(idx)
         self.vcodec_combo.setToolTip("Preferred video codec (e.g., h264).")
         self.vcodec_combo.currentIndexChanged.connect(
-            lambda _: self.config.set("General", "video_codec", self.vcodec_combo.itemData(i) or "")
+            lambda idx: self.config.set("General", "video_codec", self.vcodec_combo.itemData(idx) or "")
         )
 
         vg_layout.addWidget(QLabel("Quality:"), 0, 0)
@@ -110,7 +110,7 @@ class StartTab(QWidget):
                 break
         self.audio_quality_combo.setToolTip("Preferred audio bitrate.")
         self.audio_quality_combo.currentIndexChanged.connect(
-            lambda _: self.config.set("General", "audio_quality", self.audio_quality_combo.itemData(i))
+            lambda idx: self.config.set("General", "audio_quality", self.audio_quality_combo.itemData(idx))
         )
 
         self.audio_ext_combo = QComboBox()
@@ -124,7 +124,7 @@ class StartTab(QWidget):
                 self.audio_ext_combo.setCurrentIndex(ia)
         self.audio_ext_combo.setToolTip("Preferred audio file format.")
         self.audio_ext_combo.currentIndexChanged.connect(
-            lambda _: self.config.set("General", "audio_ext", self.audio_ext_combo.itemData(i) or "")
+            lambda idx: self.config.set("General", "audio_ext", self.audio_ext_combo.itemData(idx) or "")
         )
 
         self.acodec_combo = QComboBox()
@@ -138,7 +138,7 @@ class StartTab(QWidget):
                 self.acodec_combo.setCurrentIndex(ia)
         self.acodec_combo.setToolTip("Preferred audio codec.")
         self.acodec_combo.currentIndexChanged.connect(
-            lambda _: self.config.set("General", "audio_codec", self.acodec_combo.itemData(i) or "")
+            lambda idx: self.config.set("General", "audio_codec", self.acodec_combo.itemData(idx) or "")
         )
 
         ag_layout.addWidget(QLabel("Quality:"), 0, 0)
@@ -163,16 +163,33 @@ class StartTab(QWidget):
         self.max_threads_combo.addItems(["1", "2", "3", "4"])
         self.max_threads_combo.setCurrentText(self.config.get("General", "max_threads", "2"))
         self.max_threads_combo.setToolTip("Maximum concurrent downloads.")
-        self.max_threads_combo.currentTextChanged.connect(lambda t: self.config.set("General", "max_threads", t))
+        def _on_max_changed(t):
+            # Persist the new value and notify the download manager so it
+            # can immediately start more downloads if the limit increased.
+            try:
+                self.config.set("General", "max_threads", t)
+            except Exception:
+                pass
+            try:
+                dm = getattr(self.main, 'download_manager', None)
+                if dm:
+                    dm._maybe_start_next()
+            except Exception:
+                pass
+
+        self.max_threads_combo.currentTextChanged.connect(_on_max_changed)
 
         self.audio_only_cb = QCheckBox("Download audio only")
         self.audio_only_cb.setChecked(False)
         self.audio_only_cb.setToolTip("If checked, download only audio.")
         self.exit_after_cb = QCheckBox("Exit after all downloads complete")
-        self.exit_after_cb.setChecked(self.config.get("General", "exit_after", "False") == "True")
+        # Always start unchecked on app launch; do not persist this checkbox's state.
+        self.exit_after_cb.setChecked(False)
         self.exit_after_cb.setToolTip("Automatically close app after all downloads finish.")
+        # Update runtime flag on change, but don't save to config file.
+        # Use boolean conversion of the state (non-zero => checked) to avoid Qt enum issues.
         self.exit_after_cb.stateChanged.connect(
-            lambda s: self.config.set("General", "exit_after", "True" if s else "False"))
+            lambda s: setattr(self.main, "exit_after", (s != 0)))
 
         bottom.addWidget(playlist_lbl, 0, 0)
         bottom.addWidget(self.playlist_mode, 0, 1)
@@ -200,6 +217,13 @@ class StartTab(QWidget):
             return
         opts = {
             "audio_only": self.audio_only_cb.isChecked(),
+            "video_quality": self.video_quality_combo.currentText(),
+            "video_ext": self.video_ext_combo.itemData(self.video_ext_combo.currentIndex()) or "",
+            "video_codec": self.vcodec_combo.itemData(self.vcodec_combo.currentIndex()) or "",
+            "audio_quality": self.audio_quality_combo.itemData(self.audio_quality_combo.currentIndex()) or "best",
+            "audio_ext": self.audio_ext_combo.itemData(self.audio_ext_combo.currentIndex()) or "",
+            "audio_codec": self.acodec_combo.itemData(self.acodec_combo.currentIndex()) or "",
+            "playlist_mode": self.playlist_mode.currentText(),
         }
         self.main.start_downloads(urls, opts)
 
