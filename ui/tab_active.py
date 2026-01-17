@@ -107,6 +107,8 @@ class DownloadItemWidget(QWidget):
                 "chap", "chapter", "chapters", "modify", "modifychap",
                 "sponsor", "sponsorblock", "embed", "thumbnail", "tag"
             )
+            # Also treat audio extraction as postprocessing (e.g. "Extracting audio")
+            post_keys = post_keys + ("extract",)
             is_postprocessing = any(k in low_text for k in post_keys)
             # Remember that we're in postprocessing until finished().
             if is_postprocessing:
@@ -164,6 +166,10 @@ class DownloadItemWidget(QWidget):
                 "merg", "merge", "merging", "delet", "remov", "ffmpeg",
                 "postproc", "post-process", "merger"
             )
+            # Treat audio extraction as postprocessing (yt-dlp reports "Extracting audio")
+            # so the progress chunk remains active/blue until finished().
+            # Detect via the substring 'extract'.
+            post_keys = post_keys + ("extract",)
             if any(k in low for k in post_keys):
                 self.progress.setStyleSheet(
                     "QProgressBar { border: 1px solid #bbb; border-radius: 6px; background: #eeeeee; }"
@@ -473,7 +479,7 @@ class ActiveDownloadsTab(QWidget):
         # percent is available (e.g. yt-dlp reports 100% then begins merging).
         post_keys = (
             "merg", "merge", "merging", "delet", "remov", "ffmpeg",
-            "postproc", "post-process", "merger"
+            "postproc", "post-process", "merger", "extract"
         )
         is_postprocessing = any(k in low for k in post_keys)
 
@@ -482,8 +488,8 @@ class ActiveDownloadsTab(QWidget):
         # the UI can keep the active/blue styling until the worker signals done.
         if is_postprocessing or "merging" in low:
             right_text = "Postprocessing..."
-        elif "destination:" in low or "preparing" in low or "extracting" in low:
-            # e.g. Destination: <file> or Extracting audio
+        elif "destination:" in low or "preparing" in low:
+            # e.g. Destination: <file>
             right_text = "Preparing Download..."
         # If we have a numeric percent and we're NOT in postprocessing, prefer
         # the concise downloading line using the numeric percent.
@@ -673,6 +679,75 @@ class ActiveDownloadsTab(QWidget):
         self.list_widget.setItemWidget(lw_item, item_widget)
         self.active_items[url] = item_widget
         return item_widget
+
+    def replace_placeholder_with_entries(self, old_url, new_urls):
+        """Replace a single placeholder for `old_url` with placeholders for
+        each URL in `new_urls`. Keeps ordering by inserting new items where
+        the old placeholder was located.
+        """
+        try:
+            old_widget = self.active_items.get(old_url)
+            insert_pos = None
+            # Find the QListWidgetItem index for the old widget
+            for idx in range(self.list_widget.count()):
+                it = self.list_widget.item(idx)
+                w = self.list_widget.itemWidget(it)
+                if w is old_widget:
+                    insert_pos = idx
+                    break
+
+            # Remove old widget and mapping
+            if insert_pos is not None:
+                try:
+                    taken = self.list_widget.takeItem(insert_pos)
+                    # delete the widget if possible
+                    try:
+                        old_widget.setParent(None)
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+            if old_url in self.active_items:
+                try:
+                    del self.active_items[old_url]
+                except Exception:
+                    pass
+
+            # Insert new placeholders at the old position (or at end if not found)
+            pos = insert_pos if insert_pos is not None else self.list_widget.count()
+            for i, nu in enumerate(new_urls):
+                try:
+                    item_widget = DownloadItemWidget(nu)
+                    item_widget.cancel_requested.connect(self._cancel_download)
+                    item_widget.retry_requested.connect(self._retry_download)
+                    item_widget.resume_requested.connect(self._resume_download)
+                    lw_item = QListWidgetItem()
+                    lw_item.setSizeHint(item_widget.sizeHint())
+                    self.list_widget.insertItem(pos + i, lw_item)
+                    self.list_widget.setItemWidget(lw_item, item_widget)
+                    self.active_items[nu] = item_widget
+                except Exception:
+                    log.exception(f"Failed to create placeholder for {nu}")
+        except Exception:
+            log.exception("Error replacing playlist placeholder")
+
+    def set_placeholder_message(self, url, message):
+        """Set the title/label of an existing placeholder for `url` to `message`.
+        No-op if the placeholder does not exist.
+        """
+        try:
+            w = self.active_items.get(url)
+            if not w:
+                return
+            try:
+                w.title_label.setText(message)
+            except Exception:
+                try:
+                    w.setWindowTitle(message)
+                except Exception:
+                    pass
+        except Exception:
+            log.exception("Failed to set placeholder message")
 
     def update_progress(self, url, percent, text):
         """Update the download progress for a given URL."""

@@ -62,7 +62,7 @@ class StartTab(QWidget):
 
         self.video_ext_combo = QComboBox()
         self.video_ext_combo.addItem("default (yt-dlp)", "")
-        for ex in ("mp4", "mkv", "webm"):
+        for ex in ("mp4", "mkv", "webm", "avi", "flv", "mov"):
             self.video_ext_combo.addItem(ex, ex)
         cur_ext = self.config.get("General", "video_ext", "")
         if cur_ext:
@@ -76,7 +76,7 @@ class StartTab(QWidget):
 
         self.vcodec_combo = QComboBox()
         self.vcodec_combo.addItem("default (yt-dlp)", "")
-        for c in ("h264", "h265", "vp9"):
+        for c in ("h264", "h265", "vp9", "av1"):
             self.vcodec_combo.addItem(c, c)
         cur_codec = self.config.get("General", "video_codec", "")
         if cur_codec:
@@ -115,7 +115,7 @@ class StartTab(QWidget):
 
         self.audio_ext_combo = QComboBox()
         self.audio_ext_combo.addItem("default (yt-dlp)", "")
-        for ex in ("mp3", "m4a", "opus", "aac", "flac"):
+        for ex in ("mp3", "m4a", "opus", "aac", "flac", "alac", "vorbis", "wav"):
             self.audio_ext_combo.addItem(ex, ex)
         cura = self.config.get("General", "audio_ext", "")
         if cura:
@@ -129,7 +129,7 @@ class StartTab(QWidget):
 
         self.acodec_combo = QComboBox()
         self.acodec_combo.addItem("default (yt-dlp)", "")
-        for a in ("aac", "opus", "mp3", "vorbis", "flac"):
+        for a in ("aac", "opus", "mp3", "vorbis", "flac", "alac"):
             self.acodec_combo.addItem(a, a)
         curaud = self.config.get("General", "audio_codec", "")
         if curaud:

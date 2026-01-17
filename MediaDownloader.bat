@@ -6,5 +6,5 @@ CD /D %~dp0
 
 python %~dp0\main.pyw
 
-pause
+:: pause
 exit

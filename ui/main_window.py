@@ -7,7 +7,7 @@ from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 
 from core.config_manager import ConfigManager
 from core.download_manager import DownloadManager
-from core.playlist_expander import expand_playlist
+from core.playlist_expander import expand_playlist, is_likely_playlist
 from ui.tab_start import StartTab
 from ui.tab_active import ActiveDownloadsTab
 from ui.tab_advanced import AdvancedSettingsTab
@@ -74,68 +74,78 @@ class MediaDownloaderApp(QMainWindow):
     # -------------------------------------------------------------------------
 
     def start_downloads(self, urls, opts):
-        """Start downloads for one or multiple URLs."""
-        log.info(f"Starting downloads for {len(urls)} item(s)")
-        # Immediately create UI placeholders for each provided URL so the
-        # Active Downloads tab shows entries with no delay.
-        try:
-            for url in urls:
-                try:
+        """Start downloads for one or multiple URLs, handling playlist logic."""
+        log.info(f"Starting downloads for {len(urls)} item(s) with opts: {opts}")
+        self.tabs.setCurrentWidget(self.tab_active)
+        self._downloads_in_progress = True
+
+        playlist_mode = opts.get("playlist_mode", "Ask")
+
+        for url in urls:
+            is_playlist = is_likely_playlist(url)
+
+            if is_playlist and playlist_mode == "Ask":
+                msg_box = QMessageBox(self)
+                msg_box.setWindowTitle("Playlist Detected")
+                msg_box.setText(f"The URL you provided appears to be a playlist:\n\n{url}")
+                msg_box.setInformativeText("Do you want to download the entire playlist or just the single video?")
+                btn_all = msg_box.addButton("Download All", QMessageBox.ButtonRole.YesRole)
+                btn_one = msg_box.addButton("Download Single", QMessageBox.ButtonRole.NoRole)
+                msg_box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
+                msg_box.exec()
+
+                clicked_button = msg_box.clickedButton()
+                if clicked_button == btn_all:
+                    # Download All
                     self.tab_active.add_download_widget(url)
-                except Exception:
-                    log.debug(f"Failed to add immediate placeholder for {url}", exc_info=True)
-            # Switch to Active Downloads tab immediately
-            try:
-                self.tabs.setCurrentWidget(self.tab_active)
-            except Exception:
-                log.debug("Failed to switch to Active Downloads tab immediately", exc_info=True)
-            # Mark downloads in progress
-            self._downloads_in_progress = True
-        except Exception:
-            log.debug("Immediate placeholder creation failed", exc_info=True)
+                    self.tab_active.set_placeholder_message(url, "Preparing playlist download...")
+                    self._start_background_download_processing([url], opts, expand_playlists=True)
+                elif clicked_button == btn_one:
+                    # Download Single
+                    self.tab_active.add_download_widget(url)
+                    self._start_background_download_processing([url], opts, expand_playlists=False)
+                else:
+                    # Cancel
+                    log.info(f"Playlist download cancelled by user for URL: {url}")
 
-        # Run playlist expansion and add_download calls in a background thread
-        # to avoid blocking the GUI when expanding or processing many URLs.
+            elif is_playlist and "single" in playlist_mode.lower():
+                # Download Single (ignore playlist)
+                self.tab_active.add_download_widget(url)
+                self._start_background_download_processing([url], opts, expand_playlists=False)
+
+            else:
+                # Download All (or not a playlist)
+                self.tab_active.add_download_widget(url)
+                if is_playlist:
+                     self.tab_active.set_placeholder_message(url, "Preparing playlist download...")
+                self._start_background_download_processing([url], opts, expand_playlists=True)
+
+
+    def _start_background_download_processing(self, urls, opts, expand_playlists=True):
+        """Helper to run playlist expansion and download queuing in a background thread."""
         def _bg_worker():
-            any_added = False
             for url in urls:
-                try:
-                    expanded = expand_playlist(url)
-                except Exception:
-                    expanded = [url]
-                for sub_url in expanded:
-                    # Request add_download on the GUI thread via signal (thread-safe)
+                urls_to_download = []
+                if expand_playlists:
                     try:
-                        self.add_download_request.emit(sub_url, opts)
+                        expanded = expand_playlist(url)
+                        # If playlist, update UI
+                        if len(expanded) > 1:
+                            QTimer.singleShot(0, lambda u=url, c=len(expanded): self.tab_active.set_placeholder_message(u, f"Calculating playlist ({c} items)..."))
+                            QTimer.singleShot(0, lambda u=url, e=expanded: self.tab_active.replace_placeholder_with_entries(u, e))
+                        urls_to_download.extend(expanded)
                     except Exception:
-                        # As a last resort, try scheduling via QTimer
-                        QTimer.singleShot(0, lambda su=sub_url: self.download_manager.add_download(su, opts))
-                    any_added = True
-            # Mark as downloads in progress (set on GUI thread via signal)
-            if any_added:
-                try:
-                    self.add_download_request.emit('__mark_in_progress__', None)
-                except Exception:
-                    QTimer.singleShot(0, lambda: setattr(self, '_downloads_in_progress', True))
+                        urls_to_download.append(url)
+                else:
+                    urls_to_download.append(url)
 
-        try:
-            t = threading.Thread(target=_bg_worker, daemon=True)
-            t.start()
-        except Exception:
-            # Fallback to synchronous behavior if thread cannot be started
-            log.exception("Failed to start background thread for downloads; falling back to synchronous start")
-            added_any = False
-            for url in urls:
-                expanded = expand_playlist(url)
-                for sub_url in expanded:
-                    self.download_manager.add_download(sub_url, opts)
-                    added_any = True
-            self._downloads_in_progress = True
-            if added_any:
-                try:
-                    self.tabs.setCurrentWidget(self.tab_active)
-                except Exception:
-                    log.exception("Failed to switch to Active Downloads tab")
+                for sub_url in urls_to_download:
+                    QTimer.singleShot(0, lambda su=sub_url, o=opts: self.download_manager.add_download(su, o))
+
+            QTimer.singleShot(0, lambda: setattr(self, '_downloads_in_progress', True))
+
+        thread = threading.Thread(target=_bg_worker, daemon=True)
+        thread.start()
 
     def _handle_add_download_request(self, url, opts):
         """Slot invoked in GUI thread to actually add a download or update state.
@@ -148,6 +158,21 @@ class MediaDownloaderApp(QMainWindow):
                 self.tabs.setCurrentWidget(self.tab_active)
             except Exception:
                 pass
+            return
+        if url == '__playlist_expanded__':
+            try:
+                orig, expanded = opts
+                self.tab_active.replace_placeholder_with_entries(orig, expanded)
+            except Exception:
+                log.exception("Failed to replace playlist placeholder with entries")
+            return
+        if url == '__playlist_detected__':
+            try:
+                orig, count = opts
+                # Update the existing placeholder to a calculating message
+                self.tab_active.set_placeholder_message(orig, f"Calculating playlist ({count} items)...")
+            except Exception:
+                log.exception("Failed to set playlist calculating message")
             return
         try:
             self.download_manager.add_download(url, opts)
