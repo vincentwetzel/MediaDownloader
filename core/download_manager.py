@@ -3,6 +3,7 @@ import os
 import sys
 import shutil
 from core.yt_dlp_worker import DownloadWorker, check_yt_dlp_available, fetch_metadata
+from core.playlist_expander import expand_playlist
 import threading
 from core.config_manager import ConfigManager
 from PyQt6.QtCore import QObject, pyqtSignal
@@ -33,122 +34,116 @@ class DownloadManager(QObject):
         """Convert options dict to list of command-line arguments."""
         if isinstance(opts, list):
             return opts  # Already a list
-        
+
         args = []
         if not isinstance(opts, dict):
             return args
-        
-        # Output directory (write to temporary downloads directory first)
+
+        # Output directory
         temp_dir = self.config.get("Paths", "temporary_downloads_directory", fallback="")
         output_dir = temp_dir or self.config.get("Paths", "completed_downloads_directory", fallback="")
         if output_dir:
-            # Ensure directory exists and is writable
             try:
                 os.makedirs(output_dir, exist_ok=True)
-                # Test if directory is writable
                 test_file = os.path.join(output_dir, ".test_write")
-                try:
-                    with open(test_file, 'w') as f:
-                        f.write("test")
-                    os.remove(test_file)
-                except (PermissionError, OSError) as e:
-                    log.error(f"Output directory is not writable: {output_dir} - {e}")
-                    # Don't set output directory if not writable
-                    output_dir = ""
-            except (PermissionError, OSError) as e:
-                log.error(f"Could not create/access output directory {output_dir}: {e}")
-                output_dir = ""
-            
-            if output_dir:
-                # Build yt-dlp output template in the configured completed-downloads directory.
-                # Use a safe filename template and convert backslashes to forward slashes
-                # so yt-dlp won't misinterpret Windows backslashes.
-                # Use the requested filename template: title up to 90 chars, uploader up to 30 chars,
-                # upload date formatted MM-DD-YYYY, and id.
+                with open(test_file, 'w') as f:
+                    f.write("test")
+                os.remove(test_file)
                 output_template = os.path.join(output_dir, "%(title).90s [%(uploader).30s][%(upload_date>%m-%d-%Y)s][%(id)s].%(ext)s")
                 output_template = output_template.replace("\\", "/")
                 args.extend(["-o", output_template])
-        
-        # Ensure yt-dlp emits progress updates as separate lines so the
-        # subprocess reader can capture incremental progress (avoids only
-        # receiving progress at completion when yt-dlp uses carriage returns).
+            except (PermissionError, OSError) as e:
+                log.error(f"Output directory is not writable or accessible: {output_dir} - {e}")
+
         args.append("--newline")
-        
-        # Audio only mode
-        if opts.get("audio_only"):
+
+        # --- Audio/Video Format Selection ---
+        audio_only = opts.get("audio_only")
+
+        if audio_only:
             args.append("--extract-audio")
-            audio_ext = opts.get("audio_ext") or self.config.get("General", "audio_ext", fallback="mp3") or "mp3"
+            audio_ext = opts.get("audio_ext") or self.config.get("General", "audio_ext", fallback="mp3")
             args.extend(["--audio-format", audio_ext])
+
             audio_quality = opts.get("audio_quality") or self.config.get("General", "audio_quality", fallback="best")
             if audio_quality and audio_quality != "best":
-                # Convert "192k" to "192" for yt-dlp
                 quality_val = str(audio_quality).replace("k", "").replace("K", "")
                 args.extend(["--audio-quality", quality_val])
+
+            audio_codec = opts.get("audio_codec") or self.config.get("General", "audio_codec", fallback="")
+            if audio_codec:
+                args.extend(["--acodec", audio_codec])
         else:
-            # Video format selection
+            # Build a format selector string for video + audio
+            video_format_parts = []
             video_quality = opts.get("video_quality") or self.config.get("General", "video_quality", fallback="best")
             if video_quality and video_quality != "best":
-                # Convert quality like "1080p" to format selector
                 try:
                     height = int(video_quality.replace("p", "").replace("P", ""))
-                    args.extend(["-f", f"bestvideo[height<={height}]+bestaudio/best"])
+                    video_format_parts.append(f"[height<={height}]")
                 except ValueError:
-                    # If parsing fails, use best
-                    log.warning(f"Invalid video quality format: {video_quality}, using best")
-            
+                    log.warning(f"Invalid video quality format: {video_quality}, ignoring.")
+
+            video_codec = opts.get("video_codec") or self.config.get("General", "video_codec", fallback="")
+            if video_codec:
+                # Use `~=` for fuzzy matching (e.g., avc1.xxxxxx matches avc1)
+                video_format_parts.append(f"[vcodec~={video_codec}]")
+
             video_ext = opts.get("video_ext") or self.config.get("General", "video_ext", fallback="")
             if video_ext:
-                args.extend(["--merge-output-format", video_ext])
-        
-        # Playlist handling
+                video_format_parts.append(f"[ext={video_ext}]")
+
+            # Audio format parts (for the audio component of the video)
+            audio_format_parts = []
+            audio_codec = opts.get("audio_codec") or self.config.get("General", "audio_codec", fallback="")
+            if audio_codec:
+                audio_format_parts.append(f"[acodec~={audio_codec}]")
+
+            # Combine parts into final format string
+            video_selector = "bestvideo" + "".join(video_format_parts)
+            audio_selector = "bestaudio" + "".join(audio_format_parts)
+            
+            # Final format string: e.g., "bestvideo[height<=1080]+bestaudio/best"
+            format_string = f"{video_selector}+{audio_selector}/best"
+            args.extend(["-f", format_string])
+
+            # Specify the final container format after merging
+            merge_ext = video_ext or self.config.get("General", "video_ext", fallback="")
+            if merge_ext:
+                args.extend(["--merge-output-format", merge_ext])
+
+        # --- Other Options ---
         playlist_mode = opts.get("playlist_mode", "Ask")
         if "ignore" in playlist_mode.lower() or "single" in playlist_mode.lower():
             args.append("--no-playlist")
         elif "all" in playlist_mode.lower() or "no prompt" in playlist_mode.lower():
             args.append("--yes-playlist")
-        
-        # SponsorBlock
+
         if self.config.get("General", "sponsorblock", fallback="True") == "True":
             args.append("--sponsorblock-remove")
             args.append("sponsor,intro,outro,selfpromo,interaction,preview,music_offtopic")
-        
-        # Restrict filenames
-        # Filename sanitization: prefer explicit `windowsfilenames` config.
-        # If `windowsfilenames` is True, pass `--windows-filenames` to yt-dlp
-        # which specifically targets Windows-invalid characters (e.g. ':').
-        # If `restrict_filenames` is True, pass `--restrict-filenames` instead.
-        # If neither is set and we're on Windows, default to `--windows-filenames`.
-        try:
-            windows_cfg = self.config.get("General", "windowsfilenames", fallback=None)
-        except Exception:
-            windows_cfg = None
-        try:
-            restrict_cfg = self.config.get("General", "restrict_filenames", fallback=None)
-        except Exception:
-            restrict_cfg = None
 
+        windows_cfg = self.config.get("General", "windowsfilenames", fallback=None)
+        restrict_cfg = self.config.get("General", "restrict_filenames", fallback=None)
         if str(windows_cfg) == "True":
             args.append("--windows-filenames")
         elif str(restrict_cfg) == "True":
             args.append("--restrict-filenames")
-        else:
-            # Default to windows-safe names on Windows if user hasn't configured
-            try:
-                if os.name == 'nt':
-                    args.append("--windows-filenames")
-                    log.debug("Defaulting to --windows-filenames on Windows")
-            except Exception:
-                pass
-        
-        # Rate limit
+        elif os.name == 'nt':
+            args.append("--windows-filenames")
+
         rate_limit = self.config.get("General", "rate_limit", fallback="0")
         if rate_limit and rate_limit not in ("0", "", "no limit", "No limit"):
             args.extend(["--limit-rate", rate_limit])
-        
+
         return args
 
-    def add_download(self, url, opts):
-        # Convert opts dict to command-line args if needed
+
+    def _enqueue_single_download(self, url, opts, parent_url=None):
+        """Create and queue a single DownloadWorker for the given URL.
+        Keeps the original behavior but is factored so playlists can be expanded
+        into multiple individual enqueues.
+        """
         # Store original opts so retry/resume can reuse them
         try:
             self._original_opts[url] = opts
@@ -159,8 +154,6 @@ class DownloadManager(QObject):
         log.info(f"Queueing download for {url} with args: {cmd_args}")
         worker = DownloadWorker(url, cmd_args)
         worker.progress.connect(self._on_progress)
-        # Bind the worker object into the callbacks so we can identify and
-        # remove it from active lists when it finishes/errors.
         worker.finished.connect(lambda url, success, files, w=worker: self._on_finished(w, url, success, files))
         worker.error.connect(lambda url, msg, w=worker: self._on_error(w, url, msg))
 
@@ -188,6 +181,7 @@ class DownloadManager(QObject):
             self._pending_queue.append(worker)
             log.debug(f"Download queued: {url}")
 
+        # Emit for UI to create per-download UI element
         self.download_added.emit(worker)
 
         # Fetch metadata (title) in background so queued items can show their title
@@ -212,11 +206,21 @@ class DownloadManager(QObject):
             t = threading.Thread(target=_fetch_and_emit_title, args=(worker,), daemon=True)
             t.start()
         except Exception:
-            # best-effort; don't block or crash if thread can't start
             pass
 
         # Attempt to start queued downloads in case slots are available
         self._maybe_start_next()
+
+    def add_download(self, url, opts):
+        """Public entry point for adding a single download request.
+
+        Playlist expansion is handled by the UI/background worker so this
+        method keeps enqueuing lightweight and non-blocking.
+        """
+        try:
+            self._enqueue_single_download(url, opts)
+        except Exception:
+            log.exception(f"Failed to enqueue download: {url}")
 
     def _on_progress(self, data):
         log.debug(f"Progress: {data}")
