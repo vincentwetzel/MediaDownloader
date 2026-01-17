@@ -131,8 +131,8 @@ class MediaDownloaderApp(QMainWindow):
                         expanded = expand_playlist(url)
                         # If playlist, update UI
                         if len(expanded) > 1:
-                            QTimer.singleShot(0, lambda u=url, c=len(expanded): self.tab_active.set_placeholder_message(u, f"Calculating playlist ({c} items)..."))
-                            QTimer.singleShot(0, lambda u=url, e=expanded: self.tab_active.replace_placeholder_with_entries(u, e))
+                            self.add_download_request.emit('__playlist_detected__', (url, len(expanded)))
+                            self.add_download_request.emit('__playlist_expanded__', (url, expanded))
                         urls_to_download.extend(expanded)
                     except Exception:
                         urls_to_download.append(url)
@@ -140,9 +140,9 @@ class MediaDownloaderApp(QMainWindow):
                     urls_to_download.append(url)
 
                 for sub_url in urls_to_download:
-                    QTimer.singleShot(0, lambda su=sub_url, o=opts: self.download_manager.add_download(su, o))
+                    self.add_download_request.emit(sub_url, opts)
 
-            QTimer.singleShot(0, lambda: setattr(self, '_downloads_in_progress', True))
+            self.add_download_request.emit('__mark_in_progress__', None)
 
         thread = threading.Thread(target=_bg_worker, daemon=True)
         thread.start()

@@ -46,14 +46,18 @@ class DownloadManager(QObject):
             try:
                 os.makedirs(output_dir, exist_ok=True)
                 test_file = os.path.join(output_dir, ".test_write")
-                with open(test_file, 'w') as f:
-                    f.write("test")
-                os.remove(test_file)
+                try:
+                    with open(test_file, 'w') as f:
+                        f.write("test")
+                finally:
+                    if os.path.exists(test_file):
+                        os.remove(test_file)
                 output_template = os.path.join(output_dir, "%(title).90s [%(uploader).30s][%(upload_date>%m-%d-%Y)s][%(id)s].%(ext)s")
                 output_template = output_template.replace("\\", "/")
                 args.extend(["-o", output_template])
             except (PermissionError, OSError) as e:
                 log.error(f"Output directory is not writable or accessible: {output_dir} - {e}")
+                raise ValueError(f"Output directory is not writable or accessible: {output_dir}. Please check permissions or select a different directory.")
 
         args.append("--newline")
 
@@ -150,7 +154,12 @@ class DownloadManager(QObject):
         except Exception:
             self._original_opts[url] = opts
 
-        cmd_args = self._convert_opts_to_args(opts)
+        try:
+            cmd_args = self._convert_opts_to_args(opts)
+        except ValueError as e:
+            log.error(f"Failed to prepare download for {url}: {e}")
+            self.download_error.emit(url, str(e))
+            return
         log.info(f"Queueing download for {url} with args: {cmd_args}")
         worker = DownloadWorker(url, cmd_args)
         worker.progress.connect(self._on_progress)

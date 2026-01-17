@@ -18,113 +18,97 @@ _YT_DLP_PATH = None
 def check_yt_dlp_available():
     """Check if yt-dlp is available and return version info. Tries all found versions."""
     global _YT_DLP_PATH
-    try:
-        # Check if yt-dlp is in PATH
-        yt_dlp_path = shutil.which("yt-dlp")
-        # Normalize the path: remove stray whitespace/newlines which can
-        # cause subprocess to fail on Windows when executing the path.
-        if yt_dlp_path:
-            yt_dlp_path = yt_dlp_path.strip()
-            # On Windows, ensure .exe extension if missing
-            import os as _os
-            if _os.name == 'nt' and not yt_dlp_path.lower().endswith('.exe'):
-                candidate = yt_dlp_path + '.exe'
-                if _os.path.exists(candidate):
-                    yt_dlp_path = candidate
-        if not yt_dlp_path:
-            return False, "yt-dlp not found in PATH"
-        
-        log.info(f"yt-dlp found at (first in PATH): {yt_dlp_path}")
-        
-        # Skip Python312 installations since Python312 was removed from PATH
-        skip_first = "Python312" in yt_dlp_path
-        
-        if not skip_first:
-            # Try the first one found in PATH
+    
+    candidate_paths = []
+
+    # 1. Check if yt-dlp is in PATH using shutil.which
+    yt_dlp_in_path = shutil.which("yt-dlp")
+    if yt_dlp_in_path:
+        candidate_paths.append(yt_dlp_in_path.strip())
+
+    # 2. Add common Python Scripts directories for yt-dlp.exe on Windows
+    #    This covers both system-wide and user-specific installations
+    #    Iterate through common Python versions to be more robust
+    python_versions = ["Python313", "Python312", "Python311", "Python310"] # Add more as needed
+    for version in python_versions:
+        # System-wide (e.g., C:\Program Files\PythonXX\Scripts)
+        prog_files_python_scripts = os.path.join(
+            os.environ.get("PROGRAMFILES", r"C:\Program Files"),
+            version, "Scripts", "yt-dlp.exe"
+        )
+        if os.path.exists(prog_files_python_scripts):
+            candidate_paths.append(prog_files_python_scripts)
+
+        # User-specific AppData (e.g., C:\Users\User\AppData\Local\Programs\Python\PythonXX\Scripts)
+        local_app_data_python_scripts = os.path.join(
+            os.environ.get("LOCALAPPDATA", ""),
+            "Programs", "Python", version, "Scripts", "yt-dlp.exe"
+        )
+        if os.path.exists(local_app_data_python_scripts):
+            candidate_paths.append(local_app_data_python_scripts)
+            
+        # User-specific AppData Roaming (e.g., C:\Users\User\AppData\Roaming\Python\PythonXX\Scripts)
+        roaming_app_data_python_scripts = os.path.join(
+            os.environ.get("APPDATA", ""),
+            "Python", version, "Scripts", "yt-dlp.exe"
+        )
+        if os.path.exists(roaming_app_data_python_scripts):
+            candidate_paths.append(roaming_app_data_python_scripts)
+
+    # 3. Add explicit common direct installation paths for yt-dlp.exe
+    common_direct_paths = [
+        r"C:\yt-dlp\yt-dlp.exe",
+        r"C:\Program Files\yt-dlp\yt-dlp.exe",
+        r"C:\Program Files (x86)\yt-dlp\yt-dlp.exe",
+        os.path.join(os.environ.get("LOCALAPPDATA", ""), "yt-dlp", "yt-dlp.exe"),
+    ]
+    for path in common_direct_paths:
+        if os.path.exists(path):
+            candidate_paths.append(path)
+
+    # Remove duplicates and ensure .exe on Windows if missing
+    final_candidate_paths = []
+    seen_paths = set()
+    for path in candidate_paths:
+        normalized_path = path
+        if os.name == 'nt' and not normalized_path.lower().endswith('.exe') and os.path.exists(normalized_path + '.exe'):
+            normalized_path += '.exe'
+        if normalized_path not in seen_paths:
+            final_candidate_paths.append(normalized_path)
+            seen_paths.add(normalized_path)
+
+    log.info(f"Checking for yt-dlp in candidates: {final_candidate_paths}")
+
+    for yt_dlp_path in final_candidate_paths:
+        if not os.path.exists(yt_dlp_path):
+            continue
+        try:
+            log.debug(f"Attempting to verify yt-dlp at: {yt_dlp_path}")
             result = subprocess.run(
-                [yt_dlp_path, "--version"],  # Use full path instead of just "yt-dlp"
+                [yt_dlp_path, "--version"],
                 capture_output=True,
                 text=True,
                 timeout=5,
                 shell=False,
                 errors='replace'
             )
-            
-            log.info(f"yt-dlp --version return code: {result.returncode}")
-            log.info(f"yt-dlp --version stdout: {result.stdout}")
-            log.info(f"yt-dlp --version stderr: {result.stderr}")
-            
+
             if result.returncode == 0:
                 version = result.stdout.strip()
-                _YT_DLP_PATH = yt_dlp_path  # Store working path
-                return True, f"yt-dlp found at: {yt_dlp_path}, version: {version}"
-        else:
-            log.info(f"Skipping Python312 installation: {yt_dlp_path}")
-            result = None
-        
-        if skip_first or (result and result.returncode != 0):
-            # Try to find other yt-dlp installations
-            # Skip Python312 since it was removed from PATH
-            import os
-            possible_paths = [
-                # Python 313 installations (preferred)
-                r"C:\Python313\Scripts\yt-dlp.exe",
-                r"C:\Users\vince\AppData\Roaming\Python\Python313\Scripts\yt-dlp.exe",
-            ]
-            
-            # Also check common Python script locations (Python 313 only)
-            python_scripts = [
-                os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Python", "Python313", "Scripts", "yt-dlp.exe"),
-                os.path.join(os.environ.get("APPDATA", ""), "Python", "Python313", "Scripts", "yt-dlp.exe"),
-            ]
-            possible_paths.extend(python_scripts)
-            
-            # Only try Python312 if it's still in PATH (unlikely but check anyway)
-            python312_in_path = False
-            try:
-                path_result = subprocess.run(["where", "python"], capture_output=True, text=True, shell=True)
-                if "Python312" in path_result.stdout:
-                    python312_in_path = True
-            except Exception:
-                pass
-            
-            if python312_in_path:
-                possible_paths.append(r"C:\Program Files\Python312\Scripts\yt-dlp.exe")
-            
-            log.info(f"First yt-dlp failed, trying other locations...")
-            for alt_path in possible_paths:
-                if alt_path and os.path.exists(alt_path):
-                    log.info(f"Trying alternative: {alt_path}")
-                    try:
-                        alt_result = subprocess.run(
-                            [alt_path, "--version"],
-                            capture_output=True,
-                            text=True,
-                            timeout=5,
-                            shell=False,
-                            errors='replace'
-                        )
-                        if alt_result.returncode == 0:
-                            version = alt_result.stdout.strip()
-                            log.info(f"Working yt-dlp found at: {alt_path}, version: {version}")
-                            # Store this path for future use
-                            _YT_DLP_PATH = alt_path
-                            return True, f"yt-dlp found at: {alt_path}, version: {version}"
-                    except Exception as e:
-                        log.debug(f"Failed to test {alt_path}: {e}")
-            
-            error_details = f"return code: {result.returncode}"
-            if result.stderr:
-                error_details += f", stderr: {result.stderr.strip()}"
-            if result.stdout:
-                error_details += f", stdout: {result.stdout.strip()}"
-            return False, f"yt-dlp found but --version failed ({error_details}). Multiple installations may be conflicting."
-    except FileNotFoundError:
-        return False, "yt-dlp executable not found"
-    except subprocess.TimeoutExpired:
-        return False, "yt-dlp --version timed out"
-    except Exception as e:
-        return False, f"Error checking yt-dlp: {str(e)}"
+                _YT_DLP_PATH = yt_dlp_path
+                log.info(f"Working yt-dlp found at: {_YT_DLP_PATH}, version: {version}")
+                return True, f"yt-dlp found at: {_YT_DLP_PATH}, version: {version}"
+            else:
+                log.warning(f"yt-dlp at {yt_dlp_path} --version failed. Return code: {result.returncode}, Stderr: {result.stderr.strip()}")
+        except FileNotFoundError:
+            log.debug(f"yt-dlp executable not found at {yt_dlp_path} during verification.")
+        except subprocess.TimeoutExpired:
+            log.warning(f"yt-dlp at {yt_dlp_path} --version timed out.")
+        except Exception as e:
+            log.error(f"Error verifying yt-dlp at {yt_dlp_path}: {str(e)}")
+
+    _YT_DLP_PATH = None
+    return False, "yt-dlp executable not found or not working. Please ensure it's installed and in your system's PATH, or at a common install location."
 
 
 def fetch_metadata(url: str, timeout: int = 15):
