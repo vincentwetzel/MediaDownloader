@@ -45,14 +45,20 @@ class DownloadManager(QObject):
         if output_dir:
             try:
                 os.makedirs(output_dir, exist_ok=True)
+                # Test write permissions
                 test_file = os.path.join(output_dir, ".test_write")
                 try:
                     with open(test_file, 'w') as f:
                         f.write("test")
                 finally:
                     if os.path.exists(test_file):
-                        os.remove(test_file)
+                        try:
+                            os.remove(test_file)
+                        except Exception:
+                            pass
+                
                 output_template = os.path.join(output_dir, "%(title).90s [%(uploader).30s][%(upload_date>%m-%d-%Y)s][%(id)s].%(ext)s")
+                # Normalize path separators for yt-dlp
                 output_template = output_template.replace("\\", "/")
                 args.extend(["-o", output_template])
             except (PermissionError, OSError) as e:
@@ -139,6 +145,11 @@ class DownloadManager(QObject):
         rate_limit = self.config.get("General", "rate_limit", fallback="0")
         if rate_limit and rate_limit not in ("0", "", "no limit", "No limit"):
             args.extend(["--limit-rate", rate_limit])
+            
+        # --- Cookies ---
+        cookies_browser = self.config.get("General", "cookies_from_browser", fallback="None")
+        if cookies_browser and cookies_browser != "None":
+            args.extend(["--cookies-from-browser", cookies_browser])
 
         return args
 
@@ -641,6 +652,10 @@ class DownloadManager(QObject):
                 user_message = f"The video at {url} cannot be downloaded because it is private. You may not have permission to view it."
             elif "not found" in low and "video" in low:
                 user_message = f"The video at {url} could not be found. It may have been deleted."
+            elif "sign in to confirm" in low:
+                user_message = f"YouTube requires sign-in for this video. Please select a browser in Advanced Settings to use its cookies."
+            elif "http error 403" in low:
+                user_message = f"Access forbidden (403). This usually means YouTube is blocking the request. Try updating yt-dlp or using cookies from a browser."
         except Exception:
             user_message = None
 

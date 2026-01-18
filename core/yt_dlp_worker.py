@@ -29,7 +29,10 @@ def check_yt_dlp_available():
     # 2. Add common Python Scripts directories for yt-dlp.exe on Windows
     #    This covers both system-wide and user-specific installations
     #    Iterate through common Python versions to be more robust
-    python_versions = ["Python313", "Python312", "Python311", "Python310"] # Add more as needed
+    #    We check a range of versions to be as compatible as possible without hardcoding just one.
+    #    This list can be extended as new Python versions are released.
+    python_versions = [f"Python3{i}" for i in range(15, 9, -1)] # Checks Python 3.15 down to 3.10
+
     for version in python_versions:
         # System-wide (e.g., C:\Program Files\PythonXX\Scripts)
         prog_files_python_scripts = os.path.join(
@@ -66,6 +69,17 @@ def check_yt_dlp_available():
         if os.path.exists(path):
             candidate_paths.append(path)
 
+    # 4. Check for bundled yt-dlp.exe (for PyInstaller builds)
+    if getattr(sys, 'frozen', False):
+        # If running as a PyInstaller bundle, check the _MEIPASS directory or the executable directory
+        bundled_path = os.path.join(sys._MEIPASS, "yt-dlp.exe")
+        if os.path.exists(bundled_path):
+            candidate_paths.insert(0, bundled_path) # Prioritize bundled version
+        
+        exe_dir_path = os.path.join(os.path.dirname(sys.executable), "yt-dlp.exe")
+        if os.path.exists(exe_dir_path):
+            candidate_paths.append(exe_dir_path)
+
     # Remove duplicates and ensure .exe on Windows if missing
     final_candidate_paths = []
     seen_paths = set()
@@ -90,7 +104,8 @@ def check_yt_dlp_available():
                 text=True,
                 timeout=5,
                 shell=False,
-                errors='replace'
+                errors='replace',
+                stdin=subprocess.DEVNULL
             )
 
             if result.returncode == 0:
@@ -111,6 +126,40 @@ def check_yt_dlp_available():
     return False, "yt-dlp executable not found or not working. Please ensure it's installed and in your system's PATH, or at a common install location."
 
 
+def get_yt_dlp_version():
+    """Return the version string of the current yt-dlp executable, or None if not found."""
+    global _YT_DLP_PATH
+    if not _YT_DLP_PATH:
+        # Try to find it if not already found
+        log.debug("get_yt_dlp_version: _YT_DLP_PATH not set, checking availability...")
+        check_yt_dlp_available()
+    
+    if _YT_DLP_PATH:
+        try:
+            log.debug(f"Fetching version for: {_YT_DLP_PATH}")
+            result = subprocess.run(
+                [_YT_DLP_PATH, "--version"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                shell=False,
+                errors='replace',
+                stdin=subprocess.DEVNULL
+            )
+            if result.returncode == 0:
+                ver = result.stdout.strip()
+                log.debug(f"Version fetched: {ver}")
+                return ver
+            else:
+                log.warning(f"Failed to get version. RC: {result.returncode}, Stderr: {result.stderr}")
+        except Exception as e:
+            log.error(f"Exception getting version: {e}")
+            pass
+    else:
+        log.warning("get_yt_dlp_version: No yt-dlp path found.")
+    return None
+
+
 def fetch_metadata(url: str, timeout: int = 15):
     """Fetch metadata for a URL using yt-dlp --dump-single-json.
 
@@ -121,7 +170,7 @@ def fetch_metadata(url: str, timeout: int = 15):
     try:
         yt_dlp_cmd = _YT_DLP_PATH if _YT_DLP_PATH else shutil.which("yt-dlp") or "yt-dlp"
         meta_cmd = [yt_dlp_cmd, "--dump-single-json", url]
-        proc = subprocess.run(meta_cmd, capture_output=True, text=True, timeout=timeout, shell=False)
+        proc = subprocess.run(meta_cmd, capture_output=True, text=True, timeout=timeout, shell=False, stdin=subprocess.DEVNULL)
         if proc.returncode == 0 and proc.stdout:
             try:
                 info = json.loads(proc.stdout)
@@ -165,7 +214,7 @@ class DownloadWorker(QThread):
             # the UI can display the actual video title immediately.
             try:
                 meta_cmd = [yt_dlp_cmd, "--dump-single-json", self.url]
-                meta_proc = subprocess.run(meta_cmd, capture_output=True, text=True, timeout=15, shell=False)
+                meta_proc = subprocess.run(meta_cmd, capture_output=True, text=True, timeout=15, shell=False, stdin=subprocess.DEVNULL)
                 if meta_proc.returncode == 0 and meta_proc.stdout:
                     try:
                         info = json.loads(meta_proc.stdout)
@@ -221,6 +270,7 @@ class DownloadWorker(QThread):
                 bufsize=1,
                 errors='replace',  # Handle encoding errors gracefully
                 shell=False,  # Don't use shell to avoid % character interpretation
+                stdin=subprocess.DEVNULL # Prevent hanging if process reads stdin
             )
 
             # Use communicate() to reliably capture all output, especially if process exits quickly

@@ -1,4 +1,5 @@
 import logging
+import os
 from PyQt6.QtWidgets import (
     QWidget, QMainWindow, QVBoxLayout, QTabWidget,
     QMessageBox
@@ -67,7 +68,48 @@ class MediaDownloaderApp(QMainWindow):
         # Sync “exit after all downloads complete” flag — always default to False on startup
         self.exit_after = False
 
+        # Check for output directory on startup
+        self._check_output_directory()
+
         log.debug("Main window setup complete")
+
+    def _check_output_directory(self):
+        """Check if output directory is set, if not, prompt user."""
+        out_path = self.config_manager.get("Paths", "completed_downloads_directory", fallback="")
+        if not out_path:
+            # If no output path, prompt user to select one
+            # We use a timer to let the window show first
+            QTimer.singleShot(500, self._prompt_for_output_dir)
+        
+        # Set default temp directory if not set
+        temp_path = self.config_manager.get("Paths", "temporary_downloads_directory", fallback="")
+        if not temp_path:
+            default_temp = os.path.join(os.getcwd(), "temp_downloads")
+            try:
+                os.makedirs(default_temp, exist_ok=True)
+                self.config_manager.set("Paths", "temporary_downloads_directory", default_temp)
+                # Update UI if tab is already created
+                if hasattr(self, 'tab_advanced') and hasattr(self.tab_advanced, 'temp_display'):
+                    self.tab_advanced.temp_display.setText(default_temp)
+            except Exception:
+                log.warning("Could not set default temporary directory")
+
+    def _prompt_for_output_dir(self):
+        """Prompt user to select an output directory."""
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Setup Required")
+        msg.setText("Please select a folder where downloaded files will be saved.")
+        msg.setIcon(QMessageBox.Icon.Information)
+        msg.exec()
+        
+        # Switch to advanced tab so they see where it is being set
+        self.tabs.setCurrentWidget(self.tab_advanced)
+        self.tab_advanced.browse_out()
+        
+        # Check again if they set it
+        out_path = self.config_manager.get("Paths", "completed_downloads_directory", fallback="")
+        if not out_path:
+             QMessageBox.warning(self, "Setup Incomplete", "You must select an output folder before downloading.")
 
     # -------------------------------------------------------------------------
     # DOWNLOAD LOGIC
@@ -75,6 +117,17 @@ class MediaDownloaderApp(QMainWindow):
 
     def start_downloads(self, urls, opts):
         """Start downloads for one or multiple URLs, handling playlist logic."""
+        # Verify output directory is set before starting
+        out_path = self.config_manager.get("Paths", "completed_downloads_directory", fallback="")
+        if not out_path:
+            QMessageBox.warning(self, "Setup Required", "Please select an output folder in Advanced Settings before downloading.")
+            self.tabs.setCurrentWidget(self.tab_advanced)
+            self.tab_advanced.browse_out()
+            # Check again
+            out_path = self.config_manager.get("Paths", "completed_downloads_directory", fallback="")
+            if not out_path:
+                return
+
         log.info(f"Starting downloads for {len(urls)} item(s) with opts: {opts}")
         self.tabs.setCurrentWidget(self.tab_active)
         self._downloads_in_progress = True

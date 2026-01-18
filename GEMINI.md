@@ -17,6 +17,9 @@ The application features a graphical user interface with multiple tabs for initi
 *   **File Organization:** Moves downloaded files from a temporary directory to a designated completed downloads directory upon completion, with robust error recovery and file stability checks.
 *   **Thumbnail Embedding:** Downloads and embeds the best available thumbnail into the downloaded media file using `ffmpeg`.
 *   **User Interface:** Provides a responsive GUI for interaction, status monitoring, and settings management.
+*   **Logging:** Comprehensive logging system that captures application events and redirects standard error (stderr) to a log file for debugging purposes.
+*   **Automatic Path Configuration:** Enforces the selection of an output directory on first run and automatically configures a temporary download directory as a subdirectory (`temp_downloads`) of the chosen output folder. This path handling is cross-platform compatible.
+*   **In-App Updates:** Provides functionality to update the `yt-dlp` executable directly from the Advanced Settings tab, supporting both stable and nightly channels. The UI displays the current version and indicates if it is a stable or nightly build.
 
 ## 3. Architecture Overview
 
@@ -34,7 +37,7 @@ The project follows a modular structure, separating concerns into UI, core logic
     *   `download_manager.py`: Manages the overall download process, including queuing, concurrency, and post-download file operations. It uses `DownloadWorker` instances.
     *   `yt_dlp_worker.py`: A `QThread`-based worker responsible for executing `yt-dlp` commands in a separate thread. Handles subprocess management, progress reporting, metadata fetching, and thumbnail embedding.
     *   `playlist_expander.py`: Logic for identifying and expanding playlist URLs into individual media URLs.
-    *   `logger_config.py`: Configures the application's logging system.
+    *   `logger_config.py`: Configures the application's logging system, including stderr redirection.
     *   `file_ops_monitor.py`: (Inferred) Monitors file system operations.
 *   **`utils/` directory**: Contains various utility scripts, e.g., `cookies.py` (likely for managing browser cookies for authenticated downloads).
 *   **`logs/` directory**: Stores application logs.
