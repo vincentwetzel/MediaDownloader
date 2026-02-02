@@ -83,11 +83,11 @@ a = Analysis(
     pathex=[],
     binaries=binaries_to_bundle,
     datas=[],
-    hiddenimports=[],
-    hookspath=[],
+    hiddenimports=['PyQt6.QtCore', 'PyQt6.QtGui', 'PyQt6.QtWidgets'],
+    hookspath=[os.path.join(project_root, 'hooks')],  # Use custom hooks directory
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=['IPython', 'matplotlib', 'numpy'],  # Exclude heavy optional modules
     noarchive=False,
     optimize=0,
 )

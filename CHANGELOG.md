@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Fixed PyInstaller build hang on PyQt6.QtGui hook processing (PyInstaller 6.18.0 issue)
+  - Solution: Created custom minimal PyQt6.QtGui hook to bypass problematic default hook
+  - Added `hooks/` directory with simplified PyQt6.QtGui hook
+  - Downgraded PyInstaller from 6.18.0 to 6.17.0 for better stability
+  - Build now completes successfully and exe launches correctly
 - Fixed critical app crash on startup caused by corrupted method merging in `main_window.py`
 - Fixed unhandled exception in version fetch from daemon thread (disabled for now pending future refactor)
 - Added robust error handling around signal emission in background threads
