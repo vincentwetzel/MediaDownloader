@@ -23,21 +23,33 @@ def setup_logging():
     os.makedirs(log_dir, exist_ok=True)
     log_path = os.path.join(log_dir, "MediaDownloader.log")
 
-    # When running as a frozen .exe with noconsole=True (pythonw), sys.stderr might be None.
-    # We need to ensure we don't try to write to a None stream in the StreamHandler.
-    handlers = [logging.FileHandler(log_path, encoding="utf-8")]
-    
-    # Only add StreamHandler if sys.stderr is available (i.e., we have a console)
+    # Get the root logger and set it to capture everything
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.DEBUG)
+
+    # Create a formatter
+    formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+
+    # Remove any existing handlers to avoid duplicates
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+
+    # --- File Handler ---
+    # Logs everything (DEBUG and above) to the log file
+    file_handler = logging.FileHandler(log_path, encoding="utf-8")
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(formatter)
+    root_logger.addHandler(file_handler)
+
+    # --- Console (Stream) Handler ---
+    # Only logs INFO and above to the console
     if sys.stderr is not None:
-        handlers.append(logging.StreamHandler())
+        stream_handler = logging.StreamHandler()
+        stream_handler.setLevel(logging.DEBUG)
+        stream_handler.setFormatter(formatter)
+        root_logger.addHandler(stream_handler)
 
-    logging.basicConfig(
-        level=logging.DEBUG,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        handlers=handlers
-    )
-
-    # Redirect stderr to the logger
-    # Even if sys.stderr was None (no console), we can replace it with our logger
-    # so that any code writing to stderr gets captured in the log file.
+    # Redirect stderr to the logger so uncaught exceptions from sub-processes
+    # or other libraries are captured in our log file.
     sys.stderr = StreamToLogger(logging.getLogger('STDERR'), logging.ERROR)
+

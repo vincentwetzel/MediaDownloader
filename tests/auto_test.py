@@ -2,6 +2,7 @@ import sys
 import logging
 import os
 import sys as _sys
+import shutil
 # Ensure project root is on sys.path so package imports like `ui.*` work
 _sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from PyQt6.QtWidgets import QApplication
@@ -11,6 +12,18 @@ from core.logger_config import setup_logging
 
 # Configure logging to console and file
 setup_logging()
+
+# Clean temp_downloads before test
+temp_dir = os.path.join(os.path.dirname(__file__), "..", "temp_downloads")
+if os.path.exists(temp_dir):
+    for f in os.listdir(temp_dir):
+        fpath = os.path.join(temp_dir, f)
+        try:
+            if os.path.isfile(fpath):
+                os.remove(fpath)
+                print(f"[TEST] Cleaned: {f}")
+        except Exception as e:
+            print(f"[TEST] Failed to clean {f}: {e}")
 
 app = QApplication(sys.argv)
 wnd = MediaDownloaderApp()
@@ -23,18 +36,13 @@ except Exception:
     pass
 
 urls = [
-    "https://www.youtube.com/watch?v=5qap5aO4i9A",
-    "https://www.youtube.com/watch?v=3JZ_D3ELwOQ",
-    "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-    "https://www.youtube.com/watch?v=Zi_XLOBDo_Y",
-    "https://www.youtube.com/watch?v=9bZkp7q19f0",
-    "https://www.youtube.com/watch?v=1wYNFfgrXTI",
+    "https://www.youtube.com/shorts/W8mQ0PyIOc4",
 ]
 
 # Start downloads after a short delay so UI is ready
 QTimer.singleShot(1000, lambda: wnd.start_downloads(urls, {}))
 
-# Quit after 30 seconds to allow metadata fetches to run
-QTimer.singleShot(30000, app.quit)
+# Quit after 120 seconds to allow full download + embed + move
+QTimer.singleShot(120000, app.quit)
 
 sys.exit(app.exec())

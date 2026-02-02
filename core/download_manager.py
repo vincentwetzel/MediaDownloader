@@ -2,11 +2,15 @@ import logging
 import os
 import sys
 import shutil
+import time
 from core.yt_dlp_worker import DownloadWorker, check_yt_dlp_available, fetch_metadata
 from core.playlist_expander import expand_playlist
 import threading
 from core.config_manager import ConfigManager
 from PyQt6.QtCore import QObject, pyqtSignal
+from PyQt6.QtWidgets import QMessageBox
+from core.archive_manager import ArchiveManager
+from urllib.parse import urlparse
 
 log = logging.getLogger(__name__)
 
@@ -15,6 +19,7 @@ class DownloadManager(QObject):
     download_added = pyqtSignal(object)
     download_finished = pyqtSignal(str, bool)
     download_error = pyqtSignal(str, str)
+    video_quality_warning = pyqtSignal(str, str)
 
     def __init__(self):
         super().__init__()
@@ -24,6 +29,7 @@ class DownloadManager(QObject):
         # Map url -> original opts passed when starting the download
         self._original_opts = {}
         self.config = ConfigManager()
+        self.archive_manager = ArchiveManager()
         # Check yt-dlp availability on initialization
         is_available, status_msg = check_yt_dlp_available()
         log.info(f"DownloadManager initialized. yt-dlp check: {status_msg}")
@@ -57,7 +63,8 @@ class DownloadManager(QObject):
                         except Exception:
                             pass
                 
-                output_template = os.path.join(output_dir, "%(title).90s [%(uploader).30s][%(upload_date>%m-%d-%Y)s][%(id)s].%(ext)s")
+                # Removed length restrictions from title and uploader
+                output_template = os.path.join(output_dir, "%(title)s [%(uploader)s][%(upload_date>%m-%d-%Y)s][%(id)s].%(ext)s")
                 # Normalize path separators for yt-dlp
                 output_template = output_template.replace("\\", "/")
                 args.extend(["-o", output_template])
@@ -66,11 +73,20 @@ class DownloadManager(QObject):
                 raise ValueError(f"Output directory is not writable or accessible: {output_dir}. Please check permissions or select a different directory.")
 
         args.append("--newline")
+        # Force utf-8 encoding for stdout/stderr to avoid character mapping issues
+        args.extend(["--encoding", "utf-8"])
 
         # --- Audio/Video Format Selection ---
         audio_only = opts.get("audio_only")
 
         if audio_only:
+            audio_codec = opts.get("audio_codec") or self.config.get("General", "audio_codec", fallback="")
+            format_string = "bestaudio/best"
+            if audio_codec:
+                # Prioritize the selected codec, but fall back to bestaudio if not available
+                format_string = f"bestaudio[acodec~={audio_codec}]/bestaudio/best"
+
+            args.extend(["-f", format_string])
             args.append("--extract-audio")
             audio_ext = opts.get("audio_ext") or self.config.get("General", "audio_ext", fallback="mp3")
             args.extend(["--audio-format", audio_ext])
@@ -80,9 +96,11 @@ class DownloadManager(QObject):
                 quality_val = str(audio_quality).replace("k", "").replace("K", "")
                 args.extend(["--audio-quality", quality_val])
 
-            audio_codec = opts.get("audio_codec") or self.config.get("General", "audio_codec", fallback="")
-            if audio_codec:
-                args.extend(["--acodec", audio_codec])
+            # Embed metadata from the source (e.g., artist, title) and embed the thumbnail as album art.
+            # This is crucial for getting a complete audio file.
+            args.append("--embed-metadata")
+            args.append("--embed-thumbnail")
+
         else:
             # Build a format selector string for video + audio
             video_format_parts = []
@@ -122,6 +140,10 @@ class DownloadManager(QObject):
             if merge_ext:
                 args.extend(["--merge-output-format", merge_ext])
 
+            # Embed metadata (title, artist, etc.) and thumbnail as album art for videos as well
+            args.append("--embed-metadata")
+            args.append("--embed-thumbnail")
+
         # --- Other Options ---
         playlist_mode = opts.get("playlist_mode", "Ask")
         if "ignore" in playlist_mode.lower() or "single" in playlist_mode.lower():
@@ -142,6 +164,9 @@ class DownloadManager(QObject):
         elif os.name == 'nt':
             args.append("--windows-filenames")
 
+        # Replace pipe characters to prevent filename issues.
+        args.extend(["--replace-in-metadata", "title", "re:[|｜]", "-"])
+
         rate_limit = self.config.get("General", "rate_limit", fallback="0")
         if rate_limit and rate_limit not in ("0", "", "no limit", "No limit"):
             args.extend(["--limit-rate", rate_limit])
@@ -150,6 +175,20 @@ class DownloadManager(QObject):
         cookies_browser = self.config.get("General", "cookies_from_browser", fallback="None")
         if cookies_browser and cookies_browser != "None":
             args.extend(["--cookies-from-browser", cookies_browser])
+
+        # --- JavaScript Runtime ---
+        js_runtime_path = self.config.get("General", "js_runtime_path", fallback="")
+        if js_runtime_path and os.path.exists(js_runtime_path):
+            # yt-dlp expects the runtime name (e.g., "deno") followed by its path
+            # We assume the user selects the executable directly.
+            runtime_name = os.path.basename(js_runtime_path).split('.')[0] # e.g., "deno" from "deno.exe"
+            args.extend(["--js-runtimes", f"{runtime_name}:{js_runtime_path}"])
+            log.debug(f"Using JavaScript runtime: {runtime_name} at {js_runtime_path}")
+        elif js_runtime_path and not os.path.exists(js_runtime_path):
+            log.warning(f"Configured JavaScript runtime path does not exist: {js_runtime_path}")
+        elif not js_runtime_path:
+            log.debug("No JavaScript runtime path configured.")
+
 
         return args
 
@@ -174,8 +213,11 @@ class DownloadManager(QObject):
         log.info(f"Queueing download for {url} with args: {cmd_args}")
         worker = DownloadWorker(url, cmd_args)
         worker.progress.connect(self._on_progress)
-        worker.finished.connect(lambda url, success, files, w=worker: self._on_finished(w, url, success, files))
-        worker.error.connect(lambda url, msg, w=worker: self._on_error(w, url, msg))
+        # Connect finished/error signals to wrapper slots that use QObject.sender()
+        # This avoids potential issues with lambdas and ensures the original worker
+        # object is available via sender() when the slot runs.
+        worker.finished.connect(self._on_worker_finished_signal)
+        worker.error.connect(self._on_error_signal)
 
         # Attach temp/completed dir info to worker for post-processing
         worker.temp_dir = self.config.get("Paths", "temporary_downloads_directory", fallback="")
@@ -237,10 +279,71 @@ class DownloadManager(QObject):
         Playlist expansion is handled by the UI/background worker so this
         method keeps enqueuing lightweight and non-blocking.
         """
+        if self.archive_manager.is_in_archive(url):
+            reply = QMessageBox.question(None, 'Download Archive',
+                                         f"The URL has been downloaded before:\n\n{url}\n\nDo you want to download it again?",
+                                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                                         QMessageBox.StandardButton.No)
+            if reply == QMessageBox.StandardButton.No:
+                log.info(f"User chose not to re-download archived URL: {url}")
+                return
+
+        # Quick hostname-based heuristic to avoid waiting for yt-dlp on common cases.
+        # Known supported sites => enqueue immediately. Known unsupported sites => reject immediately.
+        # Otherwise, fall back to the slower metadata validation in background.
         try:
-            self._enqueue_single_download(url, opts)
+            parsed = urlparse(url)
+            host = (parsed.hostname or "").lower()
         except Exception:
-            log.exception(f"Failed to enqueue download: {url}")
+            host = ""
+
+        # Consult the extractor index (if available). If the host is recognized by an
+        # extractor, proceed immediately. If not recognized or the index isn't
+        # available, fall back to the quick metadata validation below.
+        try:
+            from core.extractor_index import host_supported
+            try:
+                if host and host_supported(host):
+                    self._enqueue_single_download(url, opts)
+                    return
+            except Exception:
+                # silently ignore index failures and continue to validation fallback
+                pass
+        except Exception:
+            # index module not available; proceed to validation fallback
+            pass
+
+        # Otherwise, perform a quick background validation using yt-dlp metadata extraction
+        # to detect unsupported/invalid URLs before creating UI elements.
+        def _validate_and_enqueue(u, o):
+            try:
+                info = fetch_metadata(u, timeout=6)
+                if not info:
+                    # If metadata could not be retrieved quickly, emit a user-facing error
+                    # and avoid creating UI elements for clearly unsupported URLs.
+                    log.info(f"Quick URL validation failed for {u}; treating as unsupported")
+                    try:
+                        self.download_error.emit(u, "Unsupported or invalid URL (quick validation)")
+                    except Exception:
+                        pass
+                    return
+                # If metadata present, proceed to enqueue normally
+                try:
+                    self._enqueue_single_download(u, o)
+                except Exception:
+                    log.exception(f"Failed to enqueue download after validation: {u}")
+            except Exception:
+                log.exception(f"Exception during quick URL validation for: {u}")
+
+        try:
+            t = threading.Thread(target=_validate_and_enqueue, args=(url, opts), daemon=True)
+            t.start()
+        except Exception:
+            # Fallback: if background validation cannot be started, enqueue directly
+            try:
+                self._enqueue_single_download(url, opts)
+            except Exception:
+                log.exception(f"Failed to enqueue download: {url}")
 
     def _on_progress(self, data):
         log.debug(f"Progress: {data}")
@@ -266,318 +369,201 @@ class DownloadManager(QObject):
             running += 1
 
 
-    def _on_finished(self, worker, url, success, files=None):
-        log.info(f"Download finished: {url} success={success} files={files}")
-        # If files were created in the temp dir, move them to the completed directory
+    def _move_files_job(self, worker, url, files):
+        """This job runs in a background thread to move files without blocking the GUI."""
         try:
-            completed_dir = self.config.get("Paths", "completed_downloads_directory", fallback="")
-            temp_dir = self.config.get("Paths", "temporary_downloads_directory", fallback="")
-            if success and files and completed_dir:
-                # Normalize configured directories to avoid mixed slashes
-                try:
-                    completed_dir = os.path.normpath(completed_dir)
-                except Exception:
-                    pass
-                try:
-                    temp_dir = os.path.normpath(temp_dir) if temp_dir else temp_dir
-                except Exception:
-                    pass
+            # Prefer configured paths, but fall back to worker attributes if config is empty.
+            completed_dir = self.config.get("Paths", "completed_downloads_directory", fallback="") or getattr(worker, "completed_dir", "")
+            temp_dir = self.config.get("Paths", "temporary_downloads_directory", fallback="") or getattr(worker, "temp_dir", "")
+            if not files or not completed_dir:
+                log.debug("No files to move or no completed_dir configured; skipping move job")
+                return
+
+            # Normalize and ensure existence of completed_dir; temp_dir may be optional
+            completed_dir = os.path.abspath(os.path.normpath(os.path.expanduser(completed_dir)))
+            temp_dir = os.path.abspath(os.path.normpath(os.path.expanduser(temp_dir))) if temp_dir else None
+            try:
                 os.makedirs(completed_dir, exist_ok=True)
-                for f in files:
-                    try:
-                        # normalize and strip surrounding quotes that sometimes appear in yt-dlp output
-                        src = os.path.normpath(str(f).strip().strip('"\''))
-                        # Ensure local abs_* variables exist for both branches
-                        abs_src = None
-                        abs_completed = None
-                        abs_temp = None
-                        # Skip intermediate .part files (yt-dlp part files)
-                        if src.lower().endswith('.part'):
-                            log.debug(f"Skipping intermediate part file: {src}")
-                            continue
-                        if os.path.exists(src):
-                            abs_src = os.path.abspath(src)
-                            abs_completed = os.path.abspath(completed_dir) if completed_dir else None
-                            abs_temp = os.path.abspath(temp_dir) if temp_dir else None
-                        else:
-                            # Source reported by yt-dlp does not exist. Try id-based
-                            # recovery: list temp/completed dirs and search for files
-                            # containing the media id or title as a fallback.
-                            try:
-                                log.warning(f"Reported source missing, attempting recovery search: {src}")
-                                # Small debug listing of directories to help diagnose timing issues
-                                try:
-                                    if temp_dir and os.path.exists(temp_dir):
-                                        entries = os.listdir(temp_dir)
-                                        log.debug(f"Temp dir listing ({temp_dir}) sample: {entries[:50]}")
-                                except Exception:
-                                    log.debug("Could not list temp_dir contents for debug")
-                                try:
-                                    if completed_dir and os.path.exists(completed_dir):
-                                        entries = os.listdir(completed_dir)
-                                        log.debug(f"Completed dir listing ({completed_dir}) sample: {entries[:50]}")
-                                except Exception:
-                                    log.debug("Could not list completed_dir contents for debug")
+            except Exception:
+                log.exception(f"Could not create completed_dir: {completed_dir}")
 
-                                # Use metadata id/title if available to find candidate files
-                                candidate = None
-                                search_tokens = []
-                                try:
-                                    info = getattr(worker, '_meta_info', None)
-                                    if info:
-                                        vid = info.get('id') or ''
-                                        title = info.get('title') or ''
-                                        if vid:
-                                            search_tokens.append(str(vid))
-                                        if title:
-                                            # Use a shortened, file-safe part of the title
-                                            search_tokens.append(title[:60])
-                                except Exception:
-                                    pass
+            log.debug(f"_move_files_job start: completed_dir={completed_dir}, temp_dir={temp_dir}, files={files}")
+            # Small pause to allow worker-side postprocessing (thumbnail embedding, replace/remove)
+            try:
+                time.sleep(0.25)
+                log.debug("Brief pause before moving files to allow worker cleanup.")
+            except Exception:
+                pass
 
-                                # Helper to scan a directory for filenames containing tokens
-                                def _find_candidate_in_dir(d):
-                                    try:
-                                        for root, _, files_list in os.walk(d):
-                                            for name in files_list:
-                                                lname = name.lower()
-                                                for t in search_tokens:
-                                                    if not t:
-                                                        continue
-                                                    if t.lower() in lname:
-                                                        return os.path.join(root, name)
-                                        return None
-                                    except Exception:
-                                        return None
-
-                                if search_tokens:
-                                    # Prefer temp_dir search first (likely location)
-                                    if temp_dir and os.path.exists(temp_dir):
-                                        candidate = _find_candidate_in_dir(temp_dir)
-                                    if not candidate and completed_dir and os.path.exists(completed_dir):
-                                        candidate = _find_candidate_in_dir(completed_dir)
-
-                                recovered_moved = False
-                                if candidate:
-                                    try:
-                                        cand_abs = os.path.abspath(candidate)
-                                        abs_completed = os.path.abspath(completed_dir) if completed_dir else None
-                                        dst = os.path.normpath(os.path.join(abs_completed, os.path.basename(cand_abs))) if abs_completed else None
-                                        # Wait for stability
-                                        try:
-                                            if not self._wait_for_file_stable(cand_abs, timeout=10):
-                                                log.warning(f"Candidate {cand_abs} did not stabilize before move; proceeding anyway")
-                                        except Exception:
-                                            pass
-                                        moved = False
-                                        for attempt in range(5):
-                                            try:
-                                                # Avoid removing the destination if it is the same
-                                                # as the candidate source (can happen when the
-                                                # candidate was already in the completed dir).
-                                                if dst and os.path.exists(dst):
-                                                    try:
-                                                        if os.path.abspath(dst) != os.path.abspath(cand_abs):
-                                                            os.remove(dst)
-                                                    except Exception:
-                                                        # best-effort: only remove if it's safe
-                                                        try:
-                                                            os.remove(dst)
-                                                        except Exception:
-                                                            pass
-                                                if dst:
-                                                    shutil.move(cand_abs, dst)
-                                                    log.info(f"Recovered and moved candidate {cand_abs} -> {dst}")
-                                                    moved = True
-                                                    recovered_moved = True
-                                                    # Verify destination exists immediately; if missing, search for likely locations
-                                                    try:
-                                                        if not os.path.exists(dst):
-                                                            log.warning(f"Post-move check: destination missing after move: {dst}")
-                                                            bname = os.path.basename(dst)
-                                                            # First search temp and completed dirs
-                                                            found = []
-                                                            try:
-                                                                roots = []
-                                                                if completed_dir and os.path.exists(completed_dir):
-                                                                    roots.append(completed_dir)
-                                                                if temp_dir and os.path.exists(temp_dir):
-                                                                    roots.append(temp_dir)
-                                                                for r in roots:
-                                                                    for root, _, files_search in os.walk(r):
-                                                                        for fn_search in files_search:
-                                                                            if fn_search == bname or bname in fn_search:
-                                                                                found.append(os.path.join(root, fn_search))
-                                                            except Exception:
-                                                                log.debug("Error while searching for post-move file in local dirs")
-                                                            # If nothing found, do a bounded drive-wide search (J: drive etc.)
-                                                            if not found:
-                                                                try:
-                                                                    drive = os.path.splitdrive(abs_completed)[0] or os.path.splitdrive(completed_dir)[0]
-                                                                    if drive:
-                                                                        drive_root = drive + os.sep
-                                                                        # bounded search: limit files visited and time
-                                                                        max_files = 20000
-                                                                        files_seen = 0
-                                                                        import time as _time
-                                                                        start = _time.time()
-                                                                        for root, _, files_search in os.walk(drive_root):
-                                                                            for fn_search in files_search:
-                                                                                if fn_search == bname or bname in fn_search:
-                                                                                    found.append(os.path.join(root, fn_search))
-                                                                                files_seen += 1
-                                                                                if files_seen >= max_files or (_time.time() - start) > 2.0:
-                                                                                    break
-                                                                            if files_seen >= max_files or (_time.time() - start) > 2.0:
-                                                                                break
-                                                                except Exception:
-                                                                    log.debug("Error during bounded drive-wide search")
-                                                            log.debug(f"Post-move search results for {bname}: {found}")
-                                                    except Exception:
-                                                        log.debug("Error during post-move existence check")
-                                                    break
-                                            except FileNotFoundError:
-                                                log.debug(f"Candidate disappeared during recovery move: {cand_abs}")
-                                                moved = True
-                                                break
-                                            except OSError as e:
-                                                winerr = getattr(e, 'winerror', None)
-                                                errnum = getattr(e, 'errno', None)
-                                                if winerr == 32 or errnum in (13,):
-                                                    __import__('time').sleep(0.2 * (attempt + 1))
-                                                    continue
-                                                else:
-                                                    log.error(f"Failed to move candidate {cand_abs} to {dst}: {e}")
-                                                    break
-                                        if not moved:
-                                            log.debug(f"Recovery move failed after retries for {cand_abs} -> {dst}")
-                                    except Exception as e:
-                                        log.exception(f"Error during candidate recovery move: {e}")
-                                else:
-                                    log.debug(f"No candidate files found for recovery tokens: {search_tokens}")
-                            except Exception:
-                                log.exception("Error during missing-source recovery logic")
-                            # If recovery moved a candidate into completed, skip further processing
-                            if recovered_moved:
-                                continue
-
-                            # If source is inside temp dir, we should move it to completed
-                            try:
-                                if abs_temp and os.path.commonpath([abs_src, abs_temp]) == abs_temp:
-                                    in_temp = True
-                                else:
-                                    in_temp = False
-                            except Exception:
-                                in_temp = False
-
-                            # If source is already in completed dir and NOT in temp, skip moving
-                            try:
-                                if abs_completed and os.path.commonpath([abs_src, abs_completed]) == abs_completed and not in_temp:
-                                    log.debug(f"Source already in completed directory, skipping move: {src}")
-                                    continue
-                            except Exception:
-                                pass
-
-                            # Wait for file to be stable (size/mtime unchanged) before moving
-                            try:
-                                if not self._wait_for_file_stable(src, timeout=10):
-                                    log.warning(f"File {src} did not stabilize before move; proceeding anyway")
-                            except Exception:
-                                log.exception(f"Error while waiting for file to stabilize: {src}")
-
-                            # Build destination path and normalize it (avoid mixed separators)
-                            dst = os.path.normpath(os.path.join(abs_completed, os.path.basename(abs_src))) if abs_completed else None
-                            # If destination exists, replace it
-                            try:
-                                if dst and os.path.exists(dst):
-                                    try:
-                                        # Don't remove dst if it's the same file as the
-                                        # source we're about to move (avoid deleting it).
-                                        if os.path.abspath(dst) != os.path.abspath(abs_src):
-                                            os.remove(dst)
-                                    except Exception:
-                                        try:
-                                            os.remove(dst)
-                                        except Exception:
-                                            pass
-                                if dst:
-                                    # Retry on common Windows sharing/lock errors (winerror 32) and permission errors
-                                    moved = False
-                                    for attempt in range(5):
-                                        try:
-                                            shutil.move(abs_src, dst)
-                                            log.info(f"Moved {abs_src} -> {dst}")
-                                            # Verify destination exists immediately; if missing, search for likely locations
-                                            try:
-                                                if not os.path.exists(dst):
-                                                    log.warning(f"Post-move check: destination missing after move: {dst}")
-                                                    bname = os.path.basename(dst)
-                                                    found = []
-                                                    try:
-                                                        roots = []
-                                                        if completed_dir and os.path.exists(completed_dir):
-                                                            roots.append(completed_dir)
-                                                        if temp_dir and os.path.exists(temp_dir):
-                                                            roots.append(temp_dir)
-                                                        for r in roots:
-                                                            for root, _, files_search in os.walk(r):
-                                                                for fn_search in files_search:
-                                                                    if fn_search == bname or bname in fn_search:
-                                                                        found.append(os.path.join(root, fn_search))
-                                                    except Exception:
-                                                        log.debug("Error during post-move search")
-                                                    log.debug(f"Post-move search results for {bname}: {found}")
-                                            except Exception:
-                                                log.debug("Error during post-move existence check")
-                                            moved = True
-                                            break
-                                        except FileNotFoundError:
-                                            # File vanished between discovery and move; likely cleaned up by yt-dlp.
-                                            log.debug(f"Source disappeared before move, skipping: {abs_src}")
-                                            moved = True
-                                            break
-                                        except OSError as e:
-                                            winerr = getattr(e, 'winerror', None)
-                                            errnum = getattr(e, 'errno', None)
-                                            # Retry for sharing violation / permission temporarily busy
-                                            if winerr == 32 or errnum in (13,):
-                                                __import__('time').sleep(0.2 * (attempt + 1))
-                                                continue
-                                            else:
-                                                log.error(f"Failed to move {abs_src} to {dst}: {e}")
-                                                break
-                                    if not moved:
-                                        log.debug(f"Move failed after retries, skipping: {abs_src} -> {dst}")
-                            except Exception as e:
-                                log.error(f"Failed to prepare move for {abs_src} to {dst}: {e}")
-                            except Exception as e:
-                                log.error(f"Failed to prepare move for {abs_src} to {dst}: {e}")
-                    except Exception as e:
-                        log.debug(f"Skipping file move for {f}: {e}")
-                # After attempting moves, try to remove any leftover .part files reported
+            for f in files:
                 try:
-                    for f in files:
+                    raw = str(f).strip().strip('"\'')
+                    src = os.path.normpath(raw)
+                    # Skip intermediate files
+                    if src.lower().endswith(('.part', '.ytdl')):
+                        log.debug(f"Skipping intermediate file: {src}")
+                        continue
+
+                    # Build candidate paths to try before doing a directory search
+                    candidates = []
+                    # as-is
+                    candidates.append(src)
+                    # relative to temp_dir
+                    if temp_dir:
+                        candidates.append(os.path.join(temp_dir, src))
+                        candidates.append(os.path.join(temp_dir, os.path.basename(src)))
+                    # relative to completed_dir
+                    if completed_dir:
+                        candidates.append(os.path.join(completed_dir, src))
+                        candidates.append(os.path.join(completed_dir, os.path.basename(src)))
+                    # relative to cwd
+                    candidates.append(os.path.abspath(src))
+                    candidates.append(os.path.join(os.getcwd(), src))
+
+                    # Log candidate list and existence checks for diagnostics
+                    try:
+                        log.debug(f"Move candidates for reported src '{src}': {candidates}")
+                        file_to_move = None
+                        for cand in list(candidates):
+                            try:
+                                cand_norm = os.path.normpath(cand)
+                                exists = os.path.exists(cand_norm)
+                                log.debug(f"Candidate check: {cand_norm} exists={exists}")
+                                if exists:
+                                    file_to_move = cand_norm
+                                    log.debug(f"Found candidate for move: {file_to_move} (from {cand})")
+                                    break
+                            except Exception:
+                                log.debug(f"Exception while checking candidate: {cand}", exc_info=True)
+                                continue
+                    except Exception:
+                        log.debug("Error while building/checking move candidates", exc_info=True)
+
+                    if not file_to_move:
+                        log.warning(f"Reported source missing, attempting recovery search for: {src}")
+                        # Recovery logic using tokens
+                        candidate = None
+                        search_tokens = []
                         try:
-                            p = os.path.normpath(str(f).strip().strip('\"\''))
-                        except Exception:
-                            p = None
-                        if not p:
-                            continue
-                        try:
-                            if p.lower().endswith('.part') and os.path.exists(p):
-                                # Only remove part files from temp dir to avoid touching user data
-                                if temp_dir and os.path.commonpath([os.path.abspath(p), os.path.abspath(temp_dir)]) == os.path.abspath(temp_dir):
-                                    try:
-                                        os.remove(p)
-                                        log.info(f"Removed leftover part file: {p}")
-                                    except Exception:
-                                        log.debug(f"Could not remove leftover part file (in use?): {p}")
+                            info = getattr(worker, '_meta_info', {})
+                            vid = info.get('id')
+                            title = info.get('title')
+                            if vid:
+                                search_tokens.append(str(vid))
+                            if title:
+                                search_tokens.append(title[:60])
                         except Exception:
                             pass
-                except Exception:
-                    pass
+
+                        def _find_candidate_in_dir(d):
+                            if not d or not os.path.isdir(d):
+                                return None
+                            for root, _, files_list in os.walk(d):
+                                for name in files_list:
+                                    for t in search_tokens:
+                                        if t and t.lower() in name.lower():
+                                            return os.path.join(root, name)
+                            return None
+
+                        if search_tokens:
+                            candidate = _find_candidate_in_dir(temp_dir) or _find_candidate_in_dir(completed_dir) or _find_candidate_in_dir(os.getcwd())
+
+                        if candidate:
+                            file_to_move = candidate
+                            log.info(f"Recovery found candidate file: {candidate}")
+
+                    if file_to_move:
+                        try:
+                            abs_path = os.path.abspath(file_to_move)
+                            dst = os.path.normpath(os.path.join(completed_dir, os.path.basename(abs_path)))
+
+                            if os.path.abspath(dst) == os.path.abspath(abs_path):
+                                log.info(f"File already in completed_dir, skipping move: {abs_path}")
+                                continue
+
+                            if not self._wait_for_file_stable(abs_path, timeout=10):
+                                log.warning(f"File {abs_path} did not stabilize, proceeding with move anyway.")
+
+                            for attempt in range(5):
+                                try:
+                                    if os.path.exists(dst) and os.path.abspath(dst) != abs_path:
+                                        try:
+                                            os.remove(dst)
+                                        except Exception:
+                                            log.debug(f"Could not remove existing destination {dst}, will attempt move anyway")
+                                    shutil.move(abs_path, dst)
+                                    log.info(f"Moved file {abs_path} -> {dst}")
+                                    break
+                                except (FileNotFoundError, PermissionError, OSError) as e:
+                                    log.exception(f"Attempt {attempt+1}: Error moving {abs_path} to {dst}")
+                                    if isinstance(e, FileNotFoundError):
+                                        log.debug(f"Source file disappeared before move: {abs_path}")
+                                        break
+                                    # Retry on sharing violation (Windows)
+                                    winerr = getattr(e, 'winerror', 0)
+                                    if winerr == 32 or 'being used by another process' in str(e).lower():
+                                        time.sleep(0.2 * (attempt + 1))
+                                        continue
+                                    break
+                        except Exception:
+                            log.exception(f"Failed to prepare or execute move for {file_to_move}")
+                    else:
+                        log.error(f"Could not find or recover source file for moving: {src}")
+
+                except Exception as e:
+                    log.debug(f"Skipping file move for {f}: {e}")
+
+            # After moving, clean up leftover .part files
+            for f in files:
+                if str(f).lower().endswith('.part'):
+                    try:
+                        p = os.path.normpath(str(f).strip().strip('\"\''))
+                        if temp_dir and os.path.exists(p) and os.path.commonpath([os.path.abspath(p), os.path.abspath(temp_dir)]) == os.path.abspath(temp_dir):
+                            os.remove(p)
+                            log.info(f"Removed leftover part file: {p}")
+                    except Exception as e:
+                        log.debug(f"Could not remove leftover part file {f}: {e}")
+
         except Exception:
-            log.exception("Error while moving completed files")
+            log.exception("Error in file moving job")
+
+
+    def _on_worker_finished(self, worker, url, success, files=None):
+        print(f"[HANDLER] _on_worker_finished called: url={url}, success={success}, files={files}")  # Direct print
+        log.info(f"Download finished: {url} success={success} files={files}")
+        log.debug(f"_on_worker_finished: files type={type(files)}, files value={files}, bool(files)={bool(files)}")
+
+        # If download was successful, add to archive and check for low quality video
+        if success:
+            self.archive_manager.add_to_archive(url)
+            try:
+                opts = self._original_opts.get(url, {})
+                # Check if it's a video download and "best" quality was requested
+                if not opts.get("audio_only") and (opts.get("video_quality") or "best") == "best":
+                    info = getattr(worker, '_meta_info', {})
+                    if info:
+                        height = info.get('height')
+                        # Ensure height is a number and is 480 or less
+                        if isinstance(height, (int, float)) and height <= 480:
+                            title = info.get('title', url)
+                            message = (f"The video '{title}' was downloaded, but the highest available quality "
+                                       f"was {height}p, which is considered low quality.")
+                            self.video_quality_warning.emit(url, message)
+            except Exception:
+                log.exception("Error checking for video quality warning.")
+
+        # If files were created, move them in a background thread
+        if success and files:
+            log.warning(f"Move job triggered: files count={len(files) if isinstance(files, (list, tuple)) else '?'}")
+            move_thread = threading.Thread(
+                target=self._move_files_job,
+                args=(worker, url, list(files)),  # Pass a copy of the list
+            )
+            # Ensure move thread is non-daemon so file moves complete before process exit
+            move_thread.daemon = False
+            move_thread.start()
+        else:
+            log.error(f"Move job NOT triggered: success={success}, files={files}, bool(files)={bool(files)}")
 
         # Clean up active downloads list (remove this worker if present)
         try:
@@ -596,8 +582,8 @@ class DownloadManager(QObject):
             if completed_dir and os.path.exists(completed_dir):
                 try:
                     listing = []
-                    for root, _, files in os.walk(completed_dir):
-                        for fn in files:
+                    for root, _, files_in_dir in os.walk(completed_dir):
+                        for fn in files_in_dir:
                             p = os.path.join(root, fn)
                             try:
                                 listing.append((os.path.relpath(p, completed_dir), os.path.getsize(p), os.path.getmtime(p)))
@@ -608,6 +594,23 @@ class DownloadManager(QObject):
                     log.debug("Could not list completed_dir for debug")
         except Exception:
             pass
+
+    def _on_worker_finished_signal(self, url, success, files=None):
+        """Wrapper slot for worker.finished signal. Uses sender() to obtain the worker."""
+        try:
+            worker = self.sender()
+        except Exception:
+            worker = None
+        self._on_worker_finished(worker, url, success, files)
+
+    def _on_error_signal(self, url, message):
+        """Wrapper slot for worker.error signal. Uses sender() to obtain the worker."""
+        try:
+            worker = self.sender()
+        except Exception:
+            worker = None
+        self._on_error(worker, url, message)
+
 
     def _wait_for_file_stable(self, path, timeout=10, poll_interval=0.5):
         """Wait until file size and mtime are stable for one poll interval or until timeout.
@@ -656,6 +659,8 @@ class DownloadManager(QObject):
                 user_message = f"YouTube requires sign-in for this video. Please select a browser in Advanced Settings to use its cookies."
             elif "http error 403" in low:
                 user_message = f"Access forbidden (403). This usually means YouTube is blocking the request. Try updating yt-dlp or using cookies from a browser."
+            elif "n challenge solving failed" in low or "javascript runtime" in low:
+                user_message = f"YouTube's anti-bot measures require a JavaScript runtime (like Deno or Node.js). Please install one and configure its path in Advanced Settings."
         except Exception:
             user_message = None
 

@@ -1,7 +1,22 @@
 import logging
-import yt_dlp
+import subprocess
+import json
+import shutil
+import sys
+from yt_dlp.utils import DownloadError
+from core.yt_dlp_worker import _YT_DLP_PATH
+
+# --- HIDE CONSOLE WINDOW for SUBPROCESS ---
+creation_flags = 0
+if sys.platform == "win32" and getattr(sys, "frozen", False):
+    creation_flags = subprocess.CREATE_NO_WINDOW
 
 log = logging.getLogger(__name__)
+
+
+class PlaylistExpansionError(Exception):
+    """Custom exception for errors during playlist expansion."""
+    pass
 
 
 def _entry_to_url(entry):
@@ -30,49 +45,67 @@ def _entry_to_url(entry):
 def expand_playlist(url):
     """Return list of URLs if the input is a playlist, otherwise [url].
 
-    Tries a couple of strategies to detect and expand playlists reliably
-    (some services like YouTube Music may redirect). Returns the original
-    URL if expansion cannot be determined.
+    Uses yt-dlp as a subprocess to offload playlist processing and avoid
+    blocking the GUI thread.
     """
     try:
-        # Try with default extraction (not flat) first to get full info
-        ydl_opts = {"quiet": True}
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            # If yt-dlp reports entries, convert them to URLs
-            entries = info.get("entries") if isinstance(info, dict) else None
-            if entries:
-                urls = []
-                for entry in entries:
-                    u = _entry_to_url(entry)
-                    if u:
-                        urls.append(u)
-                if urls:
-                    log.debug(f"Expanded playlist {url} -> {len(urls)} items")
-                    return urls
+        yt_dlp_cmd = _YT_DLP_PATH if _YT_DLP_PATH else shutil.which("yt-dlp") or "yt-dlp"
+        
+        # Use --dump-single-json and --flat-playlist for efficient metadata extraction
+        cmd = [
+            yt_dlp_cmd,
+            url,
+            "--dump-single-json",
+            "--flat-playlist",
+            "--quiet"
+        ]
 
-        # Fallback: try extract_flat which may behave differently for some sites
-        try:
-            ydl_opts = {"quiet": True, "extract_flat": True}
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=False)
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=60,  # 60-second timeout for playlist fetching
+            shell=False,
+            stdin=subprocess.DEVNULL,
+            errors='replace',
+            creationflags=creation_flags
+        )
+
+        if proc.returncode != 0:
+            # Check for specific, actionable errors like premieres
+            if "premiere" in proc.stderr.lower():
+                raise PlaylistExpansionError("This video is a premiere and cannot be downloaded yet.")
+            log.error(f"yt-dlp failed to expand playlist {url}. Stderr: {proc.stderr}")
+            raise PlaylistExpansionError(f"Failed to process URL/playlist. See logs for details.")
+
+        if proc.stdout:
+            try:
+                info = json.loads(proc.stdout)
                 entries = info.get("entries") if isinstance(info, dict) else None
                 if entries:
-                    urls = []
-                    for entry in entries:
-                        u = _entry_to_url(entry)
-                        if u:
-                            urls.append(u)
+                    urls = [_entry_to_url(e) for e in entries if _entry_to_url(e)]
                     if urls:
-                        log.debug(f"Expanded (flat) playlist {url} -> {len(urls)} items")
+                        log.debug(f"Expanded playlist {url} -> {len(urls)} items")
                         return urls
-        except Exception:
-            pass
+            except json.JSONDecodeError:
+                log.error(f"Failed to parse JSON from yt-dlp for playlist: {url}")
+                raise PlaylistExpansionError("Failed to parse playlist data.")
 
+        # Fallback to returning the original URL if no entries found
         return [url]
-    except Exception as e:
+
+    except subprocess.TimeoutExpired:
+        log.error(f"yt-dlp timed out while expanding playlist: {url}")
+        raise PlaylistExpansionError("Playlist expansion timed out. The playlist might be very large or the service is slow.")
+    except DownloadError as e:
+        # This might be caught by the subprocess check, but as a fallback
+        if "premiere" in str(e).lower():
+            raise PlaylistExpansionError("This video is a premiere and cannot be downloaded yet.")
         log.error(f"Failed to expand playlist {url}: {e}")
-        return [url]
+        raise PlaylistExpansionError(f"Failed to process URL/playlist: {e}")
+    except Exception as e:
+        log.error(f"An unexpected error occurred while expanding playlist {url}: {e}")
+        raise PlaylistExpansionError(f"An unexpected error occurred: {e}")
 
 
 def is_likely_playlist(url: str) -> bool:

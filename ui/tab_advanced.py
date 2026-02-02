@@ -3,6 +3,10 @@ import os
 import sys
 import subprocess
 import threading
+import time
+import webbrowser
+
+from core.version import __version__ as APP_VERSION
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox, QCheckBox, QFileDialog, QMessageBox
@@ -30,6 +34,23 @@ class AdvancedSettingsTab(QWidget):
         
         self._build_tab_advanced()
 
+    def _get_installed_browsers(self):
+        """Return a list of installed browsers, with a preferred order."""
+        from utils.cookies import is_browser_installed
+        
+        # Browsers to check, in a non-specific order initially
+        browsers_to_check = ["edge", "brave", "vivaldi", "safari", "opera", "whale", "chromium"]
+        
+        installed_browsers = [b for b in browsers_to_check if is_browser_installed(b)]
+        
+        # Prioritize chrome and firefox by inserting them at the front if found
+        if is_browser_installed("chrome"):
+            installed_browsers.insert(0, "chrome")
+        if is_browser_installed("firefox"):
+            installed_browsers.insert(0, "firefox")
+            
+        return installed_browsers
+
     def _build_tab_advanced(self):
         layout = QVBoxLayout()
         layout.setContentsMargins(8, 8, 8, 8)
@@ -37,6 +58,7 @@ class AdvancedSettingsTab(QWidget):
         # Output folder row
         out_row = QHBoxLayout()
         out_lbl = QLabel("Output folder:")
+        out_lbl.setToolTip("Where completed downloads will be saved.")
         # Use ConfigManager.get(section, option, fallback=...)
         out_path = self.config.get("Paths", "completed_downloads_directory", fallback="")
         self.out_display = QLabel(out_path)
@@ -44,6 +66,7 @@ class AdvancedSettingsTab(QWidget):
         btn_out = QPushButton("📁")
         btn_out.setFixedWidth(40)
         btn_out.clicked.connect(self.browse_out)
+        btn_out.setToolTip("Browse and select the output folder for completed downloads.")
         out_row.addWidget(out_lbl)
         out_row.addWidget(self.out_display, stretch=1)
         out_row.addWidget(btn_out)
@@ -52,12 +75,14 @@ class AdvancedSettingsTab(QWidget):
         # Temporary folder row
         temp_row = QHBoxLayout()
         temp_lbl = QLabel("Temporary folder:")
+        temp_lbl.setToolTip("Where downloads are stored while in progress before moving to output folder.")
         temp_path = self.config.get("Paths", "temporary_downloads_directory", fallback="")
         self.temp_display = QLabel(temp_path)
         self.temp_display.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         btn_temp = QPushButton("📁")
         btn_temp.setFixedWidth(40)
         btn_temp.clicked.connect(self.browse_temp)
+        btn_temp.setToolTip("Browse and select the temporary folder for in-progress downloads.")
         temp_row.addWidget(temp_lbl)
         temp_row.addWidget(self.temp_display, stretch=1)
         temp_row.addWidget(btn_temp)
@@ -66,21 +91,62 @@ class AdvancedSettingsTab(QWidget):
         # Browser cookies dropdown
         cookies_row = QHBoxLayout()
         cookies_lbl = QLabel("Cookies from browser:")
+        cookies_lbl.setToolTip("Use cookies from your browser to authenticate with websites like YouTube.")
         self.cookies_combo = QComboBox()
+        self.cookies_combo.setToolTip("Select a browser to extract cookies from. Required for accessing age-restricted content.")
+        
+        # Get installed browsers and populate the dropdown
+        installed_browsers = self._get_installed_browsers()
         self.cookies_combo.addItem("None")
-        for b in ("chrome", "edge", "firefox", "brave", "vivaldi", "safari"):
-            self.cookies_combo.addItem(b)
+        self.cookies_combo.addItems(installed_browsers)
+        
+        # Determine the initial browser selection
+        # 1. Try to use the saved preference if it's still valid
+        # 2. Otherwise, use the first detected browser (respecting priority)
+        # 3. Fallback to "None" if no browsers are found
         cur_browser = self.config.get("General", "cookies_from_browser", fallback="None")
-        idx = self.cookies_combo.findText(cur_browser)
+        
+        if cur_browser in installed_browsers:
+            # Saved browser is still installed, so use it
+            idx = self.cookies_combo.findText(cur_browser)
+        elif installed_browsers:
+            # No valid saved preference, so pick the first (prioritized) browser
+            # And save this choice back to the config
+            first_browser = installed_browsers[0]
+            idx = self.cookies_combo.findText(first_browser)
+            self._save_general("cookies_from_browser", first_browser)
+        else:
+            # No browsers found, default to "None"
+            idx = 0
+            self._save_general("cookies_from_browser", "None")
+
         if idx >= 0:
             self.cookies_combo.setCurrentIndex(idx)
+            
         self.cookies_combo.currentTextChanged.connect(self.on_cookies_browser_changed)
         cookies_row.addWidget(cookies_lbl)
         cookies_row.addWidget(self.cookies_combo, stretch=1)
         layout.addLayout(cookies_row)
 
+        # JavaScript Runtime Path
+        js_runtime_row = QHBoxLayout()
+        js_runtime_lbl = QLabel("JS Runtime (Deno/Node.js):")
+        js_runtime_lbl.setToolTip("Path to a JavaScript runtime for handling anti-bot challenges on some websites.")
+        js_runtime_path = self.config.get("General", "js_runtime_path", fallback="")
+        self.js_runtime_display = QLabel(js_runtime_path)
+        self.js_runtime_display.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        btn_js_runtime = QPushButton("Browse")
+        btn_js_runtime.setFixedWidth(80)
+        btn_js_runtime.clicked.connect(self.browse_js_runtime)
+        btn_js_runtime.setToolTip("Browse and select a JavaScript runtime executable (e.g., deno.exe or node.exe).")
+        js_runtime_row.addWidget(js_runtime_lbl)
+        js_runtime_row.addWidget(self.js_runtime_display, stretch=1)
+        js_runtime_row.addWidget(btn_js_runtime)
+        layout.addLayout(js_runtime_row)
+
         # SponsorBlock and Restrict filenames
         self.sponsorblock_cb = QCheckBox("Enable SponsorBlock")
+        self.sponsorblock_cb.setToolTip("Automatically skip sponsored segments, intros, and outros in videos.")
         sponsor_val = self.config.get("General", "sponsorblock", fallback="True")
         self.sponsorblock_cb.setChecked(str(sponsor_val) == "True")
         self.sponsorblock_cb.stateChanged.connect(
@@ -88,6 +154,7 @@ class AdvancedSettingsTab(QWidget):
         )
 
         self.restrict_cb = QCheckBox("Restrict filenames")
+        self.restrict_cb.setToolTip("Use only ASCII characters in filenames (safer for older systems but may shorten names).")
         restrict_val = self.config.get("General", "restrict_filenames", fallback="False")
         self.restrict_cb.setChecked(str(restrict_val) == "True")
         self.restrict_cb.stateChanged.connect(
@@ -104,6 +171,7 @@ class AdvancedSettingsTab(QWidget):
         self.update_channel_combo = QComboBox()
         self.update_channel_combo.addItem("Stable (default)", "stable")
         self.update_channel_combo.addItem("Nightly", "nightly")
+        self.update_channel_combo.setToolTip("Choose between stable (recommended) or nightly (cutting-edge) builds of yt-dlp.")
         # Load saved preference or default to stable
         saved_channel = self.config.get("General", "yt_dlp_update_channel", fallback="stable")
         idx = self.update_channel_combo.findData(saved_channel)
@@ -112,6 +180,7 @@ class AdvancedSettingsTab(QWidget):
         self.update_channel_combo.currentIndexChanged.connect(self._on_update_channel_changed)
 
         self.update_btn = QPushButton("Update yt-dlp")
+        self.update_btn.setToolTip("Check for and install the latest version of yt-dlp.")
         self.update_btn.clicked.connect(self._update_yt_dlp)
         
         # Version label
@@ -123,15 +192,29 @@ class AdvancedSettingsTab(QWidget):
         update_group.addWidget(self.update_channel_combo)
         update_group.addWidget(self.update_btn)
         update_group.addWidget(self.version_lbl)
+        # Application update controls
+        self.check_app_update_btn = QPushButton("Check for App Update")
+        self.check_app_update_btn.setToolTip("Check GitHub for a newer version of MediaDownloader.")
+        self.check_app_update_btn.clicked.connect(self._check_app_update)
+        self.app_version_lbl = QLabel(f"App version: {APP_VERSION}")
+        update_group.addWidget(self.check_app_update_btn)
+        update_group.addWidget(self.app_version_lbl)
+        # Auto-check updates on startup (persisted)
+        self.auto_check_cb = QCheckBox("Check for app updates on startup")
+        auto_val = self.config.get("General", "auto_check_updates", fallback="True")
+        self.auto_check_cb.setChecked(str(auto_val) == "True")
+        self.auto_check_cb.stateChanged.connect(lambda s: self._save_general("auto_check_updates", str(bool(s))))
+        update_group.addWidget(self.auto_check_cb)
         update_group.addStretch()
         
         layout.addLayout(update_group)
         # -----------------------------
 
         # Restore Defaults button
-        restore_btn = QPushButton("Restore Defaults")
-        restore_btn.clicked.connect(self._restore_defaults)
-        layout.addWidget(restore_btn)
+        self.restore_btn = QPushButton("Restore Defaults")
+        self.restore_btn.setToolTip("Reset all download settings to their default values.")
+        self.restore_btn.clicked.connect(self._restore_defaults)
+        layout.addWidget(self.restore_btn)
 
         layout.addStretch()
         self.setLayout(layout)
@@ -176,6 +259,21 @@ class AdvancedSettingsTab(QWidget):
             self.temp_display.setText(folder)
             log.debug(f"Updated temporary directory: {folder}")
 
+    def browse_js_runtime(self):
+        """Prompt user to choose the JavaScript runtime executable (e.g., deno.exe or node.exe)."""
+        # On Windows, filter for .exe files; on other OS, no filter needed
+        filter_str = "Executable Files (*.exe);;All Files (*)" if sys.platform == "win32" else "All Files (*)"
+        
+        file_path, _ = QFileDialog.getOpenFileName(self, "Select JavaScript Runtime Executable", "", filter_str)
+        if file_path:
+            # Normalize path to use system separators
+            file_path = os.path.normpath(file_path)
+            self.config.set("General", "js_runtime_path", file_path)
+            self.js_runtime_display.setText(file_path)
+            log.debug(f"Updated JavaScript runtime path: {file_path}")
+            # Force a refresh of yt-dlp version since the runtime may have changed
+            self._refresh_version_label()
+
     def on_cookies_browser_changed(self, val):
         """Handle cookies-from-browser dropdown changes."""
         from utils.cookies import is_browser_installed
@@ -210,6 +308,70 @@ class AdvancedSettingsTab(QWidget):
         # Run in background to avoid UI freeze if disk is slow
         t = threading.Thread(target=fetch, daemon=True)
         t.start()
+
+    def _check_app_update(self):
+        """Check GitHub for a newer app release and prompt the user to update."""
+        owner = 'vincentwetzel'
+        repo = 'MediaDownloader'
+
+        def bg():
+            try:
+                import core.updater as updater
+                rel = updater.get_latest_release(owner, repo)
+                if not rel:
+                    QTimer.singleShot(0, lambda: QMessageBox.information(self, 'Update Check', 'Could not fetch release information from GitHub.'))
+                    return
+                tag = rel.get('tag_name') or rel.get('name') or ''
+                cmp = updater._compare_versions(APP_VERSION, tag)
+                if cmp == -1:
+                    # Newer available — prompt user on main thread
+                    QTimer.singleShot(0, lambda: self._prompt_update(rel))
+                else:
+                    QTimer.singleShot(0, lambda: QMessageBox.information(self, 'Up To Date', f'No update available. Current version: {APP_VERSION}'))
+            except Exception as e:
+                log.exception('App update check failed')
+                QTimer.singleShot(0, lambda: QMessageBox.warning(self, 'Update Check Failed', str(e)))
+
+        t = threading.Thread(target=bg, daemon=True)
+        t.start()
+
+    def _prompt_update(self, release_info: dict):
+        tag = release_info.get('tag_name') or release_info.get('name') or 'unknown'
+        body = release_info.get('body') or ''
+        # Use rich text to show a short changelog (trim if very long)
+        short_body = (body[:2000] + '...') if len(body) > 2000 else body
+        text = f"<b>A new version is available: {tag}</b><br><br>{short_body.replace('\n','<br>')}"
+        msg = QMessageBox(self)
+        msg.setWindowTitle('Update Available')
+        msg.setTextFormat(Qt.TextFormat.RichText)
+        msg.setText(text)
+        yes = msg.addButton('Yes', QMessageBox.ButtonRole.YesRole)
+        no = msg.addButton('No', QMessageBox.ButtonRole.NoRole)
+        msg.exec()
+        if msg.clickedButton() == yes:
+            # Start download in background
+            def bg_download():
+                try:
+                    import core.updater as updater
+                    ok, path = updater.check_and_download_update('vincentwetzel', 'MediaDownloader')
+                    if not ok:
+                        QTimer.singleShot(0, lambda: QMessageBox.warning(self, 'Update Failed', 'Failed to download update.'))
+                        return
+                    # If frozen, perform self-update
+                    if getattr(sys, 'frozen', False):
+                        updater.perform_self_update(path)
+                    else:
+                        # Not frozen — open release page
+                        html = release_info.get('html_url')
+                        if html:
+                            webbrowser.open(html)
+                        QTimer.singleShot(0, lambda: QMessageBox.information(self, 'Downloaded', f'Update downloaded to: {path}'))
+                except Exception as e:
+                    log.exception('Failed to apply update')
+                    QTimer.singleShot(0, lambda: QMessageBox.warning(self, 'Update Error', str(e)))
+
+            t = threading.Thread(target=bg_download, daemon=True)
+            t.start()
 
     def _on_version_fetched(self, ver):
         # Check if version string indicates nightly
@@ -262,9 +424,9 @@ class AdvancedSettingsTab(QWidget):
                 # without admin privileges. We can't easily elevate from here without external tools,
                 # so we just try and report the result.
                 # CREATE_NO_WINDOW flag for Windows to avoid popping up a console
-                creationflags = 0
-                if sys.platform == "win32":
-                    creationflags = subprocess.CREATE_NO_WINDOW
+                creation_flags = 0
+                if sys.platform == "win32" and getattr(sys, "frozen", False):
+                    creation_flags = subprocess.CREATE_NO_WINDOW
                 
                 # IMPORTANT: Add stdin=subprocess.DEVNULL to prevent hanging if the process waits for input
                 # Added timeout to prevent infinite hanging
@@ -272,7 +434,7 @@ class AdvancedSettingsTab(QWidget):
                     cmd,
                     capture_output=True,
                     text=True,
-                    creationflags=creationflags,
+                    creationflags=creation_flags,
                     stdin=subprocess.DEVNULL,
                     timeout=120
                 )
@@ -300,6 +462,38 @@ class AdvancedSettingsTab(QWidget):
         channel = self.update_channel_combo.currentData()
         channel_name = "Nightly" if channel == "nightly" else "Stable"
         
+        # Check for pip installation error
+        # Broaden check to catch various yt-dlp messages about package managers/pip
+        msg_lower = message.lower()
+        if "pip" in msg_lower and ("installed" in msg_lower or "package manager" in msg_lower):
+            # Try to update via pip
+            self._update_via_pip(channel)
+            return
+        
+        # Check for pip update success (from _update_via_pip)
+        if message.startswith("PIP_UPDATE:"):
+            message = message.replace("PIP_UPDATE:", "", 1)
+            # Check for "Requirement already satisfied" which pip uses to say it's up to date
+            if success or "requirement already satisfied" in message.lower():
+                if "requirement already satisfied" in message.lower():
+                     msg_title = "Already Up to Date"
+                     msg_body = f"yt-dlp ({channel_name}) is already at the latest version (via pip).\n\nOutput:\n{message}"
+                else:
+                     msg_title = "Update Successful"
+                     msg_body = f"yt-dlp has been updated via pip to the latest {channel_name} version.\n\nOutput:\n{message}"
+                
+                icon = QMessageBox.Icon.Information
+                msg = QMessageBox(self)
+                msg.setWindowTitle(msg_title)
+                msg.setText(msg_body)
+                msg.setIcon(icon)
+                msg.exec()
+                
+                self._refresh_version_label()
+            else:
+                QMessageBox.warning(self, "Update Failed", f"Pip update command failed.\n\nOutput:\n{message}")
+            return
+
         if success:
             # Check the output to see if it was actually updated or already up to date
             if "is up to date" in message:
@@ -345,12 +539,35 @@ class AdvancedSettingsTab(QWidget):
             restrict_val = self.config.get("General", "restrict_filenames", fallback="False")
             self.restrict_cb.setChecked(str(restrict_val) == "True")
             
-            self.cookies_combo.setCurrentIndex(0) # Reset to None
+            # Reset cookies dropdown
+            self.cookies_combo.clear()
+            installed_browsers = self._get_installed_browsers()
+            self.cookies_combo.addItem("None")
+            self.cookies_combo.addItems(installed_browsers)
+            
+            if installed_browsers:
+                first_browser = installed_browsers[0]
+                idx = self.cookies_combo.findText(first_browser)
+                self._save_general("cookies_from_browser", first_browser)
+            else:
+                idx = 0
+                self._save_general("cookies_from_browser", "None")
+            
+            if idx >= 0:
+                self.cookies_combo.setCurrentIndex(idx)
             
             # Reset update channel
             idx = self.update_channel_combo.findData("stable")
             if idx >= 0:
                 self.update_channel_combo.setCurrentIndex(idx)
+            
+            # Reset JS runtime path
+            self.js_runtime_display.setText(self.config.get("General", "js_runtime_path", fallback=""))
+
+            # Update Start tab UI
+            start_tab = getattr(self.main, "tab_start", None)
+            if start_tab:
+                start_tab.reset_to_defaults()
 
             QMessageBox.information(self, "Restored", "Defaults restored.")
 

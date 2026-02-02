@@ -41,6 +41,7 @@ class DownloadItemWidget(QWidget):
         self.cancel_btn = QPushButton("Cancel")
         self.cancel_btn.setFixedWidth(70)
         self.cancel_btn.clicked.connect(self._on_cancel_clicked)
+        self.cancel_btn.setToolTip("Cancel or resume the download, or retry after a failure.")
         top.addWidget(self.cancel_btn)
 
         layout.addLayout(top)
@@ -105,7 +106,7 @@ class DownloadItemWidget(QWidget):
                 "postproc", "post-process", "merger",
                 # chapter / modify operations, sponsorblock, embedding
                 "chap", "chapter", "chapters", "modify", "modifychap",
-                "sponsor", "sponsorblock", "embed", "thumbnail", "tag"
+                "sponsor", "sponsorblock", "embed", "thumbnail", "tag", "fixup"
             )
             # Also treat audio extraction as postprocessing (e.g. "Extracting audio")
             post_keys = post_keys + ("extract",)
@@ -168,8 +169,7 @@ class DownloadItemWidget(QWidget):
             )
             # Treat audio extraction as postprocessing (yt-dlp reports "Extracting audio")
             # so the progress chunk remains active/blue until finished().
-            # Detect via the substring 'extract'.
-            post_keys = post_keys + ("extract",)
+            post_keys = post_keys + ("extract", "fixup",)
             if any(k in low for k in post_keys):
                 self.progress.setStyleSheet(
                     "QProgressBar { border: 1px solid #bbb; border-radius: 6px; background: #eeeeee; }"
@@ -317,97 +317,40 @@ class ActiveDownloadsTab(QWidget):
     def add_download_widget(self, worker_or_url):
         """
         Adapter expected by main_window.download_added.
-        Accepts:
-          - a worker object with attributes/signals (common case),
-          - a (url, title) tuple,
-          - or a raw url string.
-
+        Accepts a worker object from core.yt_dlp_worker.
         Creates (or reuses) a DownloadItemWidget and wires signals.
         """
-        # --- determine url and title from input ---
         url = None
         title = None
         worker = None
 
-        # tuple (url, title)
-        if isinstance(worker_or_url, (list, tuple)) and len(worker_or_url) >= 1:
-            url = worker_or_url[0]
-            if len(worker_or_url) > 1:
-                title = worker_or_url[1]
-        # string url
-        elif isinstance(worker_or_url, str):
+        if isinstance(worker_or_url, str):
             url = worker_or_url
         else:
-            # probably a worker object
             worker = worker_or_url
-            # try common attribute names
-            url = getattr(worker, "url", None) or getattr(worker, "raw_url", None) or getattr(worker, "download_url", None)
-            title = getattr(worker, "video_title", None) or getattr(worker, "title", None)
+            url = getattr(worker, "url", None)
 
         if not url:
-            # fallback to string repr to avoid crash
             url = str(worker_or_url)
 
-        # If widget already exists for this URL, reuse it
         if url in self.active_items:
             widget = self.active_items[url]
         else:
             widget = self.add_placeholder(url)
-            if title:
-                # Show only the clean video title (no 'Downloading:' prefix)
-                widget.title_label.setText(self._clean_display_title(title))
             self.active_items[url] = widget
 
-        # If a worker object is provided, wire up its signals to update the widget
         if worker is not None:
-            # Progress signal variations: try multiple common names
-            if hasattr(worker, "progress"):
-                try:
-                    worker.progress.connect(lambda data, w=widget: self._on_worker_progress(w, data))
-                    # Also listen for raw progress text lines to detect title/filename early
-                    worker.progress.connect(lambda data, w=widget: self._maybe_set_title_from_progress(w, data))
-                except Exception:
-                    pass
-            if hasattr(worker, "progress_updated"):
-                try:
-                    worker.progress_updated.connect(lambda pct, w=widget: w.update_progress(pct, f"{pct:.2f}%"))
-                except Exception:
-                    pass
-            # Do not have status_updated overwrite the title label (status messages
-            # are typically progress-related). Instead, when the worker provides a
-            # `title_updated` signal, show the downloading state with the title.
-            if hasattr(worker, "title_updated"):
-                try:
-                    # When title is available before download starts, show queued status;
-                    # otherwise show the plain title while downloading.
-                    worker.title_updated.connect(lambda t, w=widget, wr=worker: self._on_title_updated(w, wr, t))
-                except Exception:
-                    pass
-            # finished signal variations: finished(bool) or finished()
-            if hasattr(worker, "finished"):
-                try:
-                    # Support multiple finished signal signatures:
-                    # - finished()
-                    # - finished(success: bool)
-                    # - finished(url: str, success: bool)
-                    # Use a flexible lambda that inspects the last arg for success.
-                    worker.finished.connect(lambda *args, w=widget, wr=worker: self._on_worker_finished(w, wr, args[-1] if args else True))
-                except Exception:
-                    try:
-                        worker.finished.connect(lambda w=widget, wr=worker: self._on_worker_finished(w, wr, True))
-                    except Exception:
-                        pass
-            if hasattr(worker, "error_occurred"):
-                try:
-                    worker.error_occurred.connect(lambda err, w=widget, wr=worker: self._on_worker_failed(w, wr, err))
-                except Exception:
-                    pass
-
-            # When a real worker is attached, ensure the widget shows active state
             try:
+                # Explicitly connect to the known signals of DownloadWorker
+                worker.progress.connect(lambda data, w=widget: self._on_worker_progress(w, data))
+                worker.progress.connect(lambda data, w=widget: self._maybe_set_title_from_progress(w, data))
+                worker.title_updated.connect(lambda t, w=widget, wr=worker: self._on_title_updated(w, wr, t))
+                worker.finished.connect(lambda url, success, files, w=widget, wr=worker: self._on_worker_finished(w, wr, success))
+                worker.error.connect(lambda url, msg, w=widget, wr=worker: self._on_worker_failed(w, wr, msg))
+
                 widget.mark_active()
-            except Exception:
-                pass
+            except Exception as e:
+                log.error(f"Failed to connect signals for worker {url}: {e}")
 
         return widget
 
@@ -479,7 +422,7 @@ class ActiveDownloadsTab(QWidget):
         # percent is available (e.g. yt-dlp reports 100% then begins merging).
         post_keys = (
             "merg", "merge", "merging", "delet", "remov", "ffmpeg",
-            "postproc", "post-process", "merger", "extract"
+            "postproc", "post-process", "merger", "extract", "fixup"
         )
         is_postprocessing = any(k in low for k in post_keys)
 
@@ -584,8 +527,9 @@ class ActiveDownloadsTab(QWidget):
             import re, os
             # Remove surrounding quotes
             s = (name or "").strip().strip('"')
-            # If a path, take basename
-            s = os.path.basename(s)
+            # The calling context should handle path/basename separation.
+            # This function should focus on cleaning a filename/title string.
+            # s = re.split(r'[/\\]', s)[-1] # THIS LINE IS THE BUG
             # Remove extension
             s, _ = os.path.splitext(s)
             # Remove trailing bracketed groups
@@ -644,10 +588,7 @@ class ActiveDownloadsTab(QWidget):
 
     def _on_worker_finished(self, widget: DownloadItemWidget, worker, success: bool):
         """Worker finished handler — mark completed or failed."""
-        # try to obtain best title available (prefer worker's video_title)
-        raw_title = getattr(worker, "video_title", None) or getattr(worker, "title", None) or widget.title_label.text()
-        # strip any UI prefixes like 'Downloading:' or 'Fetching Title:' to obtain clean title
-        title = self._strip_title_prefix(raw_title)
+        title = self._strip_title_prefix(widget.title_label.text())
         if success:
             widget.mark_completed(title)
         else:
@@ -656,7 +597,7 @@ class ActiveDownloadsTab(QWidget):
 
     def _on_worker_failed(self, widget: DownloadItemWidget, worker, err_text: str):
         """Explicit error path (if worker emits error_occurred)."""
-        title = getattr(worker, "video_title", None) or getattr(worker, "title", None) or widget.title_label.text()
+        title = self._strip_title_prefix(widget.title_label.text())
         # show error on widget and allow retry
         widget.mark_failed(title)
         # optionally pop up a message to user
@@ -748,6 +689,28 @@ class ActiveDownloadsTab(QWidget):
                     pass
         except Exception:
             log.exception("Failed to set placeholder message")
+
+    def remove_placeholder(self, url):
+        """Find and remove a placeholder widget by its URL."""
+        try:
+            widget = self.active_items.get(url)
+            if not widget:
+                return
+
+            # Find and remove the item from the list widget
+            for idx in range(self.list_widget.count()):
+                it = self.list_widget.item(idx)
+                w = self.list_widget.itemWidget(it)
+                if w is widget:
+                    self.list_widget.takeItem(idx)
+                    break
+            
+            # Clean up internal mapping
+            if url in self.active_items:
+                del self.active_items[url]
+
+        except Exception:
+            log.exception(f"Failed to remove placeholder for {url}")
 
     def update_progress(self, url, percent, text):
         """Update the download progress for a given URL."""
