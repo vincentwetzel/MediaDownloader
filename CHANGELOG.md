@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed critical app crash on startup caused by corrupted method merging in `main_window.py`
 - Fixed unhandled exception in version fetch from daemon thread (disabled for now pending future refactor)
 - Added robust error handling around signal emission in background threads
+- Do not auto-create `temp_downloads` or set default output directory on first run; leave paths unset until user selects them
 
 ## [0.0.1] - 2026-02-02
 
