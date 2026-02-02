@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Fixed critical app crash on startup caused by corrupted method merging in `main_window.py`
+- Fixed unhandled exception in version fetch from daemon thread (disabled for now pending future refactor)
+- Added robust error handling around signal emission in background threads
+
 ## [0.0.1] - 2026-02-02
 
 ### Added
