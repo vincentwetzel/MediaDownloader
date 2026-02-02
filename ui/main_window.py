@@ -307,15 +307,6 @@ class MediaDownloaderApp(QMainWindow):
 
     def _on_download_finished(self, url, success):
         log.info(f"Download finished: {url}, success={success}")
-
-    def _check_for_app_update(self):
-        """Trigger the app update check via the Advanced tab helper."""
-        try:
-            if hasattr(self, 'tab_advanced') and hasattr(self.tab_advanced, '_check_app_update'):
-                # Call the tab's check method which runs asynchronously
-                self.tab_advanced._check_app_update()
-        except Exception:
-            log.exception('Failed to start app update check')
         if success:
             self.archive_manager.add_to_archive(url)
         else:
@@ -325,6 +316,15 @@ class MediaDownloaderApp(QMainWindow):
             if self.exit_after:
                 log.info("All downloads complete; exiting app...")
                 QTimer.singleShot(1000, self.close)
+
+    def _check_for_app_update(self):
+        """Trigger the app update check via the Advanced tab helper."""
+        try:
+            if hasattr(self, 'tab_advanced') and hasattr(self.tab_advanced, '_check_app_update'):
+                # Call the tab's check method which runs asynchronously
+                self.tab_advanced._check_app_update()
+        except Exception:
+            log.exception('Failed to start app update check')
 
     def _on_download_error(self, url, message):
         log.error(f"Download failed: {url}: {message}")

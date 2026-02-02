@@ -186,7 +186,8 @@ class AdvancedSettingsTab(QWidget):
         # Version label
         self.version_lbl = QLabel("Current version: Unknown")
         # Refresh version label after a short delay to ensure yt-dlp path is resolved
-        QTimer.singleShot(1000, self._refresh_version_label)
+        # TODO: Fix crash on version fetch in daemon thread
+        # QTimer.singleShot(1000, self._refresh_version_label)
 
         update_group.addWidget(QLabel("Update Channel:"))
         update_group.addWidget(self.update_channel_combo)
@@ -302,8 +303,19 @@ class AdvancedSettingsTab(QWidget):
         from core.yt_dlp_worker import get_yt_dlp_version
         
         def fetch():
-            ver = get_yt_dlp_version()
-            self.version_fetched.emit(str(ver) if ver else "Unknown")
+            try:
+                ver = get_yt_dlp_version()
+                # Emit signal safely with proper error handling
+                try:
+                    self.version_fetched.emit(str(ver) if ver else "Unknown")
+                except Exception as e:
+                    log.error(f"Error emitting version_fetched signal: {e}")
+            except Exception as e:
+                log.error(f"Error in fetch thread: {e}")
+                try:
+                    self.version_fetched.emit("Unknown")
+                except Exception as e2:
+                    log.error(f"Error emitting fallback signal: {e2}")
 
         # Run in background to avoid UI freeze if disk is slow
         t = threading.Thread(target=fetch, daemon=True)

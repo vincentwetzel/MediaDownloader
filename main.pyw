@@ -31,10 +31,14 @@ def main():
     setup_logging()
     logging.info("Starting Media Downloader...")
 
-    app = QApplication(sys.argv)
-    wnd = MediaDownloaderApp()
-    wnd.show()
-    sys.exit(app.exec())
+    try:
+        app = QApplication(sys.argv)
+        wnd = MediaDownloaderApp()
+        wnd.show()
+        sys.exit(app.exec())
+    except Exception as e:
+        logging.error(f"Fatal error in main: {e}", exc_info=True)
+        raise
 
 
 if __name__ == "__main__":

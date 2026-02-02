@@ -144,36 +144,43 @@ def check_yt_dlp_available():
 def get_yt_dlp_version():
     """Return the version string of the current yt-dlp executable, or None if not found."""
     global _YT_DLP_PATH
-    if not _YT_DLP_PATH:
-        # Try to find it if not already found
-        log.debug("get_yt_dlp_version: _YT_DLP_PATH not set, checking availability...")
-        check_yt_dlp_available()
-    
-    if _YT_DLP_PATH:
-        try:
-            log.debug(f"Fetching version for: {_YT_DLP_PATH}")
-            result = subprocess.run(
-                [_YT_DLP_PATH, "--version"],
-                capture_output=True,
-                text=True,
-                timeout=5,
-                shell=False,
-                errors='replace',
-                stdin=subprocess.DEVNULL,
-                creationflags=creation_flags
-            )
-            if result.returncode == 0:
-                ver = result.stdout.strip()
-                log.debug(f"Version fetched: {ver}")
-                return ver
-            else:
-                log.warning(f"Failed to get version. RC: {result.returncode}, Stderr: {result.stderr}")
-        except Exception as e:
-            log.error(f"Exception getting version: {e}")
-            pass
-    else:
-        log.warning("get_yt_dlp_version: No yt-dlp path found.")
-    return None
+    try:
+        if not _YT_DLP_PATH:
+            # Try to find it if not already found
+            log.debug("get_yt_dlp_version: _YT_DLP_PATH not set, checking availability...")
+            check_yt_dlp_available()
+        
+        if _YT_DLP_PATH:
+            try:
+                log.debug(f"Fetching version for: {_YT_DLP_PATH}")
+                result = subprocess.run(
+                    [_YT_DLP_PATH, "--version"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                    shell=False,
+                    errors='replace',
+                    stdin=subprocess.DEVNULL,
+                    creationflags=creation_flags
+                )
+                if result.returncode == 0:
+                    ver = result.stdout.strip()
+                    log.debug(f"Version fetched: {ver}")
+                    return ver
+                else:
+                    log.warning(f"Failed to get version. RC: {result.returncode}, Stderr: {result.stderr}")
+            except subprocess.TimeoutExpired:
+                log.warning("get_yt_dlp_version: subprocess timed out")
+                return None
+            except Exception as e:
+                log.error(f"Exception getting version: {e}")
+                return None
+        else:
+            log.warning("get_yt_dlp_version: No yt-dlp path found.")
+            return None
+    except Exception as outer_e:
+        log.error(f"Unexpected error in get_yt_dlp_version: {outer_e}")
+        return None
 
 
 def fetch_metadata(url: str, timeout: int = 15):
