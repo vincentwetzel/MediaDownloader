@@ -232,22 +232,10 @@ class AdvancedSettingsTab(QWidget):
             self.out_display.setText(folder)
             log.debug(f"Updated output directory: {folder}")
             
-            # Automatically set temp directory if it's not set or if we want to enforce a structure
-            # Logic: If the user sets an output folder, we can conveniently set the temp folder
-            # to be a subdirectory of it.
-            
-            new_temp = os.path.join(folder, "temp_downloads")
-            new_temp = os.path.normpath(new_temp) # Ensure consistency
-            
-            self.config.set("Paths", "temporary_downloads_directory", new_temp)
-            self.temp_display.setText(new_temp)
-            log.debug(f"Automatically updated temporary directory to: {new_temp}")
-            
-            # Ensure the directory exists
-            try:
-                os.makedirs(new_temp, exist_ok=True)
-            except Exception as e:
-                log.warning(f"Could not create auto-temp directory: {e}")
+            # Do NOT automatically set or create a temp directory when the output folder
+            # is selected. The temporary downloads directory should remain unset until
+            # the user explicitly chooses it to avoid cluttering the application folder.
+            log.debug("Output directory set by user; temporary directory left unchanged.")
 
     def browse_temp(self):
         """Prompt user to choose new temp directory."""

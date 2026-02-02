@@ -104,16 +104,9 @@ class MediaDownloaderApp(QMainWindow):
         
         # Set default temp directory if not set
         temp_path = self.config_manager.get("Paths", "temporary_downloads_directory", fallback="")
-        if not temp_path:
-            default_temp = os.path.join(os.getcwd(), "temp_downloads")
-            try:
-                os.makedirs(default_temp, exist_ok=True)
-                self.config_manager.set("Paths", "temporary_downloads_directory", default_temp)
-                # Update UI if tab is already created
-                if hasattr(self, 'tab_advanced') and hasattr(self.tab_advanced, 'temp_display'):
-                    self.tab_advanced.temp_display.setText(default_temp)
-            except Exception:
-                log.warning("Could not set default temporary directory")
+        # Do not create or set a default temporary directory here. Leave it unset
+        # until the user explicitly chooses one in Advanced Settings to avoid
+        # creating files/folders in the application directory unexpectedly.
 
     def _prompt_for_output_dir(self):
         """Prompt user to select an output directory."""
