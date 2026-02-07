@@ -7,6 +7,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 2026-02-02
+- **Fixed metadata embedding for videos**: Added `--embed-metadata` and `--embed-thumbnail` flags to video downloads (previously only applied to audio).
+- **Capped max concurrent downloads at 4 on app startup**: While users can temporarily set higher concurrency (up to 8) in the UI, any value above 4 reverts to 4 when the app restarts. This prevents users from accidentally launching with overly aggressive concurrency.
+- **Added "View Formats" feature**: Users can now select "View Formats" from the Download Type dropdown to inspect all available download formats for a URL without downloading. This runs `yt-dlp -F <URL>` and displays results in a dialog.
+- **Dynamic Download button text**: The main Download button now changes its label based on the selected Download Type (e.g., "Download Video", "Download Audio", "View Formats") to provide clear user feedback.
+- **Added comprehensive mouseover tooltips**: All UI elements now have helpful tooltips explaining their purpose, including buttons, dropdowns, checkboxes, and labels across all three tabs (Start, Active, Advanced).
+- **Early unsupported-URL detection**: Added a quick background validation step before creating Active Downloads UI elements. If `yt-dlp` cannot quickly extract metadata for a URL, the app will report the URL as unsupported and will not create the download UI entry, preventing wasted UI artifacts and faster user feedback.
+- **Extractor index & host heuristics**: At startup the app now attempts to build a local extractor index (using the `yt_dlp` python module when available) and uses it to rapidly determine whether a host is supported. This reduces latency for common hosts like YouTube by avoiding the slower metadata probes.
+
+### 2026-02-03
+- **Implemented Tiered URL Validation**: Refined the early supported-URL detection into a two-tier system to balance speed and accuracy.
+- **Tier 1 (Fast-Track)**: The app now performs an immediate string/regex check for high-traffic domains (e.g., `youtube.com`, `youtu.be`, `music.youtube.com`). These are accepted instantly to provide zero-latency UI feedback.
+- **Tier 2 (Metadata Probe)**: For less-common domains, the app initiates a background `yt-dlp --simulate` call. The "Active Download" UI entry is only generated if this probe confirms the URL is a valid target.
+- **Rationale**: This hybrid approach eliminates the "verification lag" for the most frequent use cases (YouTube) while preventing the UI from being cluttered with invalid or unsupported URLs for niche sites.
+
+### 2026-02-04
+- **Configurable Output Filename Pattern**: Added a new GUI textbox in the Advanced Settings tab to allow users to define the output filename pattern using `yt-dlp` template variables.
+- **Default**: `%(title)s [%(uploader)s][%(upload_date>%m-%d-%Y)s][%(id)s].%(ext)s`
+- **Validation**: Basic validation ensures balanced parentheses and brackets before saving.
+- **Reset**: Users can easily revert to the default pattern.
+- **Integration**: The `DownloadManager` now pulls this pattern from the configuration instead of using a hardcoded string.
+
+### 2026-02-06
+- **Fixed ConfigParser Interpolation Error**: Disabled interpolation in `ConfigManager` to prevent `configparser` from attempting to interpret `yt-dlp` template variables (like `%(title)s`) as configuration references. This fixed a crash on startup.
+
+### 2026-02-07
+- **Grouped Advanced Settings into categories**: The Advanced tab now clusters options into labeled sections (e.g., Configuration, Authentication & Access, Output Template, Download Options, Media & Subtitles, Updates, Maintenance) so users can find settings faster.
+- **Implemented Application Self-Update Mechanism**: Added logic to check for updates from GitHub Releases, download the update, and apply it.
+- **Update Check**: Queries GitHub API for the latest release tag.
+- **Download**: Downloads the update asset (exe/msi) to a temporary location.
+- **Apply**: If it's an installer, launches it. If it's a binary replacement, uses a batch script to swap the executable and restart.
+- **UI Integration**: Added a prompt in the main window when an update is available, with options to update now or view the release page.
+- **Added chapter embedding toggle**: New Advanced Settings checkbox (default on) to pass `--embed-chapters` to yt-dlp when available.
+
+### 2026-02-08
+- **Added Global Download Speed Indicator**: Implemented a real-time download speed indicator at the bottom of the main application window.
+- **Implementation**: Uses `psutil.Process().io_counters().read_bytes` to measure the total I/O read throughput of the application process.
+- **UI Update**: Added a `QLabel` to the bottom of `MediaDownloaderApp` to display the total speed.
+- **Aggregation**: Implemented a timer in `MediaDownloaderApp` to calculate the speed difference every second.
+- **Rationale**: Provides a more accurate and simpler measure of actual data throughput compared to parsing `yt-dlp` stdout, and avoids per-file tracking complexity.
+
+### 2026-02-09
+- **Added Theme Selection**: Added a dropdown in Advanced Settings to switch between "System", "Light", and "Dark" themes.
+- **Implementation**: Updates `main.pyw` to apply the selected theme on startup.
+- **Dark Mode**: Uses `pyqtdarktheme` if available, otherwise falls back to system style.
+- **Persistence**: Saves the user's choice in `settings.json`.
+- **Dynamic Switching**: Theme changes are applied immediately without requiring a restart.
+- **Robustness**: Added checks for `setup_theme` vs `load_stylesheet` to support different versions of `pyqtdarktheme` or compatible libraries.
+- **System Theme Detection**: Added Windows registry check to correctly detect system theme when "System" (auto) is selected, fixing an issue where it defaulted to dark mode.
+
+### 2026-02-10
+- **Fixed Global Download Speed Indicator**: Modified the download speed indicator to include I/O from child processes.
+- **Implementation**: The speed calculation now iterates through the main process and all its children (`psutil.Process().children(recursive=True)`), summing their `io_counters` to get a total I/O throughput.
+- **Rationale**: This provides a more accurate download speed measurement, as `yt-dlp` runs in separate subprocesses whose I/O was not previously being tracked.
+
+### 2026-02-11
+- **Fixed Global Download Speed Indicator (Again)**: The previous fix for the download speed indicator was flawed and caused it to display `-- MB/s`. The calculation logic has been rewritten to be more robust and now correctly sums the I/O from the main process and all its children.
+- **Implementation**: The `_get_total_io_counters` function now simply sums the `read_bytes` from the main process and all its children, with proper error handling for terminated processes.
+- **Rationale**: This simpler implementation is more resilient and provides an accurate total download speed.
+
 ### Fixed
 - Fixed PyInstaller build hang on PyQt6.QtGui hook processing (PyInstaller 6.18.0 issue)
   - Solution: Created custom minimal PyQt6.QtGui hook to bypass problematic default hook

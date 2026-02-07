@@ -291,6 +291,7 @@ class DownloadWorker(QThread):
             
             sub_langs = self.config_manager.get("General", "subtitles_langs", fallback="en")
             sub_format = self.config_manager.get("General", "subtitles_format", fallback="None")
+            embed_chapters = self.config_manager.get("General", "embed_chapters", fallback="True") == "True"
 
             if embed_subs:
                 cmd.append("--embed-subs")
@@ -298,6 +299,8 @@ class DownloadWorker(QThread):
                 cmd.append("--write-subs")
             if write_auto_subs:
                 cmd.append("--write-auto-subs")
+            if embed_chapters:
+                cmd.append("--embed-chapters")
 
             # Add language and format if any subtitle option is enabled
             if embed_subs or write_subs or write_auto_subs:

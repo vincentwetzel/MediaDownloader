@@ -47,6 +47,7 @@ class ConfigManager:
             "cookies_from_browser": "None",
             "js_runtime_path": "",  # New setting for JavaScript runtime
             "output_template": "%(title)s [%(uploader)s][%(upload_date>%m-%d-%Y)s][%(id)s].%(ext)s",
+            "embed_chapters": "True",
             "subtitles_embed": "False",
             "subtitles_write": "False",
             "subtitles_write_auto": "False",
@@ -78,6 +79,7 @@ class ConfigManager:
             "cookies_from_browser": "None",
             "js_runtime_path": "",  # New setting for JavaScript runtime
             "output_template": "%(title)s [%(uploader)s][%(upload_date>%m-%d-%Y)s][%(id)s].%(ext)s",
+            "embed_chapters": "True",
             "subtitles_embed": "False",
             "subtitles_write": "False",
             "subtitles_write_auto": "False",

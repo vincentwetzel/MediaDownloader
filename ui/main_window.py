@@ -61,12 +61,25 @@ class MediaDownloaderApp(QMainWindow):
         main_widget = QWidget()
         layout = QVBoxLayout(main_widget)
         layout.addWidget(self.tabs)
-        
-        # Add speed indicator at the bottom
+
+        # Bottom status row: contact + speed indicator
         self.speed_label = QLabel("Current Speed: 0.00 MB/s")
         self.speed_label.setAlignment(Qt.AlignmentFlag.AlignRight)
         self.speed_label.setStyleSheet("padding: 5px; color: #666;")
-        layout.addWidget(self.speed_label)
+
+        self.contact_label = QLabel("<a href='contact'>Contact Developer</a>")
+        self.contact_label.setToolTip("Open your email client to contact the developer")
+        self.contact_label.setTextFormat(Qt.TextFormat.RichText)
+        self.contact_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+        self.contact_label.setOpenExternalLinks(False)
+        self.contact_label.linkActivated.connect(self._on_contact_link)
+        self.contact_label.setStyleSheet("padding: 5px; color: #0066cc;")
+
+        bottom_row = QHBoxLayout()
+        bottom_row.addWidget(self.contact_label, alignment=Qt.AlignmentFlag.AlignLeft)
+        bottom_row.addStretch(1)
+        bottom_row.addWidget(self.speed_label, alignment=Qt.AlignmentFlag.AlignRight)
+        layout.addLayout(bottom_row)
         
         self.setCentralWidget(main_widget)
 
@@ -180,6 +193,16 @@ class MediaDownloaderApp(QMainWindow):
         except Exception as e:
             log.error(f"Error updating speed: {e}")
             self.speed_label.setText("Current Speed: -- MB/s")
+
+    def _on_contact_link(self, _link):
+        """Open the user's mail client without storing a raw email string in the codebase."""
+        try:
+            parts = ["vincent", "wetzel3", "gmail", "com"]
+            email = f"{parts[0]}{parts[1]}@{parts[2]}.{parts[3]}"
+            log.info("Opening contact email link")
+            QDesktopServices.openUrl(QUrl(f"mailto:{email}"))
+        except Exception:
+            log.exception("Failed to open contact email link")
 
     def _check_output_directory(self):
         """Check if output directory is set, if not, prompt user."""

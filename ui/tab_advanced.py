@@ -147,6 +147,15 @@ class AdvancedSettingsTab(QWidget):
         layout = QVBoxLayout()
         layout.setContentsMargins(8, 8, 8, 8)
 
+        def add_group(title: str):
+            group = QGroupBox(title)
+            group_layout = QVBoxLayout()
+            group.setLayout(group_layout)
+            layout.addWidget(group)
+            return group_layout
+
+        config_group = add_group("Configuration")
+
         # Output folder row
         out_row = QHBoxLayout()
         out_lbl = QLabel("Output folder:")
@@ -154,14 +163,14 @@ class AdvancedSettingsTab(QWidget):
         out_path = self.config.get("Paths", "completed_downloads_directory", fallback="")
         self.out_display = QLabel(out_path)
         self.out_display.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        btn_out = QPushButton("📁")
+        btn_out = QPushButton("\U0001F4C1")
         btn_out.setFixedWidth(40)
         btn_out.clicked.connect(self.browse_out)
         btn_out.setToolTip("Browse and select the output folder for completed downloads.")
         out_row.addWidget(out_lbl)
         out_row.addWidget(self.out_display, stretch=1)
         out_row.addWidget(btn_out)
-        layout.addLayout(out_row)
+        config_group.addLayout(out_row)
 
         # Temporary folder row
         temp_row = QHBoxLayout()
@@ -170,45 +179,14 @@ class AdvancedSettingsTab(QWidget):
         temp_path = self.config.get("Paths", "temporary_downloads_directory", fallback="")
         self.temp_display = QLabel(temp_path)
         self.temp_display.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        btn_temp = QPushButton("📁")
+        btn_temp = QPushButton("\U0001F4C1")
         btn_temp.setFixedWidth(40)
         btn_temp.clicked.connect(self.browse_temp)
         btn_temp.setToolTip("Browse and select the temporary folder for in-progress downloads.")
         temp_row.addWidget(temp_lbl)
         temp_row.addWidget(self.temp_display, stretch=1)
         temp_row.addWidget(btn_temp)
-        layout.addLayout(temp_row)
-
-        # Browser cookies dropdown
-        cookies_row = QHBoxLayout()
-        cookies_lbl = QLabel("Cookies from browser:")
-        cookies_lbl.setToolTip("Use cookies from your browser to authenticate with websites like YouTube.")
-        self.cookies_combo = QComboBox()
-        self.cookies_combo.setToolTip("Select a browser to extract cookies from. Required for accessing age-restricted content.")
-        
-        installed_browsers = self._get_installed_browsers()
-        self.cookies_combo.addItem("None")
-        self.cookies_combo.addItems(installed_browsers)
-        
-        cur_browser = self.config.get("General", "cookies_from_browser", fallback="None")
-        
-        if cur_browser in installed_browsers:
-            idx = self.cookies_combo.findText(cur_browser)
-        elif installed_browsers:
-            first_browser = installed_browsers[0]
-            idx = self.cookies_combo.findText(first_browser)
-            self._save_general("cookies_from_browser", first_browser)
-        else:
-            idx = 0
-            self._save_general("cookies_from_browser", "None")
-
-        if idx >= 0:
-            self.cookies_combo.setCurrentIndex(idx)
-            
-        self.cookies_combo.currentTextChanged.connect(self.on_cookies_browser_changed)
-        cookies_row.addWidget(cookies_lbl)
-        cookies_row.addWidget(self.cookies_combo, stretch=1)
-        layout.addLayout(cookies_row)
+        config_group.addLayout(temp_row)
 
         # Theme dropdown
         theme_row = QHBoxLayout()
@@ -234,7 +212,58 @@ class AdvancedSettingsTab(QWidget):
 
         theme_row.addWidget(theme_lbl)
         theme_row.addWidget(self.theme_combo, stretch=1)
-        layout.addLayout(theme_row)
+        config_group.addLayout(theme_row)
+
+        auth_group = add_group("Authentication & Access")
+
+        # Browser cookies dropdown
+        cookies_row = QHBoxLayout()
+        cookies_lbl = QLabel("Cookies from browser:")
+        cookies_lbl.setToolTip("Use cookies from your browser to authenticate with websites like YouTube.")
+        self.cookies_combo = QComboBox()
+        self.cookies_combo.setToolTip("Select a browser to extract cookies from. Required for accessing age-restricted content.")
+
+        installed_browsers = self._get_installed_browsers()
+        self.cookies_combo.addItem("None")
+        self.cookies_combo.addItems(installed_browsers)
+
+        cur_browser = self.config.get("General", "cookies_from_browser", fallback="None")
+
+        if cur_browser in installed_browsers:
+            idx = self.cookies_combo.findText(cur_browser)
+        elif installed_browsers:
+            first_browser = installed_browsers[0]
+            idx = self.cookies_combo.findText(first_browser)
+            self._save_general("cookies_from_browser", first_browser)
+        else:
+            idx = 0
+            self._save_general("cookies_from_browser", "None")
+
+        if idx >= 0:
+            self.cookies_combo.setCurrentIndex(idx)
+
+        self.cookies_combo.currentTextChanged.connect(self.on_cookies_browser_changed)
+        cookies_row.addWidget(cookies_lbl)
+        cookies_row.addWidget(self.cookies_combo, stretch=1)
+        auth_group.addLayout(cookies_row)
+
+        # JavaScript Runtime Path
+        js_runtime_row = QHBoxLayout()
+        js_runtime_lbl = QLabel("JS Runtime (Deno/Node.js):")
+        js_runtime_lbl.setToolTip("Path to a JavaScript runtime for handling anti-bot challenges on some websites.")
+        js_runtime_path = self.config.get("General", "js_runtime_path", fallback="")
+        self.js_runtime_display = QLabel(js_runtime_path)
+        self.js_runtime_display.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        btn_js_runtime = QPushButton("\U0001F4C1")
+        btn_js_runtime.setFixedWidth(40)
+        btn_js_runtime.clicked.connect(self.browse_js_runtime)
+        btn_js_runtime.setToolTip("Browse and select a JavaScript runtime executable (e.g., deno.exe or node.exe).")
+        js_runtime_row.addWidget(js_runtime_lbl)
+        js_runtime_row.addWidget(self.js_runtime_display, stretch=1)
+        js_runtime_row.addWidget(btn_js_runtime)
+        auth_group.addLayout(js_runtime_row)
+
+        template_group = add_group("Output Template")
 
         # Output Filename Pattern
         pattern_row = QHBoxLayout()
@@ -261,7 +290,9 @@ class AdvancedSettingsTab(QWidget):
         pattern_row.addWidget(self.pattern_input, stretch=1)
         pattern_row.addWidget(btn_save_pattern)
         pattern_row.addWidget(btn_reset_pattern)
-        layout.addLayout(pattern_row)
+        template_group.addLayout(pattern_row)
+
+        options_group = add_group("Download Options")
 
         # External Downloader dropdown
         downloader_row = QHBoxLayout()
@@ -281,11 +312,28 @@ class AdvancedSettingsTab(QWidget):
 
         downloader_row.addWidget(downloader_lbl)
         downloader_row.addWidget(self.downloader_combo, stretch=1)
-        layout.addLayout(downloader_row)
+        options_group.addLayout(downloader_row)
 
-        # Subtitle Options
-        subs_group = QGroupBox("Subtitle Options")
-        subs_layout = QVBoxLayout()
+        # SponsorBlock and Restrict filenames
+        self.sponsorblock_cb = QCheckBox("Enable SponsorBlock")
+        self.sponsorblock_cb.setToolTip("Automatically skip sponsored segments, intros, and outros in videos.")
+        sponsor_val = self.config.get("General", "sponsorblock", fallback="True")
+        self.sponsorblock_cb.setChecked(str(sponsor_val) == "True")
+        self.sponsorblock_cb.stateChanged.connect(
+            lambda s: self._save_general("sponsorblock", str(bool(s)))
+        )
+        options_group.addWidget(self.sponsorblock_cb)
+
+        self.restrict_cb = QCheckBox("Restrict filenames")
+        self.restrict_cb.setToolTip("Use only ASCII characters in filenames (safer for older systems but may shorten names).")
+        restrict_val = self.config.get("General", "restrict_filenames", fallback="False")
+        self.restrict_cb.setChecked(str(restrict_val) == "True")
+        self.restrict_cb.stateChanged.connect(
+            lambda s: self._save_general("restrict_filenames", str(bool(s)))
+        )
+        options_group.addWidget(self.restrict_cb)
+
+        media_group = add_group("Media & Subtitles")
 
         self.embed_subs_cb = QCheckBox("Embed subtitles")
         self.embed_subs_cb.setToolTip("Embed subtitles in the video file.")
@@ -294,7 +342,7 @@ class AdvancedSettingsTab(QWidget):
         self.embed_subs_cb.stateChanged.connect(
             lambda s: self._save_general("subtitles_embed", str(bool(s)))
         )
-        subs_layout.addWidget(self.embed_subs_cb)
+        media_group.addWidget(self.embed_subs_cb)
 
         self.write_subs_cb = QCheckBox("Write subtitles (separate file)")
         self.write_subs_cb.setToolTip("Download subtitles to a separate file.")
@@ -303,8 +351,8 @@ class AdvancedSettingsTab(QWidget):
         self.write_subs_cb.stateChanged.connect(
             lambda s: self._save_general("subtitles_write", str(bool(s)))
         )
-        subs_layout.addWidget(self.write_subs_cb)
-        
+        media_group.addWidget(self.write_subs_cb)
+
         self.write_auto_subs_cb = QCheckBox("Write automatic subtitles")
         self.write_auto_subs_cb.setToolTip("Download automatic subtitles if available.")
         write_auto_subs_val = self.config.get("General", "subtitles_write_auto", fallback="False")
@@ -312,17 +360,17 @@ class AdvancedSettingsTab(QWidget):
         self.write_auto_subs_cb.stateChanged.connect(
             lambda s: self._save_general("subtitles_write_auto", str(bool(s)))
         )
-        subs_layout.addWidget(self.write_auto_subs_cb)
+        media_group.addWidget(self.write_auto_subs_cb)
 
         subs_lang_row = QHBoxLayout()
         subs_lang_lbl = QLabel("Subtitle language:")
         subs_lang_lbl.setToolTip("Language for subtitles.")
         self.subs_lang_combo = QComboBox()
         self.subs_lang_combo.setToolTip("Select a language for subtitles.")
-        
+
         for code, name in self.SUBTITLE_LANGUAGES.items():
             self.subs_lang_combo.addItem(name, code)
-            
+
         saved_lang = self.config.get("General", "subtitles_langs", fallback="en")
         idx = self.subs_lang_combo.findData(saved_lang)
         if idx >= 0:
@@ -335,10 +383,10 @@ class AdvancedSettingsTab(QWidget):
                 self._save_general("subtitles_langs", "en")
 
         self.subs_lang_combo.currentIndexChanged.connect(self._on_subs_lang_changed)
-        
+
         subs_lang_row.addWidget(subs_lang_lbl)
         subs_lang_row.addWidget(self.subs_lang_combo, stretch=1)
-        subs_layout.addLayout(subs_lang_row)
+        media_group.addLayout(subs_lang_row)
 
         subs_format_row = QHBoxLayout()
         subs_format_lbl = QLabel("Convert subtitles to format:")
@@ -353,33 +401,23 @@ class AdvancedSettingsTab(QWidget):
         )
         subs_format_row.addWidget(subs_format_lbl)
         subs_format_row.addWidget(self.subs_format_combo, stretch=1)
-        subs_layout.addLayout(subs_format_row)
+        media_group.addLayout(subs_format_row)
 
-        subs_group.setLayout(subs_layout)
-        layout.addWidget(subs_group)
-
-        # SponsorBlock and Restrict filenames
-        self.sponsorblock_cb = QCheckBox("Enable SponsorBlock")
-        self.sponsorblock_cb.setToolTip("Automatically skip sponsored segments, intros, and outros in videos.")
-        sponsor_val = self.config.get("General", "sponsorblock", fallback="True")
-        self.sponsorblock_cb.setChecked(str(sponsor_val) == "True")
-        self.sponsorblock_cb.stateChanged.connect(
-            lambda s: self._save_general("sponsorblock", str(bool(s)))
+        # Chapter embedding
+        self.embed_chapters_cb = QCheckBox("Embed chapters")
+        self.embed_chapters_cb.setToolTip("Embed chapter markers into the media file when available.")
+        embed_chapters_val = self.config.get("General", "embed_chapters", fallback="True")
+        self.embed_chapters_cb.setChecked(str(embed_chapters_val) == "True")
+        self.embed_chapters_cb.stateChanged.connect(
+            lambda s: self._save_general("embed_chapters", str(bool(s)))
         )
-        layout.addWidget(self.sponsorblock_cb)
+        media_group.addWidget(self.embed_chapters_cb)
 
-        self.restrict_cb = QCheckBox("Restrict filenames")
-        self.restrict_cb.setToolTip("Use only ASCII characters in filenames (safer for older systems but may shorten names).")
-        restrict_val = self.config.get("General", "restrict_filenames", fallback="False")
-        self.restrict_cb.setChecked(str(restrict_val) == "True")
-        self.restrict_cb.stateChanged.connect(
-            lambda s: self._save_general("restrict_filenames", str(bool(s)))
-        )
-        layout.addWidget(self.restrict_cb)
+        updates_group = add_group("Updates")
 
         # --- yt-dlp Update Section ---
         update_group = QHBoxLayout()
-        
+
         self.update_channel_combo = QComboBox()
         self.update_channel_combo.addItem("Stable (default)", "stable")
         self.update_channel_combo.addItem("Nightly", "nightly")
@@ -393,7 +431,7 @@ class AdvancedSettingsTab(QWidget):
         self.update_btn = QPushButton("Update yt-dlp")
         self.update_btn.setToolTip("Check for and install the latest version of yt-dlp.")
         self.update_btn.clicked.connect(self._update_yt_dlp)
-        
+
         self.version_lbl = QLabel("Current version: Unknown")
 
         update_group.addWidget(QLabel("Update Channel:"))
@@ -401,23 +439,7 @@ class AdvancedSettingsTab(QWidget):
         update_group.addWidget(self.update_btn)
         update_group.addWidget(self.version_lbl)
         update_group.addStretch()
-        layout.addLayout(update_group)
-
-        # JavaScript Runtime Path
-        js_runtime_row = QHBoxLayout()
-        js_runtime_lbl = QLabel("JS Runtime (Deno/Node.js):")
-        js_runtime_lbl.setToolTip("Path to a JavaScript runtime for handling anti-bot challenges on some websites.")
-        js_runtime_path = self.config.get("General", "js_runtime_path", fallback="")
-        self.js_runtime_display = QLabel(js_runtime_path)
-        self.js_runtime_display.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        btn_js_runtime = QPushButton("📁")
-        btn_js_runtime.setFixedWidth(40)
-        btn_js_runtime.clicked.connect(self.browse_js_runtime)
-        btn_js_runtime.setToolTip("Browse and select a JavaScript runtime executable (e.g., deno.exe or node.exe).")
-        js_runtime_row.addWidget(js_runtime_lbl)
-        js_runtime_row.addWidget(self.js_runtime_display, stretch=1)
-        js_runtime_row.addWidget(btn_js_runtime)
-        layout.addLayout(js_runtime_row)
+        updates_group.addLayout(update_group)
 
         # Application update controls
         app_update_group = QHBoxLayout()
@@ -435,17 +457,18 @@ class AdvancedSettingsTab(QWidget):
         app_update_group.addWidget(self.check_app_update_btn)
         app_update_group.addWidget(self.auto_check_cb)
         app_update_group.addStretch()
-        layout.addLayout(app_update_group)
+        updates_group.addLayout(app_update_group)
+
+        maintenance_group = add_group("Maintenance")
 
         # Restore Defaults button
         self.restore_btn = QPushButton("Restore Defaults")
         self.restore_btn.setToolTip("Reset all download settings to their default values.")
         self.restore_btn.clicked.connect(self._restore_defaults)
-        layout.addWidget(self.restore_btn)
+        maintenance_group.addWidget(self.restore_btn)
 
         layout.addStretch()
         self.setLayout(layout)
-
     # --- Event handlers ---
     def browse_out(self):
         """Prompt user to choose new output directory."""
@@ -756,6 +779,9 @@ class AdvancedSettingsTab(QWidget):
             
             write_auto_subs_val = self.config.get("General", "subtitles_write_auto", fallback="False")
             self.write_auto_subs_cb.setChecked(str(write_auto_subs_val) == "True")
+
+            embed_chapters_val = self.config.get("General", "embed_chapters", fallback="True")
+            self.embed_chapters_cb.setChecked(str(embed_chapters_val) == "True")
 
             saved_lang = self.config.get("General", "subtitles_langs", fallback="en")
             idx = self.subs_lang_combo.findData(saved_lang)
