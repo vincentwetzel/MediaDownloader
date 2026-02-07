@@ -205,16 +205,32 @@ def fetch_metadata(url: str, timeout: int = 15):
         return None
 
 
+def is_url_valid(url: str, timeout: int = 15):
+    """Check if a URL is valid using yt-dlp --simulate.
+    Returns True if valid, False otherwise.
+    """
+    global _YT_DLP_PATH
+    try:
+        yt_dlp_cmd = _YT_DLP_PATH if _YT_DLP_PATH else shutil.which("yt-dlp") or "yt-dlp"
+        # --simulate: do not download the video and do not write anything to disk
+        cmd = [yt_dlp_cmd, "--simulate", url]
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, shell=False, stdin=subprocess.DEVNULL, creationflags=creation_flags)
+        return proc.returncode == 0
+    except Exception:
+        return False
+
+
 class DownloadWorker(QThread):
     progress = pyqtSignal(dict)
     title_updated = pyqtSignal(str)
     finished = pyqtSignal(str, bool, list)
     error = pyqtSignal(str, str)
 
-    def __init__(self, url, opts, parent=None):
+    def __init__(self, url, opts, config_manager, parent=None):
         super().__init__(parent)
         self.url = url
         self.opts = opts
+        self.config_manager = config_manager
         self._is_cancelled = False
 
     def _parse_error_output(self, error_output):
@@ -266,7 +282,36 @@ class DownloadWorker(QThread):
                 # Ignore metadata extraction failures and continue to download
                 pass
 
-            cmd = [yt_dlp_cmd] + (self.opts if self.opts else []) + [self.url]
+            cmd = [yt_dlp_cmd] + (self.opts.get("args", []) if isinstance(self.opts, dict) else self.opts)
+
+            # Add subtitle options
+            embed_subs = self.config_manager.get("General", "subtitles_embed", fallback="False") == "True"
+            write_subs = self.config_manager.get("General", "subtitles_write", fallback="False") == "True"
+            write_auto_subs = self.config_manager.get("General", "subtitles_write_auto", fallback="False") == "True"
+            
+            sub_langs = self.config_manager.get("General", "subtitles_langs", fallback="en")
+            sub_format = self.config_manager.get("General", "subtitles_format", fallback="None")
+
+            if embed_subs:
+                cmd.append("--embed-subs")
+            if write_subs:
+                cmd.append("--write-subs")
+            if write_auto_subs:
+                cmd.append("--write-auto-subs")
+
+            # Add language and format if any subtitle option is enabled
+            if embed_subs or write_subs or write_auto_subs:
+                if sub_langs:
+                    cmd.extend(["--sub-langs", sub_langs])
+                if sub_format and sub_format.lower() != 'none':
+                    cmd.extend(["--convert-subs", sub_format])
+
+            # Check for external downloader setting
+            external_downloader = self.config_manager.get("General", "external_downloader", fallback="none")
+            if external_downloader == "aria2":
+                cmd.extend(["--external-downloader", "aria2c"])
+
+            cmd.append(self.url)
             log.info(f"Running command: {' '.join(cmd)}")
             log.info(f"Command args: {cmd}")
 

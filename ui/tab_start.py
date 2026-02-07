@@ -223,6 +223,28 @@ class StartTab(QWidget):
 
         self.max_threads_combo.currentTextChanged.connect(_on_max_changed)
 
+        # Add rate limit dropdown
+        rate_limit_lbl = QLabel("Rate Limit:")
+        rate_limit_lbl.setToolTip("Limit the download speed for each individual download (e.g., 5M for 5 MB/s).")
+        self.rate_limit_combo = QComboBox()
+        self.rate_limit_combo.addItem("Unlimited", None)
+        self.rate_limit_combo.addItem("10 MB/s", "10M")
+        self.rate_limit_combo.addItem("5 MB/s", "5M")
+        self.rate_limit_combo.addItem("2 MB/s", "2M")
+        self.rate_limit_combo.addItem("1 MB/s", "1M")
+        self.rate_limit_combo.addItem("500 KB/s", "500K")
+        self.rate_limit_combo.addItem("250 KB/s", "250K")
+        
+        saved_rate_limit = self.config.get("General", "rate_limit")
+        if saved_rate_limit:
+            index = self.rate_limit_combo.findData(saved_rate_limit)
+            if index != -1:
+                self.rate_limit_combo.setCurrentIndex(index)
+        
+        self.rate_limit_combo.currentIndexChanged.connect(
+            lambda idx: self.config.set("General", "rate_limit", self.rate_limit_combo.itemData(idx))
+        )
+
         self.exit_after_cb = QCheckBox("Exit after all downloads complete")
         # Always start unchecked on app launch; do not persist this checkbox's state.
         self.exit_after_cb.setChecked(False)
@@ -236,7 +258,10 @@ class StartTab(QWidget):
         bottom.addWidget(self.playlist_mode, 0, 1)
         bottom.addWidget(max_lbl, 0, 2)
         bottom.addWidget(self.max_threads_combo, 0, 3)
-        bottom.addWidget(self.exit_after_cb, 0, 4)
+
+        bottom.addWidget(rate_limit_lbl, 1, 0)
+        bottom.addWidget(self.rate_limit_combo, 1, 1)
+        bottom.addWidget(self.exit_after_cb, 1, 3, 1, 2)
 
         layout.addWidget(url_label)
         layout.addLayout(url_row)
@@ -295,6 +320,7 @@ class StartTab(QWidget):
             "audio_ext": self.audio_ext_combo.currentText() or "",
             "acodec": self.acodec_combo.currentText() or "",
             "playlist_mode": self.playlist_mode.currentText(),
+            "rate_limit": self.rate_limit_combo.itemData(self.rate_limit_combo.currentIndex()),
         }
         self.main.start_downloads(valid_urls, opts)
 
@@ -324,6 +350,17 @@ class StartTab(QWidget):
                 break
         self.audio_ext_combo.setCurrentText(self.config.get("General", "audio_ext", "mp3"))
         self.acodec_combo.setCurrentText(self.config.get("General", "acodec", "aac"))
+
+        # Rate limit
+        saved_rate_limit = self.config.get("General", "rate_limit")
+        if saved_rate_limit:
+            index = self.rate_limit_combo.findData(saved_rate_limit)
+            if index != -1:
+                self.rate_limit_combo.setCurrentIndex(index)
+            else:
+                self.rate_limit_combo.setCurrentIndex(0)
+        else:
+            self.rate_limit_combo.setCurrentIndex(0)
 
     def _on_open_downloads_clicked(self):
         """Safely open the downloads folder via Advanced tab."""
@@ -427,4 +464,3 @@ class StartTab(QWidget):
                 "Error",
                 f"An error occurred while querying formats:\n\n{str(e)}"
             )
-

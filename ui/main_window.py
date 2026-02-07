@@ -1,9 +1,11 @@
 import logging
 import os
 import html
+import sys
+import psutil
 from PyQt6.QtWidgets import (
     QWidget, QMainWindow, QVBoxLayout, QTabWidget,
-    QMessageBox
+    QMessageBox, QProgressDialog, QLabel, QHBoxLayout
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QUrl
 from PyQt6.QtGui import QDesktopServices
@@ -11,6 +13,7 @@ from PyQt6.QtGui import QDesktopServices
 from core.config_manager import ConfigManager
 from core.download_manager import DownloadManager
 from core.archive_manager import ArchiveManager
+from core.app_updater import AppUpdater
 from core.playlist_expander import expand_playlist, is_likely_playlist, PlaylistExpansionError
 from ui.tab_start import StartTab
 from ui.tab_active import ActiveDownloadsTab
@@ -23,7 +26,11 @@ log = logging.getLogger(__name__)
 
 class MediaDownloaderApp(QMainWindow):
     add_download_request = pyqtSignal(str, object)
-    def __init__(self):
+    app_update_available = pyqtSignal(dict)
+    update_progress = pyqtSignal(int)
+    update_finished = pyqtSignal(bool, str)
+
+    def __init__(self, config_manager: ConfigManager, initial_yt_dlp_version: str):
         super().__init__()
         log.info("Initializing MediaDownloaderApp")
 
@@ -31,7 +38,7 @@ class MediaDownloaderApp(QMainWindow):
         self.resize(900, 700)
 
         # Core components
-        self.config_manager = ConfigManager()
+        self.config_manager = config_manager
         self.download_manager = DownloadManager()
         self.archive_manager = ArchiveManager()
         # Ensure the download manager uses the same config instance so
@@ -45,7 +52,7 @@ class MediaDownloaderApp(QMainWindow):
         self.tabs = QTabWidget()
         self.tab_start = StartTab(self)
         self.tab_active = ActiveDownloadsTab(self)
-        self.tab_advanced = AdvancedSettingsTab(self)
+        self.tab_advanced = AdvancedSettingsTab(self, initial_yt_dlp_version=initial_yt_dlp_version)
 
         self.tabs.addTab(self.tab_start, "Start a Download")
         self.tabs.addTab(self.tab_active, "Active Downloads")
@@ -54,6 +61,13 @@ class MediaDownloaderApp(QMainWindow):
         main_widget = QWidget()
         layout = QVBoxLayout(main_widget)
         layout.addWidget(self.tabs)
+        
+        # Add speed indicator at the bottom
+        self.speed_label = QLabel("Current Speed: 0.00 MB/s")
+        self.speed_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.speed_label.setStyleSheet("padding: 5px; color: #666;")
+        layout.addWidget(self.speed_label)
+        
         self.setCentralWidget(main_widget)
 
         # Connect core events
@@ -66,6 +80,9 @@ class MediaDownloaderApp(QMainWindow):
             self.add_download_request.connect(self._handle_add_download_request)
         except Exception:
             pass
+        self.app_update_available.connect(self._on_app_update_available)
+        self.update_progress.connect(self._on_update_progress)
+        self.update_finished.connect(self._on_update_finished)
 
         # Window close handling
         self._downloads_in_progress = False
@@ -93,6 +110,76 @@ class MediaDownloaderApp(QMainWindow):
                 QTimer.singleShot(2000, self._check_for_app_update)
         except Exception:
             log.debug("Startup update check not scheduled")
+            
+        # Timer for updating total speed
+        self.speed_timer = QTimer(self)
+        self.speed_timer.timeout.connect(self._update_total_speed)
+        self.speed_timer.start(1000)  # Update every second
+        
+        # Initialize previous process IO stats for speed calculation
+        try:
+            self._process = psutil.Process()
+            self._last_io_counters = self._get_total_io_counters()
+        except Exception:
+            self._process = None
+            self._last_io_counters = None
+
+    def _get_total_io_counters(self):
+        """Get total IO counters for the main process and all its children."""
+        if not self._process:
+            return None
+        
+        read_bytes = 0
+        
+        try:
+            # Include the main process
+            main_io = self._process.io_counters()
+            read_bytes += main_io.read_bytes
+            
+            # Include all child processes
+            children = self._process.children(recursive=True)
+            for child in children:
+                try:
+                    child_io = child.io_counters()
+                    read_bytes += child_io.read_bytes
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    # Child process might have terminated or access is denied
+                    continue
+        except psutil.NoSuchProcess:
+            # Main process might have terminated
+            return None
+            
+        return read_bytes
+
+    def _update_total_speed(self):
+        """Calculate and display total download speed including child processes."""
+        try:
+            if not self._process:
+                self._process = psutil.Process()
+                self._last_io_counters = self._get_total_io_counters()
+                return
+
+            current_read_bytes = self._get_total_io_counters()
+            
+            if self._last_io_counters is not None and current_read_bytes is not None:
+                bytes_read_since_last = current_read_bytes - self._last_io_counters
+            else:
+                bytes_read_since_last = 0
+            
+            self._last_io_counters = current_read_bytes
+            
+            speed_mb = bytes_read_since_last / (1024 * 1024)
+            
+            active_downloads = [w for w in self.download_manager.active_downloads if w.isRunning()]
+            if active_downloads:
+                speed_mb = max(0.0, speed_mb)
+                self.speed_label.setText(f"Current Speed: {speed_mb:.2f} MB/s")
+            else:
+                self.speed_label.setText("Current Speed: 0.00 MB/s")
+                
+        except Exception as e:
+            log.error(f"Error updating speed: {e}")
+            self.speed_label.setText("Current Speed: -- MB/s")
 
     def _check_output_directory(self):
         """Check if output directory is set, if not, prompt user."""
@@ -311,13 +398,100 @@ class MediaDownloaderApp(QMainWindow):
                 QTimer.singleShot(1000, self.close)
 
     def _check_for_app_update(self):
-        """Trigger the app update check via the Advanced tab helper."""
-        try:
-            if hasattr(self, 'tab_advanced') and hasattr(self.tab_advanced, '_check_app_update'):
-                # Call the tab's check method which runs asynchronously
-                self.tab_advanced._check_app_update()
-        except Exception:
-            log.exception('Failed to start app update check')
+        """Check for application updates in a background thread."""
+        def _check():
+            try:
+                updater = AppUpdater()
+                update_info = updater.check_for_updates()
+                if update_info:
+                    self.app_update_available.emit(update_info)
+            except Exception:
+                log.exception("Failed to check for app updates")
+
+        threading.Thread(target=_check, daemon=True).start()
+
+    def _on_app_update_available(self, info):
+        """Handle signal when an update is found."""
+        version = info.get("version", "Unknown")
+        url = info.get("url", "")
+        body = info.get("body", "")
+        assets = info.get("assets", [])
+
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Update Available")
+        msg.setText(f"A new version of MediaDownloader is available: <b>{version}</b>")
+        msg.setInformativeText("Do you want to download and install it now?")
+        if body:
+            # Truncate body if too long
+            if len(body) > 500:
+                body = body[:500] + "..."
+            msg.setDetailedText(body)
+
+        update_btn = msg.addButton("Update Now", QMessageBox.ButtonRole.AcceptRole)
+        view_btn = msg.addButton("View Release", QMessageBox.ButtonRole.ActionRole)
+        msg.addButton("Ignore", QMessageBox.ButtonRole.RejectRole)
+        msg.setDefaultButton(update_btn)
+
+        msg.exec()
+
+        if msg.clickedButton() == view_btn and url:
+            QDesktopServices.openUrl(QUrl(url))
+        elif msg.clickedButton() == update_btn:
+            # Find the first asset that looks like an executable or installer
+            download_url = None
+            for asset in assets:
+                name = asset.get("name", "").lower()
+                if name.endswith(".exe") or name.endswith(".msi"):
+                    download_url = asset.get("browser_download_url")
+                    break
+            
+            if download_url:
+                self._start_update_download(download_url)
+            else:
+                QMessageBox.warning(self, "Update Error", "No suitable update file found in the release.")
+                QDesktopServices.openUrl(QUrl(url))
+
+    def _start_update_download(self, url):
+        """Starts the update download process."""
+        self.update_dialog = QProgressDialog("Downloading update...", "Cancel", 0, 100, self)
+        self.update_dialog.setWindowModality(Qt.WindowModality.WindowModal)
+        self.update_dialog.show()
+
+        temp_dir = self.config_manager.get("Paths", "temporary_downloads_directory", fallback=os.getcwd())
+        target_path = os.path.join(temp_dir, "MediaDownloader_Update.exe")
+
+        def _download_worker():
+            updater = AppUpdater()
+            success = updater.download_update(
+                url, 
+                target_path, 
+                progress_callback=lambda p: self.update_progress.emit(p)
+            )
+            self.update_finished.emit(success, target_path)
+
+        threading.Thread(target=_download_worker, daemon=True).start()
+
+    def _on_update_progress(self, value):
+        if hasattr(self, 'update_dialog'):
+            self.update_dialog.setValue(value)
+
+    def _on_update_finished(self, success, path):
+        if hasattr(self, 'update_dialog'):
+            self.update_dialog.close()
+
+        if success:
+            reply = QMessageBox.question(
+                self, 
+                "Update Ready", 
+                "The update has been downloaded. The application will now restart to apply the update.",
+                QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel
+            )
+            
+            if reply == QMessageBox.StandardButton.Ok:
+                updater = AppUpdater()
+                updater.apply_update(path)
+        else:
+            QMessageBox.critical(self, "Update Failed", "Failed to download the update.")
 
     def _on_download_error(self, url, message):
         log.error(f"Download failed: {url}: {message}")

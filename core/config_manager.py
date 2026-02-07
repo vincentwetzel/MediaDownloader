@@ -8,7 +8,9 @@ log = logging.getLogger(__name__)
 class ConfigManager:
     def __init__(self, ini_path="settings.ini"):
         self.ini_path = ini_path
-        self.config = configparser.ConfigParser()
+        # Use interpolation=None to prevent ConfigParser from trying to interpolate % values
+        # This is crucial because yt-dlp templates use % extensively (e.g. %(title)s)
+        self.config = configparser.ConfigParser(interpolation=None)
         self.load_config()
 
     def load_config(self):
@@ -41,8 +43,15 @@ class ConfigManager:
             "restrict_filenames": "False",
             "exit_after": "False",
             "yt_dlp_update_channel": "stable",
+            "yt_dlp_version": "Unknown",
             "cookies_from_browser": "None",
-            "js_runtime_path": "", # New setting for JavaScript runtime
+            "js_runtime_path": "",  # New setting for JavaScript runtime
+            "output_template": "%(title)s [%(uploader)s][%(upload_date>%m-%d-%Y)s][%(id)s].%(ext)s",
+            "subtitles_embed": "False",
+            "subtitles_write": "False",
+            "subtitles_write_auto": "False",
+            "subtitles_langs": "en",
+            "subtitles_format": "None",
         }
         self.config["Paths"] = {
             "completed_downloads_directory": "",
@@ -65,8 +74,15 @@ class ConfigManager:
             "restrict_filenames": "False",
             "exit_after": "False",
             "yt_dlp_update_channel": "stable",
+            "yt_dlp_version": "Unknown",
             "cookies_from_browser": "None",
-            "js_runtime_path": "", # New setting for JavaScript runtime
+            "js_runtime_path": "",  # New setting for JavaScript runtime
+            "output_template": "%(title)s [%(uploader)s][%(upload_date>%m-%d-%Y)s][%(id)s].%(ext)s",
+            "subtitles_embed": "False",
+            "subtitles_write": "False",
+            "subtitles_write_auto": "False",
+            "subtitles_langs": "en",
+            "subtitles_format": "None",
         }
         for key, value in general_defaults.items():
             if key not in self.config["General"]:

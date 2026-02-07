@@ -88,8 +88,8 @@ def get_latest_release(owner: str, repo: str) -> Optional[dict]:
 def find_asset_for_platform(release_info: dict, asset_name: Optional[str] = None) -> Optional[dict]:
     """Select an asset dict from a release.
 
-    If `asset_name` is provided, try to match it exactly. Otherwise choose
-    a Setup/Installer .exe first (NSIS), then any .exe, then the first asset.
+    If `asset_name` is provided, try to match it exactly. Otherwise, choose
+    the official installer first, then any portable .exe, then the first asset.
     """
     assets = release_info.get("assets", []) if release_info else []
     if not assets:
@@ -98,16 +98,20 @@ def find_asset_for_platform(release_info: dict, asset_name: Optional[str] = None
         for a in assets:
             if a.get("name") == asset_name:
                 return a
-    # Prefer NSIS-style Setup installer
+    
+    # Prioritize the official installer
     for a in assets:
         n = a.get("name", "").lower()
-        if 'setup' in n and n.endswith('.exe'):
+        if "installer" in n and n.endswith(".exe"):
             return a
-    # Then prefer any .exe
+
+    # Then, look for a portable executable
     for a in assets:
-        n = a.get("name", "")
-        if n.lower().endswith('.exe'):
+        n = a.get("name", "").lower()
+        if "portable" in n and n.endswith(".exe"):
             return a
+
+    # Fallback to the first asset if no other options are found
     return assets[0]
 
 
@@ -153,21 +157,30 @@ def _write_windows_update_script(tmp_dir: str, new_path: str, target_exe: str) -
     replaces it with `new_path` and restarts it. Returns path to the script.
     """
     script_path = os.path.join(tmp_dir, 'updater_apply.bat')
-    # Use short, robust loop using tasklist to wait for process to exit
+    # Use a more robust loop that waits for the main process to exit
     script = f"""@echo off
 echo Waiting for application to exit...
 setlocal enabledelayedexpansion
 set NEW_EXE="{new_path}"
 set TARGET_EXE="{target_exe}"
-:: loop until target exe is not present in tasklist
+set TIMEOUT=30
 :loop
-tasklist /FI "IMAGENAME eq %~nxTARGET_EXE%" | findstr /I "%~nxTARGET_EXE%" >nul
+tasklist /FI "IMAGENAME eq %TARGET_EXE%" | findstr /I "%TARGET_EXE%" >nul
 if %ERRORLEVEL%==0 (
     timeout /t 1 >nul
+    set /a TIMEOUT-=1
+    if !TIMEOUT! equ 0 (
+        echo Timeout waiting for application to exit.
+        exit /b 1
+    )
     goto loop
 )
 echo Replacing executable...
 move /Y %NEW_EXE% %TARGET_EXE%
+if %ERRORLEVEL% neq 0 (
+    echo Failed to replace executable.
+    exit /b 1
+)
 echo Starting updated app...
 start "" %TARGET_EXE%
 del "%~f0"
@@ -178,7 +191,7 @@ del "%~f0"
         return script_path
     except Exception:
         log.exception("Failed to write update script")
-        return script_path
+        return ""
 
 
 def _is_nsis_installer(exe_path: str) -> bool:
@@ -219,11 +232,15 @@ def perform_self_update(downloaded_exe_path: str) -> bool:
             target_exe = sys.executable
             tmp_dir = os.path.dirname(downloaded_exe_path) or tempfile.gettempdir()
             script = _write_windows_update_script(tmp_dir, downloaded_exe_path, target_exe)
-            # Launch the updater script detached
-            subprocess.Popen(['cmd', '/c', script], creationflags=0)
-            log.info("Launched updater script %s, exiting application to allow update", script)
-            # Exit so script can replace the running exe
-            os._exit(0)
+            if script:
+                # Launch the updater script detached
+                subprocess.Popen(['cmd', '/c', script], creationflags=0)
+                log.info("Launched updater script %s, exiting application to allow update", script)
+                # Exit so script can replace the running exe
+                os._exit(0)
+            else:
+                log.error("Failed to create update script")
+                return False
     except Exception:
         log.exception("Self-update failed")
         return False
@@ -247,14 +264,40 @@ def check_and_download_update(owner: str, repo: str, preferred_asset_name: Optio
 if __name__ == '__main__':
     # Simple local test runner for developers. Not used by the application UI.
     import argparse
+    
+    # Add the project's root directory to the sys.path
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from core.version import __version__ as LOCAL_VERSION
 
     p = argparse.ArgumentParser()
     p.add_argument('--owner', default='vincentwetzel')
     p.add_argument('--repo', default='MediaDownloader')
+    p.add_argument('--test-update', action='store_true')
     args = p.parse_args()
-    print('Local version:', LOCAL_VERSION)
-    newer, tag, asset = check_for_update(args.owner, args.repo)
-    print('Latest tag:', tag)
-    print('Newer available:', newer)
-    if asset:
-        print('Asset chosen:', asset.get('name'))
+
+    if args.test_update:
+        # Create a dummy executable
+        dummy_exe = os.path.join(tempfile.gettempdir(), 'dummy.exe')
+        with open(dummy_exe, 'w') as f:
+            f.write('dummy executable')
+        
+        # Create a fake update
+        fake_update = os.path.join(tempfile.gettempdir(), 'fake_update.exe')
+        with open(fake_update, 'w') as f:
+            f.write('fake update')
+            
+        # Set the executable path to the dummy executable
+        sys.executable = dummy_exe
+        
+        # Set the frozen attribute to True to simulate a frozen application
+        setattr(sys, 'frozen', True)
+        
+        # Call the perform_self_update function
+        perform_self_update(fake_update)
+    else:
+        print('Local version:', LOCAL_VERSION)
+        newer, tag, asset = check_for_update(args.owner, args.repo)
+        print('Latest tag:', tag)
+        print('Newer available:', newer)
+        if asset:
+            print('Asset chosen:', asset.get('name'))

@@ -1,0 +1,29 @@
+# Universal AI Exclusion File (.aiexclude)
+# Adhered to by Gemini Code Assist and GitHub Copilot
+
+# Build and Distribution
+/bin/
+/dist/
+/build/
+/out/
+
+# Python Build and Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.spec
+/downloads/
+/temp_downloads/
+/.venv
+
+# Logs and Configs
+/logs/
+*.log
+.idea/
+.vscode/
+
+# Git Metadata
+.git/
+.gitignore
+.geminiignore
+.aiexclude

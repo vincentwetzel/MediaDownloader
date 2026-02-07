@@ -5,11 +5,12 @@ import subprocess
 import threading
 import time
 import webbrowser
+import core.yt_dlp_worker
 
 from core.version import __version__ as APP_VERSION
 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox, QCheckBox, QFileDialog, QMessageBox
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox, QCheckBox, QFileDialog, QMessageBox, QLineEdit, QApplication, QGroupBox
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 
@@ -19,11 +20,97 @@ log = logging.getLogger(__name__)
 class AdvancedSettingsTab(QWidget):
     """Advanced settings tab, including folders, sponsorblock, and restore defaults."""
 
+    # Subtitle language: backend code -> display name (GUI shows display name, config stores code)
+    SUBTITLE_LANGUAGES = {
+        "af": "Afrikaans",
+        "am": "Amharic",
+        "ar": "Arabic",
+        "as": "Assamese",
+        "az": "Azerbaijani",
+        "be": "Belarusian",
+        "bg": "Bulgarian",
+        "bn": "Bengali",
+        "bs": "Bosnian",
+        "ca": "Catalan",
+        "cs": "Czech",
+        "cy": "Welsh",
+        "da": "Danish",
+        "de": "German",
+        "el": "Greek",
+        "en": "English",
+        "en-GB": "English (United Kingdom)",
+        "en-US": "English (United States)",
+        "es": "Spanish",
+        "es-419": "Spanish (Latin America)",
+        "es-ES": "Spanish (Spain)",
+        "et": "Estonian",
+        "eu": "Basque",
+        "fa": "Persian",
+        "fi": "Finnish",
+        "fil": "Filipino",
+        "fr": "French",
+        "fr-CA": "French (Canada)",
+        "gl": "Galician",
+        "gu": "Gujarati",
+        "he": "Hebrew",
+        "hi": "Hindi",
+        "hr": "Croatian",
+        "hu": "Hungarian",
+        "hy": "Armenian",
+        "id": "Indonesian",
+        "is": "Icelandic",
+        "it": "Italian",
+        "ja": "Japanese",
+        "ka": "Georgian",
+        "kk": "Kazakh",
+        "km": "Khmer",
+        "kn": "Kannada",
+        "ko": "Korean",
+        "ky": "Kyrgyz",
+        "lo": "Lao",
+        "lt": "Lithuanian",
+        "lv": "Latvian",
+        "mk": "Macedonian",
+        "ml": "Malayalam",
+        "mn": "Mongolian",
+        "mr": "Marathi",
+        "ms": "Malay",
+        "my": "Burmese",
+        "ne": "Nepali",
+        "nl": "Dutch",
+        "no": "Norwegian",
+        "or": "Odia",
+        "pa": "Punjabi",
+        "pl": "Polish",
+        "pt": "Portuguese",
+        "pt-BR": "Portuguese (Brazil)",
+        "ro": "Romanian",
+        "ru": "Russian",
+        "si": "Sinhala",
+        "sk": "Slovak",
+        "sl": "Slovenian",
+        "sq": "Albanian",
+        "sr": "Serbian",
+        "sv": "Swedish",
+        "sw": "Swahili",
+        "ta": "Tamil",
+        "te": "Telugu",
+        "th": "Thai",
+        "tr": "Turkish",
+        "uk": "Ukrainian",
+        "ur": "Urdu",
+        "uz": "Uzbek",
+        "vi": "Vietnamese",
+        "zh-Hans": "Chinese (Simplified)",
+        "zh-Hant": "Chinese (Traditional)",
+        "zu": "Zulu",
+    }
+
     # Define signals for background thread communication
     update_finished = pyqtSignal(bool, str)
     version_fetched = pyqtSignal(str)
 
-    def __init__(self, main_window):
+    def __init__(self, main_window, initial_yt_dlp_version: str = "Unknown"):
         super().__init__()
         self.main = main_window
         self.config = main_window.config_manager
@@ -33,6 +120,11 @@ class AdvancedSettingsTab(QWidget):
         self.version_fetched.connect(self._on_version_fetched)
         
         self._build_tab_advanced()
+
+        # Set initial version label text
+        self.version_lbl.setText(f"Current version: {initial_yt_dlp_version}")
+        # Manually trigger the version fetched handler to format the label correctly
+        self._on_version_fetched(initial_yt_dlp_version)
 
     def _get_installed_browsers(self):
         """Return a list of installed browsers, with a preferred order."""
@@ -59,7 +151,6 @@ class AdvancedSettingsTab(QWidget):
         out_row = QHBoxLayout()
         out_lbl = QLabel("Output folder:")
         out_lbl.setToolTip("Where completed downloads will be saved.")
-        # Use ConfigManager.get(section, option, fallback=...)
         out_path = self.config.get("Paths", "completed_downloads_directory", fallback="")
         self.out_display = QLabel(out_path)
         self.out_display.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
@@ -95,28 +186,19 @@ class AdvancedSettingsTab(QWidget):
         self.cookies_combo = QComboBox()
         self.cookies_combo.setToolTip("Select a browser to extract cookies from. Required for accessing age-restricted content.")
         
-        # Get installed browsers and populate the dropdown
         installed_browsers = self._get_installed_browsers()
         self.cookies_combo.addItem("None")
         self.cookies_combo.addItems(installed_browsers)
         
-        # Determine the initial browser selection
-        # 1. Try to use the saved preference if it's still valid
-        # 2. Otherwise, use the first detected browser (respecting priority)
-        # 3. Fallback to "None" if no browsers are found
         cur_browser = self.config.get("General", "cookies_from_browser", fallback="None")
         
         if cur_browser in installed_browsers:
-            # Saved browser is still installed, so use it
             idx = self.cookies_combo.findText(cur_browser)
         elif installed_browsers:
-            # No valid saved preference, so pick the first (prioritized) browser
-            # And save this choice back to the config
             first_browser = installed_browsers[0]
             idx = self.cookies_combo.findText(first_browser)
             self._save_general("cookies_from_browser", first_browser)
         else:
-            # No browsers found, default to "None"
             idx = 0
             self._save_general("cookies_from_browser", "None")
 
@@ -128,21 +210,153 @@ class AdvancedSettingsTab(QWidget):
         cookies_row.addWidget(self.cookies_combo, stretch=1)
         layout.addLayout(cookies_row)
 
-        # JavaScript Runtime Path
-        js_runtime_row = QHBoxLayout()
-        js_runtime_lbl = QLabel("JS Runtime (Deno/Node.js):")
-        js_runtime_lbl.setToolTip("Path to a JavaScript runtime for handling anti-bot challenges on some websites.")
-        js_runtime_path = self.config.get("General", "js_runtime_path", fallback="")
-        self.js_runtime_display = QLabel(js_runtime_path)
-        self.js_runtime_display.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        btn_js_runtime = QPushButton("Browse")
-        btn_js_runtime.setFixedWidth(80)
-        btn_js_runtime.clicked.connect(self.browse_js_runtime)
-        btn_js_runtime.setToolTip("Browse and select a JavaScript runtime executable (e.g., deno.exe or node.exe).")
-        js_runtime_row.addWidget(js_runtime_lbl)
-        js_runtime_row.addWidget(self.js_runtime_display, stretch=1)
-        js_runtime_row.addWidget(btn_js_runtime)
-        layout.addLayout(js_runtime_row)
+        # Theme dropdown
+        theme_row = QHBoxLayout()
+        theme_lbl = QLabel("Theme:")
+        theme_lbl.setToolTip("Choose the application theme.")
+        self.theme_combo = QComboBox()
+        self.theme_combo.setToolTip("Select the application theme.")
+        self.theme_combo.addItem("System", "auto")
+        self.theme_combo.addItem("Light", "light")
+        self.theme_combo.addItem("Dark", "dark")
+
+        saved_theme = self.config.get("General", "theme", fallback="auto")
+        idx = self.theme_combo.findData(saved_theme)
+        if idx >= 0:
+            self.theme_combo.setCurrentIndex(idx)
+        else:
+            if saved_theme == "system":
+                idx = self.theme_combo.findData("auto")
+                if idx >= 0:
+                    self.theme_combo.setCurrentIndex(idx)
+
+        self.theme_combo.currentIndexChanged.connect(self._on_theme_changed)
+
+        theme_row.addWidget(theme_lbl)
+        theme_row.addWidget(self.theme_combo, stretch=1)
+        layout.addLayout(theme_row)
+
+        # Output Filename Pattern
+        pattern_row = QHBoxLayout()
+        pattern_lbl = QLabel("Filename Pattern:")
+        pattern_lbl.setToolTip("Define the output filename pattern using yt-dlp template variables.")
+
+        default_template = "%(title)s [%(uploader)s][%(upload_date>%m-%d-%Y)s][%(id)s].%(ext)s"
+        current_template = self.config.get("General", "output_template", fallback=default_template)
+
+        self.pattern_input = QLineEdit(current_template)
+        self.pattern_input.setToolTip("Enter yt-dlp output template. Click Save to apply.")
+
+        btn_save_pattern = QPushButton("Save")
+        btn_save_pattern.setFixedWidth(60)
+        btn_save_pattern.setToolTip("Validate and save the filename pattern.")
+        btn_save_pattern.clicked.connect(self._save_pattern)
+
+        btn_reset_pattern = QPushButton("Reset")
+        btn_reset_pattern.setFixedWidth(60)
+        btn_reset_pattern.setToolTip("Reset to default pattern.")
+        btn_reset_pattern.clicked.connect(self._reset_pattern)
+
+        pattern_row.addWidget(pattern_lbl)
+        pattern_row.addWidget(self.pattern_input, stretch=1)
+        pattern_row.addWidget(btn_save_pattern)
+        pattern_row.addWidget(btn_reset_pattern)
+        layout.addLayout(pattern_row)
+
+        # External Downloader dropdown
+        downloader_row = QHBoxLayout()
+        downloader_lbl = QLabel("External Downloader:")
+        downloader_lbl.setToolTip("Use an external downloader like aria2 for faster downloads.")
+        self.downloader_combo = QComboBox()
+        self.downloader_combo.setToolTip("Select an external downloader to use with yt-dlp. We recommend aria2.")
+        self.downloader_combo.addItem("None", "none")
+        self.downloader_combo.addItem("aria2", "aria2")
+
+        saved_downloader = self.config.get("General", "external_downloader", fallback="none")
+        idx = self.downloader_combo.findData(saved_downloader)
+        if idx >= 0:
+            self.downloader_combo.setCurrentIndex(idx)
+
+        self.downloader_combo.currentIndexChanged.connect(self._on_downloader_changed)
+
+        downloader_row.addWidget(downloader_lbl)
+        downloader_row.addWidget(self.downloader_combo, stretch=1)
+        layout.addLayout(downloader_row)
+
+        # Subtitle Options
+        subs_group = QGroupBox("Subtitle Options")
+        subs_layout = QVBoxLayout()
+
+        self.embed_subs_cb = QCheckBox("Embed subtitles")
+        self.embed_subs_cb.setToolTip("Embed subtitles in the video file.")
+        embed_subs_val = self.config.get("General", "subtitles_embed", fallback="False")
+        self.embed_subs_cb.setChecked(str(embed_subs_val) == "True")
+        self.embed_subs_cb.stateChanged.connect(
+            lambda s: self._save_general("subtitles_embed", str(bool(s)))
+        )
+        subs_layout.addWidget(self.embed_subs_cb)
+
+        self.write_subs_cb = QCheckBox("Write subtitles (separate file)")
+        self.write_subs_cb.setToolTip("Download subtitles to a separate file.")
+        write_subs_val = self.config.get("General", "subtitles_write", fallback="False")
+        self.write_subs_cb.setChecked(str(write_subs_val) == "True")
+        self.write_subs_cb.stateChanged.connect(
+            lambda s: self._save_general("subtitles_write", str(bool(s)))
+        )
+        subs_layout.addWidget(self.write_subs_cb)
+        
+        self.write_auto_subs_cb = QCheckBox("Write automatic subtitles")
+        self.write_auto_subs_cb.setToolTip("Download automatic subtitles if available.")
+        write_auto_subs_val = self.config.get("General", "subtitles_write_auto", fallback="False")
+        self.write_auto_subs_cb.setChecked(str(write_auto_subs_val) == "True")
+        self.write_auto_subs_cb.stateChanged.connect(
+            lambda s: self._save_general("subtitles_write_auto", str(bool(s)))
+        )
+        subs_layout.addWidget(self.write_auto_subs_cb)
+
+        subs_lang_row = QHBoxLayout()
+        subs_lang_lbl = QLabel("Subtitle language:")
+        subs_lang_lbl.setToolTip("Language for subtitles.")
+        self.subs_lang_combo = QComboBox()
+        self.subs_lang_combo.setToolTip("Select a language for subtitles.")
+        
+        for code, name in self.SUBTITLE_LANGUAGES.items():
+            self.subs_lang_combo.addItem(name, code)
+            
+        saved_lang = self.config.get("General", "subtitles_langs", fallback="en")
+        idx = self.subs_lang_combo.findData(saved_lang)
+        if idx >= 0:
+            self.subs_lang_combo.setCurrentIndex(idx)
+        else:
+            # Saved value not in list (e.g. from old text entry); fall back to English
+            idx_en = self.subs_lang_combo.findData("en")
+            if idx_en >= 0:
+                self.subs_lang_combo.setCurrentIndex(idx_en)
+                self._save_general("subtitles_langs", "en")
+
+        self.subs_lang_combo.currentIndexChanged.connect(self._on_subs_lang_changed)
+        
+        subs_lang_row.addWidget(subs_lang_lbl)
+        subs_lang_row.addWidget(self.subs_lang_combo, stretch=1)
+        subs_layout.addLayout(subs_lang_row)
+
+        subs_format_row = QHBoxLayout()
+        subs_format_lbl = QLabel("Convert subtitles to format:")
+        subs_format_lbl.setToolTip("Format to convert subtitles to. Select 'None' to keep the original format.")
+        self.subs_format_combo = QComboBox()
+        self.subs_format_combo.setToolTip("Select a subtitle format, or 'None' to keep the original.")
+        self.subs_format_combo.addItems(['None', 'srt', 'vtt', 'ass', 'lrc'])
+        saved_subs_format = self.config.get("General", "subtitles_format", fallback="None")
+        self.subs_format_combo.setCurrentText(saved_subs_format)
+        self.subs_format_combo.currentTextChanged.connect(
+            lambda s: self._save_general("subtitles_format", s)
+        )
+        subs_format_row.addWidget(subs_format_lbl)
+        subs_format_row.addWidget(self.subs_format_combo, stretch=1)
+        subs_layout.addLayout(subs_format_row)
+
+        subs_group.setLayout(subs_layout)
+        layout.addWidget(subs_group)
 
         # SponsorBlock and Restrict filenames
         self.sponsorblock_cb = QCheckBox("Enable SponsorBlock")
@@ -152,6 +366,7 @@ class AdvancedSettingsTab(QWidget):
         self.sponsorblock_cb.stateChanged.connect(
             lambda s: self._save_general("sponsorblock", str(bool(s)))
         )
+        layout.addWidget(self.sponsorblock_cb)
 
         self.restrict_cb = QCheckBox("Restrict filenames")
         self.restrict_cb.setToolTip("Use only ASCII characters in filenames (safer for older systems but may shorten names).")
@@ -160,19 +375,15 @@ class AdvancedSettingsTab(QWidget):
         self.restrict_cb.stateChanged.connect(
             lambda s: self._save_general("restrict_filenames", str(bool(s)))
         )
-
-        layout.addWidget(self.sponsorblock_cb)
         layout.addWidget(self.restrict_cb)
 
         # --- yt-dlp Update Section ---
         update_group = QHBoxLayout()
         
-        # Dropdown for version channel (stable vs nightly)
         self.update_channel_combo = QComboBox()
         self.update_channel_combo.addItem("Stable (default)", "stable")
         self.update_channel_combo.addItem("Nightly", "nightly")
         self.update_channel_combo.setToolTip("Choose between stable (recommended) or nightly (cutting-edge) builds of yt-dlp.")
-        # Load saved preference or default to stable
         saved_channel = self.config.get("General", "yt_dlp_update_channel", fallback="stable")
         idx = self.update_channel_combo.findData(saved_channel)
         if idx >= 0:
@@ -183,33 +394,48 @@ class AdvancedSettingsTab(QWidget):
         self.update_btn.setToolTip("Check for and install the latest version of yt-dlp.")
         self.update_btn.clicked.connect(self._update_yt_dlp)
         
-        # Version label
         self.version_lbl = QLabel("Current version: Unknown")
-        # Refresh version label after a short delay to ensure yt-dlp path is resolved
-        # TODO: Fix crash on version fetch in daemon thread
-        # QTimer.singleShot(1000, self._refresh_version_label)
 
         update_group.addWidget(QLabel("Update Channel:"))
         update_group.addWidget(self.update_channel_combo)
         update_group.addWidget(self.update_btn)
         update_group.addWidget(self.version_lbl)
+        update_group.addStretch()
+        layout.addLayout(update_group)
+
+        # JavaScript Runtime Path
+        js_runtime_row = QHBoxLayout()
+        js_runtime_lbl = QLabel("JS Runtime (Deno/Node.js):")
+        js_runtime_lbl.setToolTip("Path to a JavaScript runtime for handling anti-bot challenges on some websites.")
+        js_runtime_path = self.config.get("General", "js_runtime_path", fallback="")
+        self.js_runtime_display = QLabel(js_runtime_path)
+        self.js_runtime_display.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        btn_js_runtime = QPushButton("📁")
+        btn_js_runtime.setFixedWidth(40)
+        btn_js_runtime.clicked.connect(self.browse_js_runtime)
+        btn_js_runtime.setToolTip("Browse and select a JavaScript runtime executable (e.g., deno.exe or node.exe).")
+        js_runtime_row.addWidget(js_runtime_lbl)
+        js_runtime_row.addWidget(self.js_runtime_display, stretch=1)
+        js_runtime_row.addWidget(btn_js_runtime)
+        layout.addLayout(js_runtime_row)
+
         # Application update controls
+        app_update_group = QHBoxLayout()
+        self.app_version_lbl = QLabel(f"App version: {APP_VERSION}")
         self.check_app_update_btn = QPushButton("Check for App Update")
         self.check_app_update_btn.setToolTip("Check GitHub for a newer version of MediaDownloader.")
         self.check_app_update_btn.clicked.connect(self._check_app_update)
-        self.app_version_lbl = QLabel(f"App version: {APP_VERSION}")
-        update_group.addWidget(self.check_app_update_btn)
-        update_group.addWidget(self.app_version_lbl)
-        # Auto-check updates on startup (persisted)
+
         self.auto_check_cb = QCheckBox("Check for app updates on startup")
         auto_val = self.config.get("General", "auto_check_updates", fallback="True")
         self.auto_check_cb.setChecked(str(auto_val) == "True")
         self.auto_check_cb.stateChanged.connect(lambda s: self._save_general("auto_check_updates", str(bool(s))))
-        update_group.addWidget(self.auto_check_cb)
-        update_group.addStretch()
-        
-        layout.addLayout(update_group)
-        # -----------------------------
+
+        app_update_group.addWidget(self.app_version_lbl)
+        app_update_group.addWidget(self.check_app_update_btn)
+        app_update_group.addWidget(self.auto_check_cb)
+        app_update_group.addStretch()
+        layout.addLayout(app_update_group)
 
         # Restore Defaults button
         self.restore_btn = QPushButton("Restore Defaults")
@@ -225,43 +451,30 @@ class AdvancedSettingsTab(QWidget):
         """Prompt user to choose new output directory."""
         folder = QFileDialog.getExistingDirectory(self, "Select Output Folder")
         if folder:
-            # Normalize path to use system separators (e.g. backslashes on Windows)
             folder = os.path.normpath(folder)
-            
             self.config.set("Paths", "completed_downloads_directory", folder)
             self.out_display.setText(folder)
             log.debug(f"Updated output directory: {folder}")
-            
-            # Do NOT automatically set or create a temp directory when the output folder
-            # is selected. The temporary downloads directory should remain unset until
-            # the user explicitly chooses it to avoid cluttering the application folder.
             log.debug("Output directory set by user; temporary directory left unchanged.")
 
     def browse_temp(self):
         """Prompt user to choose new temp directory."""
         folder = QFileDialog.getExistingDirectory(self, "Select Temporary Folder")
         if folder:
-            # Normalize path to use system separators
             folder = os.path.normpath(folder)
-
             self.config.set("Paths", "temporary_downloads_directory", folder)
             self.temp_display.setText(folder)
             log.debug(f"Updated temporary directory: {folder}")
 
     def browse_js_runtime(self):
         """Prompt user to choose the JavaScript runtime executable (e.g., deno.exe or node.exe)."""
-        # On Windows, filter for .exe files; on other OS, no filter needed
         filter_str = "Executable Files (*.exe);;All Files (*)" if sys.platform == "win32" else "All Files (*)"
-        
         file_path, _ = QFileDialog.getOpenFileName(self, "Select JavaScript Runtime Executable", "", filter_str)
         if file_path:
-            # Normalize path to use system separators
             file_path = os.path.normpath(file_path)
             self.config.set("General", "js_runtime_path", file_path)
             self.js_runtime_display.setText(file_path)
             log.debug(f"Updated JavaScript runtime path: {file_path}")
-            # Force a refresh of yt-dlp version since the runtime may have changed
-            self._refresh_version_label()
 
     def on_cookies_browser_changed(self, val):
         """Handle cookies-from-browser dropdown changes."""
@@ -282,32 +495,52 @@ class AdvancedSettingsTab(QWidget):
         """Save a key to the General config section."""
         self.config.set("General", key, val)
 
+    def _get_system_theme(self):
+        """
+        Detects if the system is in dark mode.
+        Returns 'dark' or 'light'. Defaults to 'dark' on error or non-Windows.
+        """
+        try:
+            if sys.platform == "win32":
+                import winreg
+                key_path = r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path) as key:
+                    value, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
+                    return "light" if value == 1 else "dark"
+        except Exception:
+            pass
+        return "dark"
+
+    def _on_theme_changed(self, index):
+        theme = self.theme_combo.itemData(index)
+        self._save_general("theme", theme)
+        
+        try:
+            import qdarktheme
+            if hasattr(qdarktheme, 'setup_theme'):
+                qdarktheme.setup_theme(theme)
+            elif hasattr(qdarktheme, 'load_stylesheet'):
+                app = QApplication.instance()
+                if app:
+                    if theme == 'auto':
+                        theme_to_load = self._get_system_theme()
+                    else:
+                        theme_to_load = theme
+                    app.setStyleSheet(qdarktheme.load_stylesheet(theme_to_load))
+            else:
+                log.error("qdarktheme module found but has no setup_theme or load_stylesheet")
+        except ImportError:
+            log.warning("qdarktheme not found. Theme change will not be applied immediately.")
+        except Exception as e:
+            log.error(f"Failed to apply theme '{theme}': {e}")
+
+    def _on_downloader_changed(self, index):
+        downloader = self.downloader_combo.itemData(index)
+        self._save_general("external_downloader", downloader)
+
     def _on_update_channel_changed(self, index):
         channel = self.update_channel_combo.itemData(index)
         self._save_general("yt_dlp_update_channel", channel)
-
-    def _refresh_version_label(self):
-        """Fetch and display the current yt-dlp version."""
-        from core.yt_dlp_worker import get_yt_dlp_version
-        
-        def fetch():
-            try:
-                ver = get_yt_dlp_version()
-                # Emit signal safely with proper error handling
-                try:
-                    self.version_fetched.emit(str(ver) if ver else "Unknown")
-                except Exception as e:
-                    log.error(f"Error emitting version_fetched signal: {e}")
-            except Exception as e:
-                log.error(f"Error in fetch thread: {e}")
-                try:
-                    self.version_fetched.emit("Unknown")
-                except Exception as e2:
-                    log.error(f"Error emitting fallback signal: {e2}")
-
-        # Run in background to avoid UI freeze if disk is slow
-        t = threading.Thread(target=fetch, daemon=True)
-        t.start()
 
     def _check_app_update(self):
         """Check GitHub for a newer app release and prompt the user to update."""
@@ -324,7 +557,6 @@ class AdvancedSettingsTab(QWidget):
                 tag = rel.get('tag_name') or rel.get('name') or ''
                 cmp = updater._compare_versions(APP_VERSION, tag)
                 if cmp == -1:
-                    # Newer available — prompt user on main thread
                     QTimer.singleShot(0, lambda: self._prompt_update(rel))
                 else:
                     QTimer.singleShot(0, lambda: QMessageBox.information(self, 'Up To Date', f'No update available. Current version: {APP_VERSION}'))
@@ -338,7 +570,6 @@ class AdvancedSettingsTab(QWidget):
     def _prompt_update(self, release_info: dict):
         tag = release_info.get('tag_name') or release_info.get('name') or 'unknown'
         body = release_info.get('body') or ''
-        # Use rich text to show a short changelog (trim if very long)
         short_body = (body[:2000] + '...') if len(body) > 2000 else body
         text = f"<b>A new version is available: {tag}</b><br><br>{short_body.replace('\n','<br>')}"
         msg = QMessageBox(self)
@@ -349,7 +580,6 @@ class AdvancedSettingsTab(QWidget):
         no = msg.addButton('No', QMessageBox.ButtonRole.NoRole)
         msg.exec()
         if msg.clickedButton() == yes:
-            # Start download in background
             def bg_download():
                 try:
                     import core.updater as updater
@@ -357,11 +587,9 @@ class AdvancedSettingsTab(QWidget):
                     if not ok:
                         QTimer.singleShot(0, lambda: QMessageBox.warning(self, 'Update Failed', 'Failed to download update.'))
                         return
-                    # If frozen, perform self-update
                     if getattr(sys, 'frozen', False):
                         updater.perform_self_update(path)
                     else:
-                        # Not frozen — open release page
                         html = release_info.get('html_url')
                         if html:
                             webbrowser.open(html)
@@ -374,12 +602,10 @@ class AdvancedSettingsTab(QWidget):
             t.start()
 
     def _on_version_fetched(self, ver):
-        # Check if version string indicates nightly
         is_nightly = "nightly" in ver.lower() or ".dev" in ver.lower()
         channel_text = " (Nightly)" if is_nightly else " (Stable)"
         if ver == "Unknown":
             channel_text = ""
-            
         self.version_lbl.setText(f"Current version: {ver}{channel_text}")
 
     def _update_yt_dlp(self):
@@ -387,15 +613,11 @@ class AdvancedSettingsTab(QWidget):
         import core.yt_dlp_worker
         import shutil
         
-        # Ensure we have the path. If _YT_DLP_PATH is None, try to find it.
-        # This handles cases where the worker hasn't run yet.
         target_exe = core.yt_dlp_worker._YT_DLP_PATH
         if not target_exe:
-             # Force a check to populate _YT_DLP_PATH if possible
              core.yt_dlp_worker.check_yt_dlp_available()
              target_exe = core.yt_dlp_worker._YT_DLP_PATH
 
-        # Fallback to system path if still not found
         if not target_exe:
             target_exe = shutil.which("yt-dlp")
         
@@ -405,9 +627,6 @@ class AdvancedSettingsTab(QWidget):
 
         channel = self.update_channel_combo.currentData()
         
-        # Build command
-        # If channel is 'nightly', use --update-to nightly
-        # If channel is 'stable', use -U (which updates to latest stable)
         cmd = [target_exe]
         if channel == "nightly":
             cmd.extend(["--update-to", "nightly"])
@@ -420,16 +639,10 @@ class AdvancedSettingsTab(QWidget):
         def run_update():
             log.info(f"Starting yt-dlp update with command: {cmd}")
             try:
-                # On Windows, if the exe is in a protected directory (like Program Files), this might fail
-                # without admin privileges. We can't easily elevate from here without external tools,
-                # so we just try and report the result.
-                # CREATE_NO_WINDOW flag for Windows to avoid popping up a console
                 creation_flags = 0
                 if sys.platform == "win32" and getattr(sys, "frozen", False):
                     creation_flags = subprocess.CREATE_NO_WINDOW
                 
-                # IMPORTANT: Add stdin=subprocess.DEVNULL to prevent hanging if the process waits for input
-                # Added timeout to prevent infinite hanging
                 proc = subprocess.run(
                     cmd,
                     capture_output=True,
@@ -458,22 +671,16 @@ class AdvancedSettingsTab(QWidget):
         self.update_btn.setEnabled(True)
         self.update_btn.setText("Update yt-dlp")
         
-        # Determine the channel we just updated to/checked against
         channel = self.update_channel_combo.currentData()
         channel_name = "Nightly" if channel == "nightly" else "Stable"
         
-        # Check for pip installation error
-        # Broaden check to catch various yt-dlp messages about package managers/pip
         msg_lower = message.lower()
         if "pip" in msg_lower and ("installed" in msg_lower or "package manager" in msg_lower):
-            # Try to update via pip
             self._update_via_pip(channel)
             return
         
-        # Check for pip update success (from _update_via_pip)
         if message.startswith("PIP_UPDATE:"):
             message = message.replace("PIP_UPDATE:", "", 1)
-            # Check for "Requirement already satisfied" which pip uses to say it's up to date
             if success or "requirement already satisfied" in message.lower():
                 if "requirement already satisfied" in message.lower():
                      msg_title = "Already Up to Date"
@@ -495,7 +702,6 @@ class AdvancedSettingsTab(QWidget):
             return
 
         if success:
-            # Check the output to see if it was actually updated or already up to date
             if "is up to date" in message:
                 msg_title = "Already Up to Date"
                 msg_body = f"yt-dlp ({channel_name}) is already at the latest version.\n\nOutput:\n{message}"
@@ -515,6 +721,10 @@ class AdvancedSettingsTab(QWidget):
         else:
             QMessageBox.warning(self, "Update Failed", f"Update command failed.\n\nOutput:\n{message}\n\nNote: If yt-dlp is installed in a protected directory, you may need to run this app as Administrator.")
 
+    def _on_subs_lang_changed(self, index):
+        lang_code = self.subs_lang_combo.itemData(index)
+        self._save_general("subtitles_langs", lang_code)
+
     def _restore_defaults(self):
         """Restore all settings to factory defaults."""
         confirm = QMessageBox.question(
@@ -523,13 +733,11 @@ class AdvancedSettingsTab(QWidget):
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
         if confirm == QMessageBox.StandardButton.Yes:
-            # Recreate config with defaults
             import os
             if os.path.exists(self.config.ini_path):
                 os.remove(self.config.ini_path)
             self.config.load_config()
             
-            # Update UI elements
             self.out_display.setText(self.config.get("Paths", "completed_downloads_directory", fallback=""))
             self.temp_display.setText(self.config.get("Paths", "temporary_downloads_directory", fallback=""))
             
@@ -539,7 +747,27 @@ class AdvancedSettingsTab(QWidget):
             restrict_val = self.config.get("General", "restrict_filenames", fallback="False")
             self.restrict_cb.setChecked(str(restrict_val) == "True")
             
-            # Reset cookies dropdown
+            # Reset subtitle options
+            embed_subs_val = self.config.get("General", "subtitles_embed", fallback="False")
+            self.embed_subs_cb.setChecked(str(embed_subs_val) == "True")
+            
+            write_subs_val = self.config.get("General", "subtitles_write", fallback="False")
+            self.write_subs_cb.setChecked(str(write_subs_val) == "True")
+            
+            write_auto_subs_val = self.config.get("General", "subtitles_write_auto", fallback="False")
+            self.write_auto_subs_cb.setChecked(str(write_auto_subs_val) == "True")
+
+            saved_lang = self.config.get("General", "subtitles_langs", fallback="en")
+            idx = self.subs_lang_combo.findData(saved_lang)
+            if idx >= 0:
+                self.subs_lang_combo.setCurrentIndex(idx)
+            else:
+                idx_en = self.subs_lang_combo.findData("en")
+                if idx_en >= 0:
+                    self.subs_lang_combo.setCurrentIndex(idx_en)
+
+            self.subs_format_combo.setCurrentText(self.config.get("General", "subtitles_format", fallback="None"))
+            
             self.cookies_combo.clear()
             installed_browsers = self._get_installed_browsers()
             self.cookies_combo.addItem("None")
@@ -556,20 +784,123 @@ class AdvancedSettingsTab(QWidget):
             if idx >= 0:
                 self.cookies_combo.setCurrentIndex(idx)
             
-            # Reset update channel
             idx = self.update_channel_combo.findData("stable")
             if idx >= 0:
                 self.update_channel_combo.setCurrentIndex(idx)
             
-            # Reset JS runtime path
-            self.js_runtime_display.setText(self.config.get("General", "js_runtime_path", fallback=""))
+            idx = self.theme_combo.findData("auto")
+            if idx >= 0:
+                self.theme_combo.setCurrentIndex(idx)
 
-            # Update Start tab UI
+            idx = self.downloader_combo.findData("none")
+            if idx >= 0:
+                self.downloader_combo.setCurrentIndex(idx)
+
+            self.js_runtime_display.setText(self.config.get("General", "js_runtime_path", fallback=""))
+            
+            default_template = "%(title)s [%(uploader)s][%(upload_date>%m-%d-%Y)s][%(id)s].%(ext)s"
+            self.pattern_input.setText(default_template)
+
             start_tab = getattr(self.main, "tab_start", None)
             if start_tab:
                 start_tab.reset_to_defaults()
 
             QMessageBox.information(self, "Restored", "Defaults restored.")
+
+    def _save_pattern(self):
+        new_pattern = self.pattern_input.text().strip()
+        if not new_pattern:
+             QMessageBox.warning(self, "Invalid Pattern", "Pattern cannot be empty.")
+             return
+
+        sender = self.sender()
+        original_text = sender.text() if sender else "Save"
+        if sender:
+            sender.setText("Checking...")
+            sender.setEnabled(False)
+        QApplication.processEvents()
+
+        try:
+            if not self._validate_output_template(new_pattern):
+                 msg = QMessageBox(self)
+                 msg.setIcon(QMessageBox.Icon.Warning)
+                 msg.setWindowTitle("Invalid Pattern")
+                 msg.setText("The entered output template appears to be invalid.")
+                 msg.setInformativeText('Please check the <a href="https://github.com/yt-dlp/yt-dlp?tab=readme-ov-file#output-template">yt-dlp documentation</a> for proper syntax.')
+                 msg.setTextFormat(Qt.TextFormat.RichText)
+                 msg.exec()
+                 return
+
+            self._save_general("output_template", new_pattern)
+            QMessageBox.information(self, "Saved", "Output filename pattern saved.")
+        finally:
+            if sender:
+                sender.setText(original_text)
+                sender.setEnabled(True)
+
+    def _reset_pattern(self):
+        default_template = "%(title)s [%(uploader)s][%(upload_date>%m-%d-%Y)s][%(id)s].%(ext)s"
+        self.pattern_input.setText(default_template)
+        self._save_general("output_template", default_template)
+        QMessageBox.information(self, "Reset", "Output filename pattern reset to default.")
+
+    def _validate_output_template(self, template):
+        """Final, robust validation for yt-dlp output template based on stderr."""
+        if not template or not template.strip():
+            return False
+        
+        if template.count('(') != template.count(')'):
+            log.warning("Template validation failed: unbalanced parentheses.")
+            return False
+
+        import shutil
+        
+        target_exe = core.yt_dlp_worker._YT_DLP_PATH
+        if not target_exe:
+             core.yt_dlp_worker.check_yt_dlp_available()
+             target_exe = core.yt_dlp_worker._YT_DLP_PATH
+        
+        if not target_exe:
+            target_exe = shutil.which("yt-dlp")
+            
+        if not target_exe:
+            log.warning("Could not find yt-dlp to validate template. Skipping advanced validation.")
+            return True
+
+        test_url = "https://www.youtube.com/shorts/dvX6HdyzbHM"
+        
+        cmd = [
+            target_exe,
+            "--get-filename",
+            "--output-na-placeholder", "MISSING_KEY_ERROR",
+            "-o",
+            template,
+            test_url
+        ]
+        
+        creation_flags = 0
+        if sys.platform == "win32" and getattr(sys, "frozen", False):
+            creation_flags = subprocess.CREATE_NO_WINDOW
+            
+        try:
+            proc = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding='utf-8',
+            )
+
+            if "MISSING_KEY_ERROR" in proc.stdout:
+                return False
+
+            return True
+
+        except subprocess.TimeoutExpired:
+            log.error("Template validation process timed out. Assuming template is valid to avoid blocking user.")
+            return True
+        except Exception as e:
+            log.error(f"Template validation process itself failed: {e}. Assuming template is valid.")
+            return True
 
     def open_downloads_folder(self):
         p = self.out_display.text()

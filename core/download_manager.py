@@ -3,7 +3,7 @@ import os
 import sys
 import shutil
 import time
-from core.yt_dlp_worker import DownloadWorker, check_yt_dlp_available, fetch_metadata
+from core.yt_dlp_worker import DownloadWorker, check_yt_dlp_available, fetch_metadata, is_url_valid
 from core.playlist_expander import expand_playlist
 import threading
 from core.config_manager import ConfigManager
@@ -11,6 +11,7 @@ from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtWidgets import QMessageBox
 from core.archive_manager import ArchiveManager
 from urllib.parse import urlparse
+import re
 
 log = logging.getLogger(__name__)
 
@@ -64,7 +65,9 @@ class DownloadManager(QObject):
                             pass
                 
                 # Removed length restrictions from title and uploader
-                output_template = os.path.join(output_dir, "%(title)s [%(uploader)s][%(upload_date>%m-%d-%Y)s][%(id)s].%(ext)s")
+                default_template = "%(title)s [%(uploader)s][%(upload_date>%m-%d-%Y)s][%(id)s].%(ext)s"
+                configured_template = self.config.get("General", "output_template", fallback=default_template)
+                output_template = os.path.join(output_dir, configured_template)
                 # Normalize path separators for yt-dlp
                 output_template = output_template.replace("\\", "/")
                 args.extend(["-o", output_template])
@@ -211,7 +214,7 @@ class DownloadManager(QObject):
             self.download_error.emit(url, str(e))
             return
         log.info(f"Queueing download for {url} with args: {cmd_args}")
-        worker = DownloadWorker(url, cmd_args)
+        worker = DownloadWorker(url, cmd_args, self.config)
         worker.progress.connect(self._on_progress)
         # Connect finished/error signals to wrapper slots that use QObject.sender()
         # This avoids potential issues with lambdas and ensures the original worker
@@ -288,22 +291,24 @@ class DownloadManager(QObject):
                 log.info(f"User chose not to re-download archived URL: {url}")
                 return
 
-        # Quick hostname-based heuristic to avoid waiting for yt-dlp on common cases.
-        # Known supported sites => enqueue immediately. Known unsupported sites => reject immediately.
-        # Otherwise, fall back to the slower metadata validation in background.
+        # Tier 1: Fast-Track for YouTube
+        # Immediate string/regex check for high-traffic domains (e.g., youtube.com, youtu.be, music.youtube.com).
+        # These are accepted instantly to provide zero-latency UI feedback.
+        yt_pattern = r'^(?:https?://)?(?:www\.|music\.)?(?:youtube\.com|youtu\.be)/.+$'
+        if re.match(yt_pattern, url, re.IGNORECASE):
+            log.info(f"Tier 1 validation passed (YouTube Fast-Track): {url}")
+            self._enqueue_single_download(url, opts)
+            return
+
+        # Consult the extractor index (if available). If the host is recognized by an
+        # extractor, proceed immediately.
         try:
             parsed = urlparse(url)
             host = (parsed.hostname or "").lower()
-        except Exception:
-            host = ""
-
-        # Consult the extractor index (if available). If the host is recognized by an
-        # extractor, proceed immediately. If not recognized or the index isn't
-        # available, fall back to the quick metadata validation below.
-        try:
             from core.extractor_index import host_supported
             try:
                 if host and host_supported(host):
+                    log.info(f"Tier 1 validation passed (Extractor Index): {url}")
                     self._enqueue_single_download(url, opts)
                     return
             except Exception:
@@ -313,27 +318,22 @@ class DownloadManager(QObject):
             # index module not available; proceed to validation fallback
             pass
 
-        # Otherwise, perform a quick background validation using yt-dlp metadata extraction
-        # to detect unsupported/invalid URLs before creating UI elements.
+        # Tier 2: Metadata Probe (Simulate)
+        # For less-common domains, the app initiates a background `yt-dlp --simulate` call.
+        # The "Active Download" UI entry is only generated if this probe confirms the URL is a valid target.
         def _validate_and_enqueue(u, o):
             try:
-                info = fetch_metadata(u, timeout=6)
-                if not info:
-                    # If metadata could not be retrieved quickly, emit a user-facing error
-                    # and avoid creating UI elements for clearly unsupported URLs.
-                    log.info(f"Quick URL validation failed for {u}; treating as unsupported")
+                # Use is_url_valid which uses --simulate
+                if is_url_valid(u, timeout=20):
+                    self._enqueue_single_download(u, o)
+                else:
+                    log.info(f"Tier 2 validation failed for {u} (simulate)")
                     try:
-                        self.download_error.emit(u, "Unsupported or invalid URL (quick validation)")
+                        self.download_error.emit(u, "Unsupported or invalid URL")
                     except Exception:
                         pass
-                    return
-                # If metadata present, proceed to enqueue normally
-                try:
-                    self._enqueue_single_download(u, o)
-                except Exception:
-                    log.exception(f"Failed to enqueue download after validation: {u}")
             except Exception:
-                log.exception(f"Exception during quick URL validation for: {u}")
+                log.exception(f"Exception during Tier 2 validation for: {u}")
 
         try:
             t = threading.Thread(target=_validate_and_enqueue, args=(url, opts), daemon=True)

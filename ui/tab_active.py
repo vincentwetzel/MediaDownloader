@@ -348,6 +348,9 @@ class ActiveDownloadsTab(QWidget):
                 worker.finished.connect(lambda url, success, files, w=widget, wr=worker: self._on_worker_finished(w, wr, success))
                 worker.error.connect(lambda url, msg, w=widget, wr=worker: self._on_worker_failed(w, wr, msg))
 
+                # Store worker reference on widget for speed calculation if needed
+                widget.worker = worker
+
                 widget.mark_active()
             except Exception as e:
                 log.error(f"Failed to connect signals for worker {url}: {e}")
@@ -388,6 +391,12 @@ class ActiveDownloadsTab(QWidget):
             # Fallback display text
             if not text:
                 text = f"{pct:.1f}%"
+
+            # Update worker's current speed for global indicator
+            if hasattr(widget, 'worker'):
+                speed = data.get("speed_bytes", 0.0)
+                widget.worker.current_speed = speed
+
         else:
             # fallback: try extract number from text
             text = str(data)
@@ -594,12 +603,20 @@ class ActiveDownloadsTab(QWidget):
         else:
             widget.mark_failed(title)
 
+        # Reset speed on finish
+        if hasattr(widget, 'worker'):
+            widget.worker.current_speed = 0.0
+
 
     def _on_worker_failed(self, widget: DownloadItemWidget, worker, err_text: str):
         """Explicit error path (if worker emits error_occurred)."""
         title = self._strip_title_prefix(widget.title_label.text())
         # show error on widget and allow retry
         widget.mark_failed(title)
+        # Reset speed on failure
+        if hasattr(widget, 'worker'):
+            widget.worker.current_speed = 0.0
+
         # optionally pop up a message to user
         try:
             QMessageBox.warning(self, "Download error", f"{title}\n\n{err_text}")
