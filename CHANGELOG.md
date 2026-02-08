@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 2026-02-08
+- Fixed a missing `time` import in `core/yt_dlp_worker.py` that caused MP3 playlist downloads to fail with `name "time" is not defined`.
+- Normalized bundled/system binary paths to avoid mixed path separators in Windows error messages.
+- Added detailed stderr/stdout to yt-dlp verification failures to make the root cause visible.
+- Fixed duplicate redownload confirmation by centralizing the archive prompt in the main window.
+
 ### 2026-02-02
 - **Fixed metadata embedding for videos**: Added `--embed-metadata` and `--embed-thumbnail` flags to video downloads (previously only applied to audio).
 - **Capped max concurrent downloads at 4 on app startup**: While users can temporarily set higher concurrency (up to 8) in the UI, any value above 4 reverts to 4 when the app restarts. This prevents users from accidentally launching with overly aggressive concurrency.
@@ -47,6 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **UI Update**: Added a `QLabel` to the bottom of `MediaDownloaderApp` to display the total speed.
 - **Aggregation**: Implemented a timer in `MediaDownloaderApp` to calculate the speed difference every second.
 - **Rationale**: Provides a more accurate and simpler measure of actual data throughput compared to parsing `yt-dlp` stdout, and avoids per-file tracking complexity.
+- **Ensured ffmpeg fallback for yt-dlp**: `yt-dlp` now receives an explicit `--ffmpeg-location` that prefers system `ffmpeg/ffprobe` when both are present, and otherwise falls back to the bundled binaries to ensure merging and post-processing work on clean systems.
 
 ### 2026-02-09
 - **Added Theme Selection**: Added a dropdown in Advanced Settings to switch between "System", "Light", and "Dark" themes.

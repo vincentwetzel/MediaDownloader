@@ -54,6 +54,28 @@ def main():
     logging.info("Starting Media Downloader...")
 
     try:
+        def log_binary_sources():
+            from core.binary_manager import get_bundled_binary_path, get_system_binary_path, get_ffmpeg_location
+            names = ["yt-dlp", "ffmpeg", "ffprobe", "aria2c", "deno"]
+            for name in names:
+                bundled = get_bundled_binary_path(name)
+                system = get_system_binary_path(name)
+                if bundled:
+                    logging.info("Bundled %s: %s", name, bundled)
+                else:
+                    logging.warning("Bundled %s not found.", name)
+                if system:
+                    logging.info("System %s: %s", name, system)
+                else:
+                    logging.info("System %s not found.", name)
+            ffmpeg_location = get_ffmpeg_location(prefer_system=True)
+            if ffmpeg_location:
+                logging.info("yt-dlp ffmpeg location resolved to: %s", ffmpeg_location)
+            else:
+                logging.warning("yt-dlp ffmpeg location could not be resolved.")
+
+        log_binary_sources()
+
         app = QApplication(sys.argv)
         
         # Initialize ConfigManager

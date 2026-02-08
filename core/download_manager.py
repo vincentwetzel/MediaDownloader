@@ -8,8 +8,8 @@ from core.playlist_expander import expand_playlist
 import threading
 from core.config_manager import ConfigManager
 from PyQt6.QtCore import QObject, pyqtSignal
-from PyQt6.QtWidgets import QMessageBox
 from core.archive_manager import ArchiveManager
+from core.binary_manager import get_binary_path
 from urllib.parse import urlparse
 import re
 
@@ -181,16 +181,22 @@ class DownloadManager(QObject):
 
         # --- JavaScript Runtime ---
         js_runtime_path = self.config.get("General", "js_runtime_path", fallback="")
+        # First, try user-configured path
+        if js_runtime_path and os.path.exists(js_runtime_path):
+            log.debug(f"Using user-configured JavaScript runtime at {js_runtime_path}")
+        else:
+            if js_runtime_path:  # Path was configured but not found
+                log.warning(f"Configured JavaScript runtime not found at: {js_runtime_path}. Falling back to bundled.")
+            # If not configured or not found, try to use the bundled deno
+            js_runtime_path = get_binary_path("deno")
+
         if js_runtime_path and os.path.exists(js_runtime_path):
             # yt-dlp expects the runtime name (e.g., "deno") followed by its path
-            # We assume the user selects the executable directly.
-            runtime_name = os.path.basename(js_runtime_path).split('.')[0] # e.g., "deno" from "deno.exe"
+            runtime_name = os.path.basename(js_runtime_path).split('.')[0]  # "deno" from "deno.exe"
             args.extend(["--js-runtimes", f"{runtime_name}:{js_runtime_path}"])
             log.debug(f"Using JavaScript runtime: {runtime_name} at {js_runtime_path}")
-        elif js_runtime_path and not os.path.exists(js_runtime_path):
-            log.warning(f"Configured JavaScript runtime path does not exist: {js_runtime_path}")
-        elif not js_runtime_path:
-            log.debug("No JavaScript runtime path configured.")
+        else:
+            log.debug("No valid JavaScript runtime found (neither configured nor bundled).")
 
 
         return args
@@ -282,15 +288,6 @@ class DownloadManager(QObject):
         Playlist expansion is handled by the UI/background worker so this
         method keeps enqueuing lightweight and non-blocking.
         """
-        if self.archive_manager.is_in_archive(url):
-            reply = QMessageBox.question(None, 'Download Archive',
-                                         f"The URL has been downloaded before:\n\n{url}\n\nDo you want to download it again?",
-                                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                                         QMessageBox.StandardButton.No)
-            if reply == QMessageBox.StandardButton.No:
-                log.info(f"User chose not to re-download archived URL: {url}")
-                return
-
         # Tier 1: Fast-Track for YouTube
         # Immediate string/regex check for high-traffic domains (e.g., youtube.com, youtu.be, music.youtube.com).
         # These are accepted instantly to provide zero-latency UI feedback.

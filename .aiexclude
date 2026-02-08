@@ -25,5 +25,3 @@ __pycache__/
 # Git Metadata
 .git/
 .gitignore
-.geminiignore
-.aiexclude

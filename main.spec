@@ -1,22 +1,22 @@
 # -*- mode: python ; coding: utf-8 -*-
+import os
+from PyQt6.QtCore import QLibraryInfo
+
+qt_plugins_path = QLibraryInfo.path(QLibraryInfo.LibraryPath.PluginsPath)
+project_root = os.getcwd()
 
 a = Analysis(
     ['main.pyw'],
-    pathex=[],
+    pathex=[project_root],
     binaries=[],
-    datas=[('bin', 'bin')],
+    datas=[
+        (os.path.join(project_root, 'bin/windows/yt-dlp.exe'), 'bin/windows'),
+        (os.path.join(project_root, 'bin/windows/deno.exe'), 'bin/windows'),
+        (os.path.join(project_root, 'bin/windows/aria2-1.37.0-win-64bit-build1'), 'bin/windows/aria2-1.37.0-win-64bit-build1'),
+        (os.path.join(project_root, 'bin/windows/ffmpeg-8.0.1-essentials_build'), 'bin/windows/ffmpeg-8.0.1-essentials_build'),
+        (qt_plugins_path, 'PyQt6/Qt6/plugins'),
+    ],
     hiddenimports=[
-        'core',
-        'core.yt_dlp_worker',
-        'core.app_updater',
-        'core.config_manager',
-        'core.download_manager',
-        'core.file_ops_monitor',
-        'core.logger_config',
-        'core.playlist_expander',
-        'core.version',
-        'utils',
-        'utils.cookies',
         'qdarktheme',
         'PIL'
     ],
