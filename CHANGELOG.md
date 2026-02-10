@@ -5,6 +5,38 @@ All notable changes to MediaDownloader will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - YYYY-MM-DD
+
+### Added
+-
+
+### Changed
+-
+
+### Deprecated
+-
+
+### Removed
+-
+
+### Fixed
+-
+
+### Security
+-
+
+## [0.0.3] - 02-09-2026
+
+### 02-10-2026
+- Improved application update cleanup: The installer file is now automatically deleted after the update process completes, preventing clutter in the temporary downloads folder.
+- Fixed logging initialization for installed builds by routing logs to a user-writable directory (AppData/LocalAppData) when the app directory is not writable.
+
+### 02-09-2026
+- Updated the app self-update flow to avoid browser dependency and apply updates directly from the UI.
+- Unified update asset selection to prefer installer/MSI or portable executables and added safe executable swap handling for non-installer builds.
+- Downloads now target the configured temporary directory when available, falling back to a system temp directory if unset.
+- Build: Adjusted the PyInstaller spec to emit onedir output for NSIS packaging.
+
 ## [0.0.2] - 02-08-2026
 
 ### 02-08-2026

@@ -196,5 +196,5 @@ See [CHANGELOG.md](CHANGELOG.md) or GitHub Releases for version history.
 
 ---
 
-**Current Version:** 0.0.1  
-**Last Updated:** February 2, 2026
+**Current Version:** 0.0.7  
+**Last Updated:** February 9, 2026

@@ -48,7 +48,7 @@ bin/
 
 Edit `core/version.py` and bump the version (semantic versioning):
 ```python
-__version__ = "0.0.2"  # Increment from "0.0.1"
+__version__ = "0.0.7"  # Increment from "0.0.6"
 ```
 
 ### Step 3: Build with PyInstaller
@@ -76,7 +76,7 @@ dist/MediaDownloader/
 
 Test the installer on your machine:
 ```powershell
-.\MediaDownloader-Setup-0.0.2.exe
+.\MediaDownloader-Setup-0.0.7.exe
 ```
 
 After installation, verify:
@@ -93,7 +93,7 @@ Build the NSIS script to create a Windows installer:
 
 Output:
 ```
-MediaDownloader-Setup-0.0.2.exe  (or whatever version you set in core/version.py)
+MediaDownloader-Setup-0.0.7.exe  (or whatever version you set in core/version.py)
 ```
 
 > **Note:** The NSIS script (`MediaDownloader.nsi`) reads from `dist/MediaDownloader/`, so PyInstaller must complete first.
@@ -104,9 +104,9 @@ MediaDownloader-Setup-0.0.2.exe  (or whatever version you set in core/version.py
 
 ```powershell
 git add core/version.py main.spec MediaDownloader.nsi download_binaries.ps1  # or all changes
-git commit -m "Release 0.0.2"
-git tag -a v0.0.2 -m "Release version 0.0.2"
-git push origin v0.0.2
+git commit -m "Release 0.0.7"
+git tag -a v0.0.7 -m "Release version 0.0.7"
+git push origin v0.0.7
 ```
 
 ### Step 2: Create GitHub Release
@@ -114,8 +114,8 @@ git push origin v0.0.2
 Navigate to https://github.com/vincentwetzel/MediaDownloader/releases and:
 
 1. Click "Create a new release"
-2. **Tag version:** `v0.0.2` (must match Git tag)
-3. **Release title:** `MediaDownloader 0.0.2`
+2. **Tag version:** `v0.0.7` (must match Git tag)
+3. **Release title:** `MediaDownloader 0.0.7`
 4. **Description:** Add release notes (changelog), e.g.:
    ```
    ## Features
@@ -128,9 +128,9 @@ Navigate to https://github.com/vincentwetzel/MediaDownloader/releases and:
    - Improved snapshot fallback detection
    
    ## Installation
-   Download `MediaDownloader-Setup-0.0.2.exe` and run it.
+   Download `MediaDownloader-Setup-0.0.7.exe` and run it.
    ```
-5. **Attach Assets:** Upload `MediaDownloader-Setup-0.0.2.exe`
+5. **Attach Assets:** Upload `MediaDownloader-Setup-0.0.7.exe`
 6. Click "Publish release"
 
 ### Step 3: Verify Auto-Update
@@ -176,7 +176,7 @@ These settings are persisted to `settings.ini` under `[General]`:
 
 ### Update Check Returns "No Release"
 
-- Verify GitHub Release tag matches `v<version>` (e.g., `v0.0.2`)
+- Verify GitHub Release tag matches `v<version>` (e.g., `v0.0.7`)
 - Verify installer `.exe` is attached to the Release (not just the source code)
 - Check your GitHub repo is public (or auth token is configured)
 

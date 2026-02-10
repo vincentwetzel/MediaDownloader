@@ -3,6 +3,7 @@ import os
 import html
 import sys
 import psutil
+import tempfile
 from PyQt6.QtWidgets import (
     QWidget, QMainWindow, QVBoxLayout, QTabWidget,
     QMessageBox, QProgressDialog, QLabel, QHBoxLayout
@@ -13,7 +14,7 @@ from PyQt6.QtGui import QDesktopServices
 from core.config_manager import ConfigManager
 from core.download_manager import DownloadManager
 from core.archive_manager import ArchiveManager
-from core.app_updater import AppUpdater
+from core.version import __version__ as APP_VERSION
 from core.playlist_expander import expand_playlist, is_likely_playlist, PlaylistExpansionError
 from ui.tab_start import StartTab
 from ui.tab_active import ActiveDownloadsTab
@@ -424,10 +425,20 @@ class MediaDownloaderApp(QMainWindow):
         """Check for application updates in a background thread."""
         def _check():
             try:
-                updater = AppUpdater()
-                update_info = updater.check_for_updates()
-                if update_info:
-                    self.app_update_available.emit(update_info)
+                import core.updater as updater
+                owner = "vincentwetzel"
+                repo = "MediaDownloader"
+                release_info = updater.get_latest_release(owner, repo)
+                if not release_info:
+                    return
+                tag = release_info.get("tag_name") or release_info.get("name") or ""
+                if updater._compare_versions(APP_VERSION, tag) == -1:
+                    asset = updater.find_asset_for_platform(release_info, None)
+                    self.app_update_available.emit({
+                        "release": release_info,
+                        "version": tag,
+                        "asset": asset,
+                    })
             except Exception:
                 log.exception("Failed to check for app updates")
 
@@ -435,10 +446,10 @@ class MediaDownloaderApp(QMainWindow):
 
     def _on_app_update_available(self, info):
         """Handle signal when an update is found."""
+        release = info.get("release") or {}
         version = info.get("version", "Unknown")
-        url = info.get("url", "")
-        body = info.get("body", "")
-        assets = info.get("assets", [])
+        body = release.get("body", "")
+        asset = info.get("asset")
 
         msg = QMessageBox(self)
         msg.setWindowTitle("Update Available")
@@ -451,44 +462,42 @@ class MediaDownloaderApp(QMainWindow):
             msg.setDetailedText(body)
 
         update_btn = msg.addButton("Update Now", QMessageBox.ButtonRole.AcceptRole)
-        view_btn = msg.addButton("View Release", QMessageBox.ButtonRole.ActionRole)
-        msg.addButton("Ignore", QMessageBox.ButtonRole.RejectRole)
+        msg.addButton("Later", QMessageBox.ButtonRole.RejectRole)
         msg.setDefaultButton(update_btn)
 
         msg.exec()
 
-        if msg.clickedButton() == view_btn and url:
-            QDesktopServices.openUrl(QUrl(url))
-        elif msg.clickedButton() == update_btn:
-            # Find the first asset that looks like an executable or installer
-            download_url = None
-            for asset in assets:
-                name = asset.get("name", "").lower()
-                if name.endswith(".exe") or name.endswith(".msi"):
-                    download_url = asset.get("browser_download_url")
-                    break
-            
-            if download_url:
-                self._start_update_download(download_url)
+        if msg.clickedButton() == update_btn:
+            if asset:
+                self._start_update_download(asset)
             else:
                 QMessageBox.warning(self, "Update Error", "No suitable update file found in the release.")
-                QDesktopServices.openUrl(QUrl(url))
 
-    def _start_update_download(self, url):
+    def _start_update_download(self, asset: dict):
         """Starts the update download process."""
         self.update_dialog = QProgressDialog("Downloading update...", "Cancel", 0, 100, self)
         self.update_dialog.setWindowModality(Qt.WindowModality.WindowModal)
         self.update_dialog.show()
 
-        temp_dir = self.config_manager.get("Paths", "temporary_downloads_directory", fallback=os.getcwd())
-        target_path = os.path.join(temp_dir, "MediaDownloader_Update.exe")
+        temp_dir = self.config_manager.get("Paths", "temporary_downloads_directory", fallback="")
+        if not temp_dir:
+            out_dir = self.config_manager.get("Paths", "completed_downloads_directory", fallback="")
+            if out_dir:
+                temp_dir = os.path.join(out_dir, "temp_downloads")
+            else:
+                temp_dir = tempfile.mkdtemp(prefix="md_update_")
+        if not os.path.isdir(temp_dir):
+            os.makedirs(temp_dir, exist_ok=True)
+
+        asset_name = os.path.basename(asset.get("name") or "MediaDownloader_Update.exe")
+        target_path = os.path.join(temp_dir, asset_name)
 
         def _download_worker():
-            updater = AppUpdater()
-            success = updater.download_update(
-                url, 
-                target_path, 
-                progress_callback=lambda p: self.update_progress.emit(p)
+            import core.updater as updater
+            success = updater.download_asset(
+                asset,
+                target_path,
+                progress_callback=lambda p: self.update_progress.emit(p),
             )
             self.update_finished.emit(success, target_path)
 
@@ -503,16 +512,13 @@ class MediaDownloaderApp(QMainWindow):
             self.update_dialog.close()
 
         if success:
-            reply = QMessageBox.question(
-                self, 
-                "Update Ready", 
+            QMessageBox.information(
+                self,
+                "Update Ready",
                 "The update has been downloaded. The application will now restart to apply the update.",
-                QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel
             )
-            
-            if reply == QMessageBox.StandardButton.Ok:
-                updater = AppUpdater()
-                updater.apply_update(path)
+            import core.updater as updater
+            updater.perform_self_update(path)
         else:
             QMessageBox.critical(self, "Update Failed", "Failed to download the update.")
 

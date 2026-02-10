@@ -4,7 +4,7 @@ import os
 import platform
 from PyQt6.QtWidgets import QApplication
 from ui.main_window import MediaDownloaderApp
-from core.logger_config import setup_logging
+from core.logger_config import setup_logging, get_log_dir
 import threading
 from core.config_manager import ConfigManager
 # Import file operations monitor early to capture deletes/moves during runtime
@@ -22,10 +22,10 @@ if sys.stderr is not None:
 else:
     try:
         # Ensure logs directory exists
-        os.makedirs("logs", exist_ok=True)
+        log_dir = get_log_dir()
         # Open a file for fault logging
         # We keep the file object referenced globally so it doesn't get garbage collected immediately
-        _fault_log_file = open(os.path.join("logs", "crash_faults.log"), "a")
+        _fault_log_file = open(os.path.join(log_dir, "crash_faults.log"), "a")
         faulthandler.enable(file=_fault_log_file)
     except Exception:
         pass

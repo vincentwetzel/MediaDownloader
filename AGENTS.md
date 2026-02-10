@@ -67,7 +67,7 @@ The project follows a **modular, separation-of-concerns design**.
 - `core/config_manager.py` - State persistence; reads/writes `settings.json`, provides default config values.
 - `core/download_manager.py` - "Brain"; URL validation (Tier 1 regex, Tier 2 probe), queue management (max 4 startup / 8 runtime), lifecycle (Queue -> Active -> Completed), file ops (move `temp` -> `output` on completion).
 - `core/yt_dlp_worker.py` - "Muscle"; runs `yt-dlp` subprocesses, parses stdout for progress % and speed, handles thumbnail embedding and JSON metadata extraction.
-- `core/app_updater.py` - Self-maintenance; checks GitHub Releases API for application updates.
+- `core/updater.py` - Self-maintenance; checks GitHub Releases API for application updates and handles self-update.
 - `core/playlist_expander.py` - Pre-processing; takes a playlist URL and yields individual video URLs.
 - `core/logger_config.py` - Diagnostics; configures Python `logging`, handles `sys.stderr` redirection to GUI console.
 - `core/file_ops_monitor.py` - File system monitoring logic.
@@ -81,7 +81,7 @@ The project follows a **modular, separation-of-concerns design**.
 - Download Queue: `core/download_manager.py` (concurrency semaphores and queue state).
 - Process Execution: `core/yt_dlp_worker.py` (wraps `yt-dlp` subprocess; parses stdout/stderr).
 - Progress Bars: `ui/tab_active.py` (updates UI based on worker signals).
-- App Updates: `core/app_updater.py` (checks GitHub for new app versions).
+- App Updates: `core/updater.py` (checks GitHub for new app versions and handles self-update).
 - Settings/Config: `core/config_manager.py` (handles `settings.json` I/O).
 - External Downloader: `ui/tab_advanced.py`, `core/yt_dlp_worker.py` (`aria2` integration).
 - File Moving: `core/download_manager.py` (moves files from `temp_downloads` to final output).

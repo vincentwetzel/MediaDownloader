@@ -4,7 +4,7 @@
 ; Build Instructions:
 ; 1. Install NSIS from https://nsis.sourceforge.io/Download
 ; 2. Run: makensis /V2 MediaDownloader.nsi
-; 3. Output: MediaDownloader-Setup-0.0.1.exe will be created in the project root
+; 3. Output: MediaDownloader-Setup-0.0.7.exe will be created in the project root
 
 !include "MUI2.nsh"
 !include "x64.nsh"
@@ -14,7 +14,7 @@
 ; ============================================================================
 
 Name "MediaDownloader"
-OutFile "MediaDownloader-Setup-0.0.1.exe"
+OutFile "MediaDownloader-Setup-0.0.7.exe"
 InstallDir "$PROGRAMFILES\MediaDownloader"
 
 ; Request admin privileges to write to Program Files
@@ -27,6 +27,14 @@ RequestExecutionLevel admin
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
+
+!define MUI_FINISHPAGE_SHOWREADME_TEXT "Create a desktop shortcut"
+!define MUI_FINISHPAGE_SHOWREADME
+!define MUI_FINISHPAGE_SHOWREADME_FUNCTION CreateDesktopShortcut
+!define MUI_FINISHPAGE_SHOWREADME_CHECKED
+!define MUI_FINISHPAGE_RUN "$INSTDIR\\MediaDownloader.exe"
+!define MUI_FINISHPAGE_RUN_TEXT "Launch MediaDownloader"
+!define MUI_FINISHPAGE_RUN_CHECKED
 !insertmacro MUI_PAGE_FINISH
 
 !insertmacro MUI_LANGUAGE "English"
@@ -44,24 +52,13 @@ Section "Install"
   ; - bin/ (containing yt-dlp, ffmpeg, ffprobe for all platforms)
   ; - Any other runtime files
   
-  File "dist\MediaDownloader\MediaDownloader.exe"
-  File "dist\MediaDownloader\*.dll"
-  
-  ; Recursively copy bin/ folder
-  SetOutPath "$INSTDIR\bin"
-  File /r "dist\MediaDownloader\bin\*.*"
-  
-  ; Recursively copy other subdirectories if present
-  SetOutPath "$INSTDIR"
-  ; Note: Add more directories here if needed (e.g., resources, logs, etc.)
+  ; Recursively copy the PyInstaller onedir output
+  File /r "dist\MediaDownloader\*.*"
   
   ; Create Start Menu shortcuts
   CreateDirectory "$SMPROGRAMS\MediaDownloader"
   CreateShortCut "$SMPROGRAMS\MediaDownloader\MediaDownloader.lnk" "$INSTDIR\MediaDownloader.exe"
   CreateShortCut "$SMPROGRAMS\MediaDownloader\Uninstall.lnk" "$INSTDIR\Uninstall.exe"
-  
-  ; Create Desktop shortcut (optional)
-  CreateShortCut "$DESKTOP\MediaDownloader.lnk" "$INSTDIR\MediaDownloader.exe"
   
   ; Write uninstaller
   WriteUninstaller "$INSTDIR\Uninstall.exe"
@@ -74,7 +71,7 @@ Section "Install"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\MediaDownloader" \
     "DisplayIcon" "$INSTDIR\MediaDownloader.exe"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\MediaDownloader" \
-    "DisplayVersion" "0.0.1"
+    "DisplayVersion" "0.0.7"
   
   ; Log completion
   DetailPrint "MediaDownloader installed successfully"
@@ -108,4 +105,8 @@ Function .onInstSuccess
   ; Uncomment the following lines if desired:
   ; SetOutPath "$INSTDIR"
   ; Exec "$INSTDIR\MediaDownloader.exe"
+FunctionEnd
+
+Function CreateDesktopShortcut
+  CreateShortCut "$DESKTOP\MediaDownloader.lnk" "$INSTDIR\MediaDownloader.exe"
 FunctionEnd

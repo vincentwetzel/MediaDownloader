@@ -26,7 +26,7 @@ pandas==2.3.3
 pandas-stubs==2.3.3.260113
 pillow==12.1.0
 propcache==0.4.1
-psutil==6.1.1
+psutil==7.2.2
 pycryptodomex==3.23.0
 PyQt6==6.10.2
 PyQt6-Qt6==6.10.1

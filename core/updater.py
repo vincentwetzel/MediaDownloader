@@ -34,7 +34,7 @@ try:
 except Exception:
     requests = None
 
-from core.version import __version__ as LOCAL_VERSION
+from core.version import __version__ as LOCAL_VERSION, GITHUB_REPO
 
 log = logging.getLogger(__name__)
 
@@ -70,8 +70,20 @@ def _compare_versions(local: str, remote: str) -> int:
     return -1 if a < b else 1
 
 
-def get_latest_release(owner: str, repo: str) -> Optional[dict]:
+def _resolve_repo(owner: Optional[str], repo: Optional[str]) -> Tuple[str, str]:
+    """Resolve owner and repo, defaulting to GITHUB_REPO if not provided."""
+    if owner and repo:
+        return owner, repo
+    if GITHUB_REPO and "/" in GITHUB_REPO:
+        parts = GITHUB_REPO.split("/", 1)
+        return parts[0], parts[1]
+    # Fallback
+    return owner or "vincentwetzel", repo or "MediaDownloader"
+
+
+def get_latest_release(owner: Optional[str] = None, repo: Optional[str] = None) -> Optional[dict]:
     """Return the latest release JSON from GitHub or None on failure."""
+    owner, repo = _resolve_repo(owner, repo)
     if requests is None:
         raise RuntimeError("requests is required for updater but is not installed")
     api = f"https://api.github.com/repos/{owner}/{repo}/releases/latest"
@@ -94,6 +106,16 @@ def find_asset_for_platform(release_info: dict, asset_name: Optional[str] = None
     assets = release_info.get("assets", []) if release_info else []
     if not assets:
         return None
+    
+    is_frozen = getattr(sys, 'frozen', False)
+
+    # If running from source, prioritize the source code zip
+    if not is_frozen:
+        for a in assets:
+            n = a.get("name", "").lower()
+            if "source code" in n and n.endswith(".zip"):
+                return a
+
     if asset_name:
         for a in assets:
             if a.get("name") == asset_name:
@@ -102,7 +124,7 @@ def find_asset_for_platform(release_info: dict, asset_name: Optional[str] = None
     # Prioritize the official installer
     for a in assets:
         n = a.get("name", "").lower()
-        if "installer" in n and n.endswith(".exe"):
+        if ("installer" in n or "setup" in n) and (n.endswith(".exe") or n.endswith(".msi")):
             return a
 
     # Then, look for a portable executable
@@ -112,14 +134,15 @@ def find_asset_for_platform(release_info: dict, asset_name: Optional[str] = None
             return a
 
     # Fallback to the first asset if no other options are found
-    return assets[0]
+    return assets[0] if assets else None
 
 
-def check_for_update(owner: str, repo: str) -> Tuple[bool, Optional[str], Optional[dict]]:
+def check_for_update(owner: Optional[str] = None, repo: Optional[str] = None) -> Tuple[bool, Optional[str], Optional[dict]]:
     """Check GitHub for a newer release.
 
     Returns a tuple: (is_newer_available, latest_version_tag, asset_dict_or_None)
     """
+    owner, repo = _resolve_repo(owner, repo)
     rel = get_latest_release(owner, repo)
     if not rel:
         return False, None, None
@@ -130,7 +153,7 @@ def check_for_update(owner: str, repo: str) -> Tuple[bool, Optional[str], Option
     return is_newer, tag, asset
 
 
-def download_asset(asset: dict, target_path: str) -> bool:
+def download_asset(asset: dict, target_path: str, progress_callback=None) -> bool:
     """Download a release asset to target_path. Returns True on success."""
     if requests is None:
         raise RuntimeError("requests is required for updater but is not installed")
@@ -142,122 +165,200 @@ def download_asset(asset: dict, target_path: str) -> bool:
     try:
         with requests.get(url, stream=True, timeout=60) as r:
             r.raise_for_status()
+            total_size = int(r.headers.get("content-length", 0))
+            downloaded = 0
             with open(target_path, 'wb') as fh:
                 for chunk in r.iter_content(chunk_size=8192):
                     if chunk:
                         fh.write(chunk)
+                        if progress_callback and total_size > 0:
+                            downloaded += len(chunk)
+                            progress_callback(int(downloaded * 100 / total_size))
         return True
     except Exception:
         log.exception("Failed to download asset")
         return False
 
 
-def _write_windows_update_script(tmp_dir: str, new_path: str, target_exe: str) -> str:
-    """Write a batch script that waits for the running exe to exit, then
-    replaces it with `new_path` and restarts it. Returns path to the script.
-    """
-    script_path = os.path.join(tmp_dir, 'updater_apply.bat')
-    # Use a more robust loop that waits for the main process to exit
-    script = f"""@echo off
-echo Waiting for application to exit...
-setlocal enabledelayedexpansion
-set NEW_EXE="{new_path}"
-set TARGET_EXE="{target_exe}"
-set TIMEOUT=30
-:loop
-tasklist /FI "IMAGENAME eq %TARGET_EXE%" | findstr /I "%TARGET_EXE%" >nul
-if %ERRORLEVEL%==0 (
-    timeout /t 1 >nul
-    set /a TIMEOUT-=1
-    if !TIMEOUT! equ 0 (
-        echo Timeout waiting for application to exit.
-        exit /b 1
-    )
-    goto loop
-)
-echo Replacing executable...
-move /Y %NEW_EXE% %TARGET_EXE%
-if %ERRORLEVEL% neq 0 (
-    echo Failed to replace executable.
-    exit /b 1
-)
-echo Starting updated app...
-start "" %TARGET_EXE%
-del "%~f0"
+def _get_project_root() -> str:
+    """Return the absolute path to the project's root directory."""
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def _write_self_destruct_script(runner_dir: str) -> str:
+    """Writes a script to delete the update runner directory."""
+    script_path = os.path.join(runner_dir, "self_destruct.bat" if sys.platform == "win32" else "self_destruct.sh")
+    
+    if sys.platform == "win32":
+        script_content = f"""
+@echo off
+echo "Self-destructing updater..."
+timeout /t 2 /nobreak > nul
+rmdir /s /q "{runner_dir}"
+"""
+    else:
+        script_content = f"""
+#!/bin/bash
+echo "Self-destructing updater..."
+sleep 2
+rm -rf "{runner_dir}"
 """
     try:
-        with open(script_path, 'w', encoding='utf-8') as fh:
-            fh.write(script)
+        with open(script_path, "w", encoding="utf-8") as f:
+            f.write(script_content)
+        if sys.platform != "win32":
+            os.chmod(script_path, 0o755)
         return script_path
     except Exception:
-        log.exception("Failed to write update script")
+        log.exception("Failed to write self-destruct script")
         return ""
-
 
 def _is_nsis_installer(exe_path: str) -> bool:
     """Check if an executable is an NSIS installer by filename heuristic."""
     return 'setup' in os.path.basename(exe_path).lower()
 
 
-def perform_self_update(downloaded_exe_path: str) -> bool:
-    """Perform a Windows self-update.
+def _write_exe_swap_script(current_exe: str, new_exe: str) -> str:
+    """Write a batch script that swaps in a new executable and restarts the app."""
+    batch_path = os.path.join(os.path.dirname(current_exe), "update_restart.bat")
+    script_content = f"""
+@echo off
+timeout /t 2 /nobreak > NUL
+move /y "{current_exe}" "{current_exe}.old"
+move /y "{new_exe}" "{current_exe}"
+start "" "{current_exe}"
+del "%~f0"
+"""
+    try:
+        with open(batch_path, "w", encoding="utf-8") as f:
+            f.write(script_content)
+        return batch_path
+    except Exception:
+        log.exception("Failed to write executable swap script")
+        return ""
 
-    For NSIS installers: runs the installer in silent mode with /S /D parameter.
-    For raw executables: uses a batch script to replace and restart.
+
+def _write_installer_cleanup_script(installer_path: str, install_dir: str, executable_path: str) -> str:
+    """Write a batch script that runs the installer, relaunches the app, and then deletes the installer."""
+    batch_path = os.path.join(os.path.dirname(installer_path), "update_installer.bat")
+    # NSIS /D parameter must be the last one and must NOT be quoted, even if it contains spaces.
+    script_content = f"""
+@echo off
+timeout /t 2 /nobreak > NUL
+start /wait "" "{installer_path}" /S /D={install_dir}
+start "" "{executable_path}"
+del "{installer_path}"
+del "%~f0"
+"""
+    try:
+        with open(batch_path, "w", encoding="utf-8") as f:
+            f.write(script_content)
+        return batch_path
+    except Exception:
+        log.exception("Failed to write installer cleanup script")
+        return ""
+
+
+def perform_self_update(downloaded_path: str) -> bool:
+    """
+    Performs a self-update for both frozen and non-frozen applications.
     
-    Only supported on frozen executables (PyInstaller) on Windows.
+    - For frozen executables (NSIS installers): runs the installer silently.
+    - For non-frozen (source) execution: unpacks the release zip and restarts.
     """
     try:
-        if not getattr(sys, 'frozen', False):
-            log.error("Self-update is supported only for frozen executables")
-            return False
+        is_frozen = getattr(sys, 'frozen', False)
         
-        # Determine if this is an NSIS installer or a raw exe
-        is_nsis = _is_nsis_installer(downloaded_exe_path)
-        
-        if is_nsis:
-            # Run the NSIS installer with silent flags
-            # /S = silent install
-            # /D = specify install directory (must be the app installation directory)
+        if is_frozen and _is_nsis_installer(downloaded_path):
             app_dir = os.path.dirname(sys.executable)
-            cmd = [downloaded_exe_path, '/S', f'/D={app_dir}']
-            log.info("Running NSIS installer: %s", cmd)
-            # Launch installer detached so app can exit
-            creation_flags = subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
-            subprocess.Popen(cmd, creationflags=creation_flags)
-            log.info("Launched NSIS installer, exiting application to allow update")
-            os._exit(0)
-        else:
-            # For raw executables, use the batch script approach
-            target_exe = sys.executable
-            tmp_dir = os.path.dirname(downloaded_exe_path) or tempfile.gettempdir()
-            script = _write_windows_update_script(tmp_dir, downloaded_exe_path, target_exe)
-            if script:
-                # Launch the updater script detached
-                subprocess.Popen(['cmd', '/c', script], creationflags=0)
-                log.info("Launched updater script %s, exiting application to allow update", script)
-                # Exit so script can replace the running exe
-                os._exit(0)
+            
+            cleanup_script = _write_installer_cleanup_script(downloaded_path, app_dir, sys.executable)
+            if cleanup_script:
+                log.info("Launching installer cleanup script: %s", cleanup_script)
+                subprocess.Popen(["cmd.exe", "/c", cleanup_script], creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0)
             else:
-                log.error("Failed to create update script")
+                # Fallback if script creation fails
+                cmd = [downloaded_path, '/S', f'/D={app_dir}']
+                log.info("Running NSIS installer (fallback): %s", cmd)
+                subprocess.Popen(cmd, creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0)
+
+            log.info("Launched NSIS installer, exiting application to allow update.")
+            os._exit(0)
+            return True
+        
+        if is_frozen and downloaded_path.lower().endswith(".msi"):
+            cmd = ["msiexec", "/i", downloaded_path]
+            log.info("Launching MSI installer: %s", cmd)
+            subprocess.Popen(cmd, creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0)
+            log.info("Launched MSI installer, exiting application to allow update.")
+            os._exit(0)
+            return True
+
+        if is_frozen and downloaded_path.lower().endswith(".exe"):
+            current_exe = sys.executable
+            swap_script = _write_exe_swap_script(current_exe, downloaded_path)
+            if not swap_script:
                 return False
+            log.info("Launching update swap script: %s", swap_script)
+            subprocess.Popen(["cmd.exe", "/c", swap_script], creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0)
+            os._exit(0)
+            return True
+
+        # Handle zip-based releases for source/portable updates
+        runner_temp_dir = tempfile.mkdtemp(prefix="updater_runner_")
+        self_destruct_script = _write_self_destruct_script(runner_temp_dir)
+        
+        # This is the path to the python executable that will run the update runner
+        python_executable = sys.executable
+        
+        # This is the path to the update runner script
+        update_runner_script = os.path.join(_get_project_root(), "update_runner.py")
+        
+        # This is the command that will be executed to run the update
+        cmd = [
+            python_executable,
+            update_runner_script,
+            "--pid", str(os.getpid()),
+            "--file", downloaded_path,
+            "--destination", _get_project_root(),
+            "--launch", sys.executable,
+            "--self-destruct-script", self_destruct_script,
+        ]
+
+        log.info("Launching update runner with command: %s", cmd)
+        subprocess.Popen(cmd, creationflags=subprocess.DETACHED_PROCESS)
+        log.info("Update runner launched, exiting main application.")
+        os._exit(0)
+
+        return True
+
     except Exception:
         log.exception("Self-update failed")
         return False
 
 
-def check_and_download_update(owner: str, repo: str, preferred_asset_name: Optional[str] = None) -> Tuple[bool, Optional[str]]:
+
+def check_and_download_update(
+    owner: Optional[str] = None,
+    repo: Optional[str] = None,
+    preferred_asset_name: Optional[str] = None,
+    target_dir: Optional[str] = None,
+    progress_callback=None,
+) -> Tuple[bool, Optional[str]]:
     """Check GitHub and download the update if available.
 
     Returns (downloaded_boolean, path_to_downloaded_file_or_None)
     """
+    owner, repo = _resolve_repo(owner, repo)
     is_newer, tag, asset = check_for_update(owner, repo)
     if not is_newer or not asset:
         return False, None
-    tmp = tempfile.mkdtemp(prefix='md_update_')
+    tmp = target_dir or tempfile.mkdtemp(prefix='md_update_')
+    if target_dir:
+        os.makedirs(tmp, exist_ok=True)
     name = asset.get('name') or preferred_asset_name or 'update_asset'
     target = os.path.join(tmp, name)
-    ok = download_asset(asset, target)
+    ok = download_asset(asset, target, progress_callback=progress_callback)
     return (ok, target if ok else None)
 
 

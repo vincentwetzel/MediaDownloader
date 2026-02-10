@@ -4,7 +4,6 @@ import sys
 import subprocess
 import threading
 import time
-import webbrowser
 import core.yt_dlp_worker
 
 from core.version import __version__ as APP_VERSION
@@ -611,33 +610,41 @@ class AdvancedSettingsTab(QWidget):
         body = release_info.get('body') or ''
         short_body = (body[:2000] + '...') if len(body) > 2000 else body
         text = f"<b>A new version is available: {tag}</b><br><br>{short_body.replace('\n','<br>')}"
+        
         msg = QMessageBox(self)
         msg.setWindowTitle('Update Available')
         msg.setTextFormat(Qt.TextFormat.RichText)
         msg.setText(text)
-        yes = msg.addButton('Yes', QMessageBox.ButtonRole.YesRole)
-        no = msg.addButton('No', QMessageBox.ButtonRole.NoRole)
+        
+        update_btn = msg.addButton('Update and Restart', QMessageBox.ButtonRole.YesRole)
+        later_btn = msg.addButton('Later', QMessageBox.ButtonRole.NoRole)
         msg.exec()
-        if msg.clickedButton() == yes:
-            def bg_download():
+
+        if msg.clickedButton() == update_btn:
+            # Show a "downloading" message
+            self.main.show_status_message("Downloading update...", 5000)
+
+            def bg_download_and_apply():
                 try:
                     import core.updater as updater
-                    ok, path = updater.check_and_download_update('vincentwetzel', 'MediaDownloader')
-                    if not ok:
-                        QTimer.singleShot(0, lambda: QMessageBox.warning(self, 'Update Failed', 'Failed to download update.'))
+                    temp_dir = self.config.get("Paths", "temporary_downloads_directory", fallback="")
+                    ok, path = updater.check_and_download_update(
+                        'vincentwetzel',
+                        'MediaDownloader',
+                        target_dir=temp_dir or None
+                    )
+                    if not ok or not path:
+                        QTimer.singleShot(0, lambda: QMessageBox.warning(self, 'Update Failed', 'Failed to download the update. Please try again later.'))
                         return
-                    if getattr(sys, 'frozen', False):
-                        updater.perform_self_update(path)
-                    else:
-                        html = release_info.get('html_url')
-                        if html:
-                            webbrowser.open(html)
-                        QTimer.singleShot(0, lambda: QMessageBox.information(self, 'Downloaded', f'Update downloaded to: {path}'))
+                    
+                    # This will trigger the update and the application will exit.
+                    updater.perform_self_update(path)
+
                 except Exception as e:
                     log.exception('Failed to apply update')
-                    QTimer.singleShot(0, lambda: QMessageBox.warning(self, 'Update Error', str(e)))
+                    QTimer.singleShot(0, lambda: QMessageBox.warning(self, 'Update Error', f"An unexpected error occurred during the update process: {e}"))
 
-            t = threading.Thread(target=bg_download, daemon=True)
+            t = threading.Thread(target=bg_download_and_apply, daemon=True)
             t.start()
 
     def _on_version_fetched(self, ver):
