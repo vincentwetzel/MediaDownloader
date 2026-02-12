@@ -4,14 +4,17 @@ import sys
 import subprocess
 import threading
 import time
-import core.yt_dlp_worker
 
 from core.version import __version__ as APP_VERSION
+from core.update_manager import get_gallery_dl_version, download_gallery_dl_update
 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox, QCheckBox, QFileDialog, QMessageBox, QLineEdit, QApplication, QGroupBox
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox, QCheckBox, QFileDialog, QMessageBox, QLineEdit,
+    QApplication, QGroupBox, QScrollArea
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
+
+from ui.tab_advanced_ui import build_media_group, SUBTITLE_LANGUAGES
 
 log = logging.getLogger(__name__)
 
@@ -19,105 +22,23 @@ log = logging.getLogger(__name__)
 class AdvancedSettingsTab(QWidget):
     """Advanced settings tab, including folders, sponsorblock, and restore defaults."""
 
-    # Subtitle language: backend code -> display name (GUI shows display name, config stores code)
-    SUBTITLE_LANGUAGES = {
-        "af": "Afrikaans",
-        "am": "Amharic",
-        "ar": "Arabic",
-        "as": "Assamese",
-        "az": "Azerbaijani",
-        "be": "Belarusian",
-        "bg": "Bulgarian",
-        "bn": "Bengali",
-        "bs": "Bosnian",
-        "ca": "Catalan",
-        "cs": "Czech",
-        "cy": "Welsh",
-        "da": "Danish",
-        "de": "German",
-        "el": "Greek",
-        "en": "English",
-        "en-GB": "English (United Kingdom)",
-        "en-US": "English (United States)",
-        "es": "Spanish",
-        "es-419": "Spanish (Latin America)",
-        "es-ES": "Spanish (Spain)",
-        "et": "Estonian",
-        "eu": "Basque",
-        "fa": "Persian",
-        "fi": "Finnish",
-        "fil": "Filipino",
-        "fr": "French",
-        "fr-CA": "French (Canada)",
-        "gl": "Galician",
-        "gu": "Gujarati",
-        "he": "Hebrew",
-        "hi": "Hindi",
-        "hr": "Croatian",
-        "hu": "Hungarian",
-        "hy": "Armenian",
-        "id": "Indonesian",
-        "is": "Icelandic",
-        "it": "Italian",
-        "ja": "Japanese",
-        "ka": "Georgian",
-        "kk": "Kazakh",
-        "km": "Khmer",
-        "kn": "Kannada",
-        "ko": "Korean",
-        "ky": "Kyrgyz",
-        "lo": "Lao",
-        "lt": "Lithuanian",
-        "lv": "Latvian",
-        "mk": "Macedonian",
-        "ml": "Malayalam",
-        "mn": "Mongolian",
-        "mr": "Marathi",
-        "ms": "Malay",
-        "my": "Burmese",
-        "ne": "Nepali",
-        "nl": "Dutch",
-        "no": "Norwegian",
-        "or": "Odia",
-        "pa": "Punjabi",
-        "pl": "Polish",
-        "pt": "Portuguese",
-        "pt-BR": "Portuguese (Brazil)",
-        "ro": "Romanian",
-        "ru": "Russian",
-        "si": "Sinhala",
-        "sk": "Slovak",
-        "sl": "Slovenian",
-        "sq": "Albanian",
-        "sr": "Serbian",
-        "sv": "Swedish",
-        "sw": "Swahili",
-        "ta": "Tamil",
-        "te": "Telugu",
-        "th": "Thai",
-        "tr": "Turkish",
-        "uk": "Ukrainian",
-        "ur": "Urdu",
-        "uz": "Uzbek",
-        "vi": "Vietnamese",
-        "zh-Hans": "Chinese (Simplified)",
-        "zh-Hant": "Chinese (Traditional)",
-        "zu": "Zulu",
-    }
-
     # Define signals for background thread communication
     update_finished = pyqtSignal(bool, str)
     version_fetched = pyqtSignal(str)
+    gallery_dl_update_finished = pyqtSignal(bool, str)
+    gallery_dl_version_fetched = pyqtSignal(str)
 
     def __init__(self, main_window, initial_yt_dlp_version: str = "Unknown"):
         super().__init__()
         self.main = main_window
         self.config = main_window.config_manager
-        
+
         # Connect signals to slots
         self.update_finished.connect(self._on_update_finished)
         self.version_fetched.connect(self._on_version_fetched)
-        
+        self.gallery_dl_update_finished.connect(self._on_gallery_dl_update_finished)
+        self.gallery_dl_version_fetched.connect(self._on_gallery_dl_version_fetched)
+
         self._build_tab_advanced()
 
         # Set initial version label text
@@ -128,22 +49,37 @@ class AdvancedSettingsTab(QWidget):
     def _get_installed_browsers(self):
         """Return a list of installed browsers, with a preferred order."""
         from utils.cookies import is_browser_installed
-        
+
         # Browsers to check, in a non-specific order initially
         browsers_to_check = ["edge", "brave", "vivaldi", "safari", "opera", "whale", "chromium"]
-        
+
         installed_browsers = [b for b in browsers_to_check if is_browser_installed(b)]
-        
+
         # Prioritize chrome and firefox by inserting them at the front if found
         if is_browser_installed("chrome"):
             installed_browsers.insert(0, "chrome")
         if is_browser_installed("firefox"):
             installed_browsers.insert(0, "firefox")
-            
+
         return installed_browsers
 
     def _build_tab_advanced(self):
-        layout = QVBoxLayout()
+        # Main layout for the tab, containing the scroll area
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+
+        # Scroll Area
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        main_layout.addWidget(scroll_area)
+
+        # Container widget for all settings
+        scroll_content = QWidget()
+        scroll_area.setWidget(scroll_content)
+
+        # Layout for the container widget that holds all the settings groups
+        layout = QVBoxLayout(scroll_content)
         layout.setContentsMargins(8, 8, 8, 8)
 
         def add_group(title: str):
@@ -215,12 +151,13 @@ class AdvancedSettingsTab(QWidget):
 
         auth_group = add_group("Authentication & Access")
 
-        # Browser cookies dropdown
+        # Browser cookies dropdown (yt-dlp)
         cookies_row = QHBoxLayout()
-        cookies_lbl = QLabel("Cookies from browser:")
+        cookies_lbl = QLabel("Cookies from browser (Video/Audio):")
         cookies_lbl.setToolTip("Use cookies from your browser to authenticate with websites like YouTube.")
         self.cookies_combo = QComboBox()
-        self.cookies_combo.setToolTip("Select a browser to extract cookies from. Required for accessing age-restricted content.")
+        self.cookies_combo.setToolTip(
+            "Select a browser to extract cookies from. Required for accessing age-restricted content.")
 
         installed_browsers = self._get_installed_browsers()
         self.cookies_combo.addItem("None")
@@ -245,6 +182,33 @@ class AdvancedSettingsTab(QWidget):
         cookies_row.addWidget(cookies_lbl)
         cookies_row.addWidget(self.cookies_combo, stretch=1)
         auth_group.addLayout(cookies_row)
+
+        # Browser cookies dropdown (gallery-dl)
+        gallery_cookies_row = QHBoxLayout()
+        gallery_cookies_lbl = QLabel("Cookies from browser (Galleries):")
+        gallery_cookies_lbl.setToolTip("Use cookies from your browser to authenticate with image hosting sites.")
+        self.gallery_cookies_combo = QComboBox()
+        self.gallery_cookies_combo.setToolTip(
+            "Select a browser to extract cookies from for gallery-dl.")
+
+        self.gallery_cookies_combo.addItem("None")
+        self.gallery_cookies_combo.addItems(installed_browsers)
+
+        cur_gallery_browser = self.config.get("General", "gallery_cookies_from_browser", fallback="None")
+
+        if cur_gallery_browser in installed_browsers:
+            idx = self.gallery_cookies_combo.findText(cur_gallery_browser)
+        else:
+            idx = 0
+            self._save_general("gallery_cookies_from_browser", "None")
+
+        if idx >= 0:
+            self.gallery_cookies_combo.setCurrentIndex(idx)
+
+        self.gallery_cookies_combo.currentTextChanged.connect(self.on_gallery_cookies_browser_changed)
+        gallery_cookies_row.addWidget(gallery_cookies_lbl)
+        gallery_cookies_row.addWidget(self.gallery_cookies_combo, stretch=1)
+        auth_group.addLayout(gallery_cookies_row)
 
         # JavaScript Runtime Path
         js_runtime_row = QHBoxLayout()
@@ -324,7 +288,8 @@ class AdvancedSettingsTab(QWidget):
         options_group.addWidget(self.sponsorblock_cb)
 
         self.restrict_cb = QCheckBox("Restrict filenames")
-        self.restrict_cb.setToolTip("Use only ASCII characters in filenames (safer for older systems but may shorten names).")
+        self.restrict_cb.setToolTip(
+            "Use only ASCII characters in filenames (safer for older systems but may shorten names).")
         restrict_val = self.config.get("General", "restrict_filenames", fallback="False")
         self.restrict_cb.setChecked(str(restrict_val) == "True")
         self.restrict_cb.stateChanged.connect(
@@ -332,85 +297,7 @@ class AdvancedSettingsTab(QWidget):
         )
         options_group.addWidget(self.restrict_cb)
 
-        media_group = add_group("Media & Subtitles")
-
-        self.embed_subs_cb = QCheckBox("Embed subtitles")
-        self.embed_subs_cb.setToolTip("Embed subtitles in the video file.")
-        embed_subs_val = self.config.get("General", "subtitles_embed", fallback="False")
-        self.embed_subs_cb.setChecked(str(embed_subs_val) == "True")
-        self.embed_subs_cb.stateChanged.connect(
-            lambda s: self._save_general("subtitles_embed", str(bool(s)))
-        )
-        media_group.addWidget(self.embed_subs_cb)
-
-        self.write_subs_cb = QCheckBox("Write subtitles (separate file)")
-        self.write_subs_cb.setToolTip("Download subtitles to a separate file.")
-        write_subs_val = self.config.get("General", "subtitles_write", fallback="False")
-        self.write_subs_cb.setChecked(str(write_subs_val) == "True")
-        self.write_subs_cb.stateChanged.connect(
-            lambda s: self._save_general("subtitles_write", str(bool(s)))
-        )
-        media_group.addWidget(self.write_subs_cb)
-
-        self.write_auto_subs_cb = QCheckBox("Write automatic subtitles")
-        self.write_auto_subs_cb.setToolTip("Download automatic subtitles if available.")
-        write_auto_subs_val = self.config.get("General", "subtitles_write_auto", fallback="False")
-        self.write_auto_subs_cb.setChecked(str(write_auto_subs_val) == "True")
-        self.write_auto_subs_cb.stateChanged.connect(
-            lambda s: self._save_general("subtitles_write_auto", str(bool(s)))
-        )
-        media_group.addWidget(self.write_auto_subs_cb)
-
-        subs_lang_row = QHBoxLayout()
-        subs_lang_lbl = QLabel("Subtitle language:")
-        subs_lang_lbl.setToolTip("Language for subtitles.")
-        self.subs_lang_combo = QComboBox()
-        self.subs_lang_combo.setToolTip("Select a language for subtitles.")
-
-        for code, name in self.SUBTITLE_LANGUAGES.items():
-            self.subs_lang_combo.addItem(name, code)
-
-        saved_lang = self.config.get("General", "subtitles_langs", fallback="en")
-        idx = self.subs_lang_combo.findData(saved_lang)
-        if idx >= 0:
-            self.subs_lang_combo.setCurrentIndex(idx)
-        else:
-            # Saved value not in list (e.g. from old text entry); fall back to English
-            idx_en = self.subs_lang_combo.findData("en")
-            if idx_en >= 0:
-                self.subs_lang_combo.setCurrentIndex(idx_en)
-                self._save_general("subtitles_langs", "en")
-
-        self.subs_lang_combo.currentIndexChanged.connect(self._on_subs_lang_changed)
-
-        subs_lang_row.addWidget(subs_lang_lbl)
-        subs_lang_row.addWidget(self.subs_lang_combo, stretch=1)
-        media_group.addLayout(subs_lang_row)
-
-        subs_format_row = QHBoxLayout()
-        subs_format_lbl = QLabel("Convert subtitles to format:")
-        subs_format_lbl.setToolTip("Format to convert subtitles to. Select 'None' to keep the original format.")
-        self.subs_format_combo = QComboBox()
-        self.subs_format_combo.setToolTip("Select a subtitle format, or 'None' to keep the original.")
-        self.subs_format_combo.addItems(['None', 'srt', 'vtt', 'ass', 'lrc'])
-        saved_subs_format = self.config.get("General", "subtitles_format", fallback="None")
-        self.subs_format_combo.setCurrentText(saved_subs_format)
-        self.subs_format_combo.currentTextChanged.connect(
-            lambda s: self._save_general("subtitles_format", s)
-        )
-        subs_format_row.addWidget(subs_format_lbl)
-        subs_format_row.addWidget(self.subs_format_combo, stretch=1)
-        media_group.addLayout(subs_format_row)
-
-        # Chapter embedding
-        self.embed_chapters_cb = QCheckBox("Embed chapters")
-        self.embed_chapters_cb.setToolTip("Embed chapter markers into the media file when available.")
-        embed_chapters_val = self.config.get("General", "embed_chapters", fallback="True")
-        self.embed_chapters_cb.setChecked(str(embed_chapters_val) == "True")
-        self.embed_chapters_cb.stateChanged.connect(
-            lambda s: self._save_general("embed_chapters", str(bool(s)))
-        )
-        media_group.addWidget(self.embed_chapters_cb)
+        layout.addWidget(build_media_group(self))
 
         updates_group = add_group("Updates")
 
@@ -418,10 +305,11 @@ class AdvancedSettingsTab(QWidget):
         update_group = QHBoxLayout()
 
         self.update_channel_combo = QComboBox()
-        self.update_channel_combo.addItem("Stable (default)", "stable")
-        self.update_channel_combo.addItem("Nightly", "nightly")
-        self.update_channel_combo.setToolTip("Choose between stable (recommended) or nightly (cutting-edge) builds of yt-dlp.")
-        saved_channel = self.config.get("General", "yt_dlp_update_channel", fallback="stable")
+        self.update_channel_combo.addItem("Nightly (recommended)", "nightly")
+        self.update_channel_combo.addItem("Stable", "stable")
+        self.update_channel_combo.setToolTip(
+            "Choose between nightly (recommended for latest fixes) or stable builds of yt-dlp.")
+        saved_channel = self.config.get("General", "yt_dlp_update_channel", fallback="nightly")
         idx = self.update_channel_combo.findData(saved_channel)
         if idx >= 0:
             self.update_channel_combo.setCurrentIndex(idx)
@@ -439,6 +327,19 @@ class AdvancedSettingsTab(QWidget):
         update_group.addWidget(self.version_lbl)
         update_group.addStretch()
         updates_group.addLayout(update_group)
+
+        # --- gallery-dl Update Section ---
+        gallery_update_group = QHBoxLayout()
+        self.gallery_update_btn = QPushButton("Update gallery-dl")
+        self.gallery_update_btn.setToolTip("Check for and install the latest version of gallery-dl.")
+        self.gallery_update_btn.clicked.connect(self._update_gallery_dl)
+        
+        self.gallery_version_lbl = QLabel("Current version: Unknown")
+        
+        gallery_update_group.addWidget(self.gallery_update_btn)
+        gallery_update_group.addWidget(self.gallery_version_lbl)
+        gallery_update_group.addStretch()
+        updates_group.addLayout(gallery_update_group)
 
         # Application update controls
         app_update_group = QHBoxLayout()
@@ -467,7 +368,10 @@ class AdvancedSettingsTab(QWidget):
         maintenance_group.addWidget(self.restore_btn)
 
         layout.addStretch()
-        self.setLayout(layout)
+
+        # Initialize gallery-dl version
+        self._fetch_gallery_dl_version()
+
     # --- Event handlers ---
     def browse_out(self):
         """Prompt user to choose new output directory."""
@@ -477,18 +381,18 @@ class AdvancedSettingsTab(QWidget):
             self.config.set("Paths", "completed_downloads_directory", folder)
             self.out_display.setText(folder)
             log.debug(f"Updated output directory: {folder}")
-            
+
             # Automatically set temp directory if it's not set or if we want to enforce a structure
             # Logic: If the user sets an output folder, we can conveniently set the temp folder
             # to be a subdirectory of it.
-            
+
             new_temp = os.path.join(folder, "temp_downloads")
-            new_temp = os.path.normpath(new_temp) # Ensure consistency
-            
+            new_temp = os.path.normpath(new_temp)  # Ensure consistency
+
             self.config.set("Paths", "temporary_downloads_directory", new_temp)
             self.temp_display.setText(new_temp)
             log.debug(f"Automatically updated temporary directory to: {new_temp}")
-            
+
             # Ensure the directory exists
             try:
                 os.makedirs(new_temp, exist_ok=True)
@@ -529,6 +433,21 @@ class AdvancedSettingsTab(QWidget):
         else:
             self._save_general("cookies_from_browser", val)
 
+    def on_gallery_cookies_browser_changed(self, val):
+        """Handle cookies-from-browser dropdown changes for gallery-dl."""
+        from utils.cookies import is_browser_installed
+        if val == "None":
+            self._save_general("gallery_cookies_from_browser", "None")
+            return
+        if not is_browser_installed(val):
+            QMessageBox.warning(
+                self, "Browser Not Found",
+                f"The selected browser '{val}' was not detected on this system."
+            )
+            self.gallery_cookies_combo.setCurrentIndex(0)
+        else:
+            self._save_general("gallery_cookies_from_browser", val)
+
     def _save_general(self, key, val):
         """Save a key to the General config section."""
         self.config.set("General", key, val)
@@ -552,7 +471,7 @@ class AdvancedSettingsTab(QWidget):
     def _on_theme_changed(self, index):
         theme = self.theme_combo.itemData(index)
         self._save_general("theme", theme)
-        
+
         try:
             import qdarktheme
             if hasattr(qdarktheme, 'setup_theme'):
@@ -577,8 +496,12 @@ class AdvancedSettingsTab(QWidget):
         self._save_general("external_downloader", downloader)
 
     def _on_update_channel_changed(self, index):
-        channel = self.update_channel_combo.itemData(index)
+        channel = self.update_channel_combo.currentData(index)
         self._save_general("yt_dlp_update_channel", channel)
+
+    def _on_subs_format_changed(self, index):
+        fmt = self.subs_format_combo.itemData(index)
+        self._save_general("subtitles_format", fmt)
 
     def _check_app_update(self):
         """Check GitHub for a newer app release and prompt the user to update."""
@@ -587,17 +510,19 @@ class AdvancedSettingsTab(QWidget):
 
         def bg():
             try:
-                import core.updater as updater
+                import core.update_manager as updater
                 rel = updater.get_latest_release(owner, repo)
                 if not rel:
-                    QTimer.singleShot(0, lambda: QMessageBox.information(self, 'Update Check', 'Could not fetch release information from GitHub.'))
+                    QTimer.singleShot(0, lambda: QMessageBox.information(self, 'Update Check',
+                                                                         'Could not fetch release information from GitHub.'))
                     return
                 tag = rel.get('tag_name') or rel.get('name') or ''
                 cmp = updater._compare_versions(APP_VERSION, tag)
                 if cmp == -1:
                     QTimer.singleShot(0, lambda: self._prompt_update(rel))
                 else:
-                    QTimer.singleShot(0, lambda: QMessageBox.information(self, 'Up To Date', f'No update available. Current version: {APP_VERSION}'))
+                    QTimer.singleShot(0, lambda: QMessageBox.information(self, 'Up To Date',
+                                                                         f'No update available. Current version: {APP_VERSION}'))
             except Exception as e:
                 log.exception('App update check failed')
                 QTimer.singleShot(0, lambda: QMessageBox.warning(self, 'Update Check Failed', str(e)))
@@ -609,13 +534,13 @@ class AdvancedSettingsTab(QWidget):
         tag = release_info.get('tag_name') or release_info.get('name') or 'unknown'
         body = release_info.get('body') or ''
         short_body = (body[:2000] + '...') if len(body) > 2000 else body
-        text = f"<b>A new version is available: {tag}</b><br><br>{short_body.replace('\n','<br>')}"
-        
+        text = f"<b>A new version is available: {tag}</b><br><br>{short_body.replace('\n', '<br>')}"
+
         msg = QMessageBox(self)
         msg.setWindowTitle('Update Available')
         msg.setTextFormat(Qt.TextFormat.RichText)
         msg.setText(text)
-        
+
         update_btn = msg.addButton('Update and Restart', QMessageBox.ButtonRole.YesRole)
         later_btn = msg.addButton('Later', QMessageBox.ButtonRole.NoRole)
         msg.exec()
@@ -626,7 +551,7 @@ class AdvancedSettingsTab(QWidget):
 
             def bg_download_and_apply():
                 try:
-                    import core.updater as updater
+                    import core.update_manager as updater
                     temp_dir = self.config.get("Paths", "temporary_downloads_directory", fallback="")
                     ok, path = updater.check_and_download_update(
                         'vincentwetzel',
@@ -634,15 +559,17 @@ class AdvancedSettingsTab(QWidget):
                         target_dir=temp_dir or None
                     )
                     if not ok or not path:
-                        QTimer.singleShot(0, lambda: QMessageBox.warning(self, 'Update Failed', 'Failed to download the update. Please try again later.'))
+                        QTimer.singleShot(0, lambda: QMessageBox.warning(self, 'Update Failed',
+                                                                         'Failed to download the update. Please try again later.'))
                         return
-                    
+
                     # This will trigger the update and the application will exit.
                     updater.perform_self_update(path)
 
                 except Exception as e:
                     log.exception('Failed to apply update')
-                    QTimer.singleShot(0, lambda: QMessageBox.warning(self, 'Update Error', f"An unexpected error occurred during the update process: {e}"))
+                    QTimer.singleShot(0, lambda: QMessageBox.warning(self, 'Update Error',
+                                                                     f"An unexpected error occurred during the update process: {e}"))
 
             t = threading.Thread(target=bg_download_and_apply, daemon=True)
             t.start()
@@ -658,21 +585,21 @@ class AdvancedSettingsTab(QWidget):
         """Run yt-dlp -U (or --update-to nightly) in a background thread."""
         import core.yt_dlp_worker
         import shutil
-        
+
         target_exe = core.yt_dlp_worker._YT_DLP_PATH
         if not target_exe:
-             core.yt_dlp_worker.check_yt_dlp_available()
-             target_exe = core.yt_dlp_worker._YT_DLP_PATH
+            core.yt_dlp_worker.check_yt_dlp_available()
+            target_exe = core.yt_dlp_worker._YT_DLP_PATH
 
         if not target_exe:
             target_exe = shutil.which("yt-dlp")
-        
+
         if not target_exe:
             QMessageBox.critical(self, "Update Failed", "Could not locate yt-dlp executable to update.")
             return
 
         channel = self.update_channel_combo.currentData()
-        
+
         cmd = [target_exe]
         if channel == "nightly":
             cmd.extend(["--update-to", "nightly"])
@@ -681,14 +608,14 @@ class AdvancedSettingsTab(QWidget):
 
         self.update_btn.setEnabled(False)
         self.update_btn.setText("Updating...")
-        
+
         def run_update():
             log.info(f"Starting yt-dlp update with command: {cmd}")
             try:
                 creation_flags = 0
                 if sys.platform == "win32" and getattr(sys, "frozen", False):
                     creation_flags = subprocess.CREATE_NO_WINDOW
-                
+
                 proc = subprocess.run(
                     cmd,
                     capture_output=True,
@@ -697,11 +624,11 @@ class AdvancedSettingsTab(QWidget):
                     stdin=subprocess.DEVNULL,
                     timeout=120
                 )
-                
+
                 success = proc.returncode == 0
                 output = proc.stdout + "\n" + proc.stderr
                 log.info(f"Update finished. Success: {success}. Output len: {len(output)}")
-                
+
                 self.update_finished.emit(success, output)
             except subprocess.TimeoutExpired:
                 log.error("Update timed out")
@@ -716,32 +643,32 @@ class AdvancedSettingsTab(QWidget):
     def _on_update_finished(self, success, message):
         self.update_btn.setEnabled(True)
         self.update_btn.setText("Update yt-dlp")
-        
+
         channel = self.update_channel_combo.currentData()
         channel_name = "Nightly" if channel == "nightly" else "Stable"
-        
+
         msg_lower = message.lower()
         if "pip" in msg_lower and ("installed" in msg_lower or "package manager" in msg_lower):
             self._update_via_pip(channel)
             return
-        
+
         if message.startswith("PIP_UPDATE:"):
             message = message.replace("PIP_UPDATE:", "", 1)
             if success or "requirement already satisfied" in message.lower():
                 if "requirement already satisfied" in message.lower():
-                     msg_title = "Already Up to Date"
-                     msg_body = f"yt-dlp ({channel_name}) is already at the latest version (via pip).\n\nOutput:\n{message}"
+                    msg_title = "Already Up to Date"
+                    msg_body = f"yt-dlp ({channel_name}) is already at the latest version (via pip).\n\nOutput:\n{message}"
                 else:
-                     msg_title = "Update Successful"
-                     msg_body = f"yt-dlp has been updated via pip to the latest {channel_name} version.\n\nOutput:\n{message}"
-                
+                    msg_title = "Update Successful"
+                    msg_body = f"yt-dlp has been updated via pip to the latest {channel_name} version.\n\nOutput:\n{message}"
+
                 icon = QMessageBox.Icon.Information
                 msg = QMessageBox(self)
                 msg.setWindowTitle(msg_title)
                 msg.setText(msg_body)
                 msg.setIcon(icon)
                 msg.exec()
-                
+
                 self._refresh_version_label()
             else:
                 QMessageBox.warning(self, "Update Failed", f"Pip update command failed.\n\nOutput:\n{message}")
@@ -756,16 +683,17 @@ class AdvancedSettingsTab(QWidget):
                 msg_title = "Update Successful"
                 msg_body = f"yt-dlp has been updated to the latest {channel_name} version.\n\nOutput:\n{message}"
                 icon = QMessageBox.Icon.Information
-            
+
             msg = QMessageBox(self)
             msg.setWindowTitle(msg_title)
             msg.setText(msg_body)
             msg.setIcon(icon)
             msg.exec()
-            
+
             self._refresh_version_label()
         else:
-            QMessageBox.warning(self, "Update Failed", f"Update command failed.\n\nOutput:\n{message}\n\nNote: If yt-dlp is installed in a protected directory, you may need to run this app as Administrator.")
+            QMessageBox.warning(self, "Update Failed",
+                                f"Update command failed.\n\nOutput:\n{message}\n\nNote: If yt-dlp is installed in a protected directory, you may need to run this app as Administrator.")
 
     def _on_subs_lang_changed(self, index):
         lang_code = self.subs_lang_combo.itemData(index)
@@ -783,23 +711,23 @@ class AdvancedSettingsTab(QWidget):
             if os.path.exists(self.config.ini_path):
                 os.remove(self.config.ini_path)
             self.config.load_config()
-            
+
             self.out_display.setText(self.config.get("Paths", "completed_downloads_directory", fallback=""))
             self.temp_display.setText(self.config.get("Paths", "temporary_downloads_directory", fallback=""))
-            
+
             sponsor_val = self.config.get("General", "sponsorblock", fallback="True")
             self.sponsorblock_cb.setChecked(str(sponsor_val) == "True")
-            
+
             restrict_val = self.config.get("General", "restrict_filenames", fallback="False")
             self.restrict_cb.setChecked(str(restrict_val) == "True")
-            
+
             # Reset subtitle options
             embed_subs_val = self.config.get("General", "subtitles_embed", fallback="False")
             self.embed_subs_cb.setChecked(str(embed_subs_val) == "True")
-            
+
             write_subs_val = self.config.get("General", "subtitles_write", fallback="False")
             self.write_subs_cb.setChecked(str(write_subs_val) == "True")
-            
+
             write_auto_subs_val = self.config.get("General", "subtitles_write_auto", fallback="False")
             self.write_auto_subs_cb.setChecked(str(write_auto_subs_val) == "True")
 
@@ -815,13 +743,17 @@ class AdvancedSettingsTab(QWidget):
                 if idx_en >= 0:
                     self.subs_lang_combo.setCurrentIndex(idx_en)
 
-            self.subs_format_combo.setCurrentText(self.config.get("General", "subtitles_format", fallback="None"))
-            
+            # Reset subtitle format to SRT
+            idx = self.subs_format_combo.findData("srt")
+            if idx >= 0:
+                self.subs_format_combo.setCurrentIndex(idx)
+            self._save_general("subtitles_format", "srt")
+
             self.cookies_combo.clear()
             installed_browsers = self._get_installed_browsers()
             self.cookies_combo.addItem("None")
             self.cookies_combo.addItems(installed_browsers)
-            
+
             if installed_browsers:
                 first_browser = installed_browsers[0]
                 idx = self.cookies_combo.findText(first_browser)
@@ -829,14 +761,21 @@ class AdvancedSettingsTab(QWidget):
             else:
                 idx = 0
                 self._save_general("cookies_from_browser", "None")
-            
+
             if idx >= 0:
                 self.cookies_combo.setCurrentIndex(idx)
-            
-            idx = self.update_channel_combo.findData("stable")
+
+            # Reset gallery-dl cookies
+            self.gallery_cookies_combo.clear()
+            self.gallery_cookies_combo.addItem("None")
+            self.gallery_cookies_combo.addItems(installed_browsers)
+            self.gallery_cookies_combo.setCurrentIndex(0)
+            self._save_general("gallery_cookies_from_browser", "None")
+
+            idx = self.update_channel_combo.findData("nightly")
             if idx >= 0:
                 self.update_channel_combo.setCurrentIndex(idx)
-            
+
             idx = self.theme_combo.findData("auto")
             if idx >= 0:
                 self.theme_combo.setCurrentIndex(idx)
@@ -846,7 +785,7 @@ class AdvancedSettingsTab(QWidget):
                 self.downloader_combo.setCurrentIndex(idx)
 
             self.js_runtime_display.setText(self.config.get("General", "js_runtime_path", fallback=""))
-            
+
             default_template = "%(title)s [%(uploader)s][%(upload_date>%m-%d-%Y)s][%(id)s].%(ext)s"
             self.pattern_input.setText(default_template)
 
@@ -859,8 +798,8 @@ class AdvancedSettingsTab(QWidget):
     def _save_pattern(self):
         new_pattern = self.pattern_input.text().strip()
         if not new_pattern:
-             QMessageBox.warning(self, "Invalid Pattern", "Pattern cannot be empty.")
-             return
+            QMessageBox.warning(self, "Invalid Pattern", "Pattern cannot be empty.")
+            return
 
         sender = self.sender()
         original_text = sender.text() if sender else "Save"
@@ -871,14 +810,15 @@ class AdvancedSettingsTab(QWidget):
 
         try:
             if not self._validate_output_template(new_pattern):
-                 msg = QMessageBox(self)
-                 msg.setIcon(QMessageBox.Icon.Warning)
-                 msg.setWindowTitle("Invalid Pattern")
-                 msg.setText("The entered output template appears to be invalid.")
-                 msg.setInformativeText('Please check the <a href="https://github.com/yt-dlp/yt-dlp?tab=readme-ov-file#output-template">yt-dlp documentation</a> for proper syntax.')
-                 msg.setTextFormat(Qt.TextFormat.RichText)
-                 msg.exec()
-                 return
+                msg = QMessageBox(self)
+                msg.setIcon(QMessageBox.Icon.Warning)
+                msg.setWindowTitle("Invalid Pattern")
+                msg.setText("The entered output template appears to be invalid.")
+                msg.setInformativeText(
+                    'Please check the <a href="https://github.com/yt-dlp/yt-dlp?tab=readme-ov-file#output-template">yt-dlp documentation</a> for proper syntax.')
+                msg.setTextFormat(Qt.TextFormat.RichText)
+                msg.exec()
+                return
 
             self._save_general("output_template", new_pattern)
             QMessageBox.information(self, "Saved", "Output filename pattern saved.")
@@ -897,27 +837,28 @@ class AdvancedSettingsTab(QWidget):
         """Final, robust validation for yt-dlp output template based on stderr."""
         if not template or not template.strip():
             return False
-        
+
         if template.count('(') != template.count(')'):
             log.warning("Template validation failed: unbalanced parentheses.")
             return False
 
         import shutil
-        
+        import core.yt_dlp_worker
+
         target_exe = core.yt_dlp_worker._YT_DLP_PATH
         if not target_exe:
-             core.yt_dlp_worker.check_yt_dlp_available()
-             target_exe = core.yt_dlp_worker._YT_DLP_PATH
-        
+            core.yt_dlp_worker.check_yt_dlp_available()
+            target_exe = core.yt_dlp_worker._YT_DLP_PATH
+
         if not target_exe:
             target_exe = shutil.which("yt-dlp")
-            
+
         if not target_exe:
             log.warning("Could not find yt-dlp to validate template. Skipping advanced validation.")
             return True
 
         test_url = "https://www.youtube.com/shorts/dvX6HdyzbHM"
-        
+
         cmd = [
             target_exe,
             "--get-filename",
@@ -926,11 +867,11 @@ class AdvancedSettingsTab(QWidget):
             template,
             test_url
         ]
-        
+
         creation_flags = 0
         if sys.platform == "win32" and getattr(sys, "frozen", False):
             creation_flags = subprocess.CREATE_NO_WINDOW
-            
+
         try:
             proc = subprocess.run(
                 cmd,
@@ -962,3 +903,45 @@ class AdvancedSettingsTab(QWidget):
             os.system(f'open "{p}"')
         else:
             os.system(f'xdg-open "{p}"')
+
+    def _fetch_gallery_dl_version(self):
+        """Fetch gallery-dl version in background."""
+        self.gallery_version_lbl.setText("Current version: (checking...)")
+        def bg():
+            version = get_gallery_dl_version()
+            self.gallery_dl_version_fetched.emit(version or "Not Found")
+        
+        t = threading.Thread(target=bg, daemon=True)
+        t.start()
+
+    def _on_gallery_dl_version_fetched(self, version):
+        self.gallery_version_lbl.setText(f"Current version: {version}")
+
+    def _update_gallery_dl(self):
+        """Downloads the latest gallery-dl release in a background thread."""
+        self.gallery_update_btn.setEnabled(False)
+        self.gallery_update_btn.setText("Updating...")
+
+        def run_update():
+            try:
+                path = download_gallery_dl_update()
+                if path:
+                    self.gallery_dl_update_finished.emit(True, f"gallery-dl updated successfully to {path}")
+                else:
+                    self.gallery_dl_update_finished.emit(False, "Update failed or was not necessary.")
+            except Exception as e:
+                log.exception("gallery-dl update failed with exception")
+                self.gallery_dl_update_finished.emit(False, str(e))
+
+        t = threading.Thread(target=run_update, daemon=True)
+        t.start()
+
+    def _on_gallery_dl_update_finished(self, success, message):
+        self.gallery_update_btn.setEnabled(True)
+        self.gallery_update_btn.setText("Update gallery-dl")
+        
+        if success:
+            QMessageBox.information(self, "Update Successful", message)
+            self._fetch_gallery_dl_version() # Refresh version label
+        else:
+            QMessageBox.warning(self, "Update Failed", message)

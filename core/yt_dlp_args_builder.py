@@ -1,0 +1,187 @@
+import os
+import logging
+from core.binary_manager import get_binary_path
+
+log = logging.getLogger(__name__)
+
+def build_yt_dlp_args(opts, config_manager):
+    """Convert options dict to list of command-line arguments for yt-dlp."""
+    if isinstance(opts, list):
+        return opts  # Already a list
+
+    args = []
+    if not isinstance(opts, dict):
+        return args
+
+    # Output directory
+    temp_dir = config_manager.get("Paths", "temporary_downloads_directory", fallback="")
+    output_dir = temp_dir or config_manager.get("Paths", "completed_downloads_directory", fallback="")
+    if output_dir:
+        try:
+            os.makedirs(output_dir, exist_ok=True)
+            # Test write permissions
+            test_file = os.path.join(output_dir, ".test_write")
+            try:
+                with open(test_file, 'w') as f:
+                    f.write("test")
+            finally:
+                if os.path.exists(test_file):
+                    try:
+                        os.remove(test_file)
+                    except Exception:
+                        pass
+            
+            # Removed length restrictions from title and uploader
+            default_template = "%(title)s [%(uploader)s][%(upload_date>%m-%d-%Y)s][%(id)s].%(ext)s"
+            configured_template = config_manager.get("General", "output_template", fallback=default_template)
+            output_template = os.path.join(output_dir, configured_template)
+            # Normalize path separators for yt-dlp
+            output_template = output_template.replace("\\", "/")
+            
+            if opts.get("use_gallery_dl", False):
+                # gallery-dl uses -d for directory
+                args.extend(["-d", output_dir])
+            else:
+                args.extend(["-o", output_template])
+        except (PermissionError, OSError) as e:
+            log.error(f"Output directory is not writable or accessible: {output_dir} - {e}")
+            raise ValueError(f"Output directory is not writable or accessible: {output_dir}. Please check permissions or select a different directory.")
+
+    if opts.get("use_gallery_dl", False):
+        # gallery-dl specific arguments
+        
+        # Cookies
+        cookies_browser = config_manager.get("General", "gallery_cookies_from_browser", fallback="None")
+        if cookies_browser and cookies_browser != "None":
+            args.extend(["--cookies-from-browser", cookies_browser])
+
+        return args
+
+    args.append("--newline")
+    # Force utf-8 encoding for stdout/stderr to avoid character mapping issues
+    args.extend(["--encoding", "utf-8"])
+
+    # --- Audio/Video Format Selection ---
+    audio_only = opts.get("audio_only")
+
+    if audio_only:
+        audio_codec = opts.get("audio_codec") or config_manager.get("General", "audio_codec", fallback="")
+        format_string = "bestaudio/best"
+        if audio_codec:
+            # Prioritize the selected codec, but fall back to bestaudio if not available
+            format_string = f"bestaudio[acodec~={audio_codec}]/bestaudio/best"
+
+        args.extend(["-f", format_string])
+        args.append("--extract-audio")
+        audio_ext = opts.get("audio_ext") or config_manager.get("General", "audio_ext", fallback="mp3")
+        args.extend(["--audio-format", audio_ext])
+
+        audio_quality = opts.get("audio_quality") or config_manager.get("General", "audio_quality", fallback="best")
+        if audio_quality and audio_quality != "best":
+            quality_val = str(audio_quality).replace("k", "").replace("K", "")
+            args.extend(["--audio-quality", quality_val])
+
+        # Embed metadata from the source (e.g., artist, title) and embed the thumbnail as album art.
+        # This is crucial for getting a complete audio file.
+        args.append("--embed-metadata")
+        args.append("--embed-thumbnail")
+
+    else:
+        # Build a format selector string for video + audio
+        video_format_parts = []
+        video_quality = opts.get("video_quality") or config_manager.get("General", "video_quality", fallback="best")
+        if video_quality and video_quality != "best":
+            try:
+                height = int(video_quality.replace("p", "").replace("P", ""))
+                video_format_parts.append(f"[height<={height}]")
+            except ValueError:
+                log.warning(f"Invalid video quality format: {video_quality}, ignoring.")
+
+        video_codec = opts.get("video_codec") or config_manager.get("General", "video_codec", fallback="")
+        if video_codec:
+            # Use `~=` for fuzzy matching (e.g., avc1.xxxxxx matches avc1)
+            video_format_parts.append(f"[vcodec~={video_codec}]")
+
+        video_ext = opts.get("video_ext") or config_manager.get("General", "video_ext", fallback="")
+        if video_ext:
+            video_format_parts.append(f"[ext={video_ext}]")
+
+        # Audio format parts (for the audio component of the video)
+        audio_format_parts = []
+        audio_codec = opts.get("audio_codec") or config_manager.get("General", "audio_codec", fallback="")
+        if audio_codec:
+            audio_format_parts.append(f"[acodec~={audio_codec}]")
+
+        # Combine parts into final format string
+        video_selector = "bestvideo" + "".join(video_format_parts)
+        audio_selector = "bestaudio" + "".join(audio_format_parts)
+        
+        # Final format string: e.g., "bestvideo[height<=1080]+bestaudio/best"
+        format_string = f"{video_selector}+{audio_selector}/best"
+        args.extend(["-f", format_string])
+
+        # Specify the final container format after merging
+        merge_ext = video_ext or config_manager.get("General", "video_ext", fallback="")
+        if merge_ext:
+            args.extend(["--merge-output-format", merge_ext])
+
+        # Embed metadata (title, artist, etc.) and thumbnail as album art for videos as well
+        args.append("--embed-metadata")
+        args.append("--embed-thumbnail")
+
+    # --- Other Options ---
+    playlist_mode = opts.get("playlist_mode", "Ask")
+    if "ignore" in playlist_mode.lower() or "single" in playlist_mode.lower():
+        args.append("--no-playlist")
+    elif "all" in playlist_mode.lower() or "no prompt" in playlist_mode.lower():
+        args.append("--yes-playlist")
+
+    if config_manager.get("General", "sponsorblock", fallback="True") == "True":
+        args.append("--sponsorblock-remove")
+        args.append("sponsor,intro,outro,selfpromo,interaction,preview,music_offtopic")
+
+    windows_cfg = config_manager.get("General", "windowsfilenames", fallback=None)
+    restrict_cfg = config_manager.get("General", "restrict_filenames", fallback=None)
+    if str(windows_cfg) == "True":
+        args.append("--windows-filenames")
+    elif str(restrict_cfg) == "True":
+        args.append("--restrict-filenames")
+    elif os.name == 'nt':
+        args.append("--windows-filenames")
+
+    # Replace pipe characters to prevent filename issues.
+    # Using simple string replacement is more reliable than regex.
+    # We replace both standard and full-width pipes.
+    args.extend(["--replace-in-metadata", "title", "|", "-"])
+    args.extend(["--replace-in-metadata", "title", "｜", "-"])
+
+    rate_limit = config_manager.get("General", "rate_limit", fallback="0")
+    if rate_limit and rate_limit not in ("0", "", "no limit", "No limit"):
+        args.extend(["--limit-rate", rate_limit])
+        
+    # --- Cookies ---
+    cookies_browser = config_manager.get("General", "cookies_from_browser", fallback="None")
+    if cookies_browser and cookies_browser != "None":
+        args.extend(["--cookies-from-browser", cookies_browser])
+
+    # --- JavaScript Runtime ---
+    js_runtime_path = config_manager.get("General", "js_runtime_path", fallback="")
+    # First, try user-configured path
+    if js_runtime_path and os.path.exists(js_runtime_path):
+        log.debug(f"Using user-configured JavaScript runtime at {js_runtime_path}")
+    else:
+        if js_runtime_path:  # Path was configured but not found
+            log.warning(f"Configured JavaScript runtime not found at: {js_runtime_path}. Falling back to bundled.")
+        # If not configured or not found, try to use the bundled deno
+        js_runtime_path = get_binary_path("deno")
+
+    if js_runtime_path and os.path.exists(js_runtime_path):
+        # yt-dlp expects the runtime name (e.g., "deno") followed by its path
+        runtime_name = os.path.basename(js_runtime_path).split('.')[0]  # "deno" from "deno.exe"
+        args.extend(["--js-runtimes", f"{runtime_name}:{js_runtime_path}"])
+        log.debug(f"Using JavaScript runtime: {runtime_name} at {js_runtime_path}")
+    else:
+        log.debug("No valid JavaScript runtime found (neither configured nor bundled).")
+
+
+    return args

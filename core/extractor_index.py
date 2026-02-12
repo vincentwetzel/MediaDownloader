@@ -4,9 +4,12 @@ import threading
 import logging
 import time
 import re
+import subprocess
+import sys
 
 log = logging.getLogger(__name__)
 
+# Use a location inside the core directory or a dedicated data directory
 INDEX_FILENAME = os.path.join(os.path.dirname(__file__), '..', 'build', 'extractor_index.json')
 
 
@@ -18,61 +21,61 @@ def _safe_makedirs(path):
 
 
 def build_index(timeout=30):
-    """Attempt to import yt_dlp and enumerate extractor entities, writing a simple
-    JSON index with available extractor names, descriptions and any visible URL patterns.
-
-    This is best-effort: if `yt_dlp` isn't importable, the function returns False.
+    """Attempt to build an index of supported extractors.
+    
+    Since we are using a bundled yt-dlp binary and might not have the python module installed,
+    we can try to parse `yt-dlp --list-extractors`.
     """
-    try:
-        import yt_dlp
-    except Exception:
-        log.info("yt_dlp python module not available; skipping extractor index build")
+    from core.binary_manager import get_binary_path
+    
+    yt_dlp_path = get_binary_path("yt-dlp")
+    if not yt_dlp_path:
+        log.warning("yt-dlp binary not found; skipping extractor index build")
         return False
 
-    try:
-        # Try to obtain the list_entities helper (present in newer yt-dlp)
-        extractor_module = getattr(yt_dlp, 'extractor', None)
-        list_entities = getattr(extractor_module, 'list_entities', None)
-        entities = None
-        if callable(list_entities):
-            entities = list_entities()
-        else:
-            # Fall back to scanning extractor classes if available
-            entities = []
-            for name in dir(extractor_module):
-                ent = getattr(extractor_module, name)
-                if hasattr(ent, '_extractor'):
-                    entities.append(ent)
+    creation_flags = 0
+    if sys.platform == "win32" and getattr(sys, "frozen", False):
+        creation_flags = subprocess.CREATE_NO_WINDOW
 
-        out = []
-        for e in entities:
-            try:
-                ent = e
-                # Some list_entities return tuples/classes
-                if isinstance(e, tuple) and len(e) >= 1:
-                    ent = e[0]
-                info = {
-                    'name': getattr(ent, 'IE_NAME', getattr(ent, '__name__', None)),
-                    'description': getattr(ent, 'DESCRIPTION', None) or getattr(ent, '__doc__', None),
-                    'valid_url': getattr(ent, '_VALID_URL', None),
-                }
-                # Attempt to extract obvious hostnames from _VALID_URL via regex
-                hosts = set()
-                if info['valid_url']:
-                    # find domain-like tokens (e.g., youtube\.com or youtube\.be)
-                    for m in re.finditer(r"([a-z0-9\-]+\.(?:com|net|org|tv|io|fm|co|uk|me|online|cc))", info['valid_url'], flags=re.I):
-                        hosts.add(m.group(1).lower())
-                if hosts:
-                    info['hosts'] = sorted(list(hosts))
-                out.append(info)
-            except Exception:
-                continue
+    try:
+        # Run yt-dlp --list-extractors
+        cmd = [yt_dlp_path, "--list-extractors"]
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            creationflags=creation_flags,
+            encoding='utf-8',
+            errors='replace'
+        )
+        
+        if result.returncode != 0:
+            log.warning(f"Failed to list extractors: {result.stderr}")
+            return False
+            
+        extractors = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+        
+        # Build a simple index mapping extractor names to themselves (as we don't get domains easily from CLI)
+        # We can try to infer domains from extractor names, but it's heuristic.
+        # Many extractors are named like "Youtube", "Vimeo", "Instagram", etc.
+        
+        entries = []
+        for ext in extractors:
+            entries.append({
+                'name': ext,
+                'description': f"Extractor for {ext}",
+                # Heuristic: use the extractor name as a potential host keyword
+                'hosts': [ext.lower()] 
+            })
 
         _safe_makedirs(INDEX_FILENAME)
         with open(INDEX_FILENAME, 'w', encoding='utf-8') as f:
-            json.dump({'generated': time.time(), 'entries': out}, f, indent=2)
-        log.info(f"Built extractor index with {len(out)} entries at {INDEX_FILENAME}")
+            json.dump({'generated': time.time(), 'entries': entries}, f, indent=2)
+            
+        log.info(f"Built extractor index with {len(entries)} entries at {INDEX_FILENAME}")
         return True
+
     except Exception as e:
         log.exception(f"Failed to build extractor index: {e}")
         return False
@@ -99,18 +102,26 @@ def host_supported(hostname):
     if not hostname:
         return False
     h = hostname.lower()
+    
+    # Remove www. prefix for matching
+    if h.startswith("www."):
+        h = h[4:]
+        
     data = load_index()
-    entries = data.get('entries') or []
+    entries = data.get('entries', [])
+    
+    if not entries:
+        # If index is empty, we can't say for sure, so maybe return False or True?
+        # Returning False forces Tier 2 validation (simulate), which is safer but slower.
+        return False
+
     for ent in entries:
-        hosts = ent.get('hosts') or []
+        # Check against 'hosts' (which are just extractor names in our CLI-based index)
+        hosts = ent.get('hosts', [])
         for dh in hosts:
-            if h == dh or h.endswith('.' + dh):
+            # Simple substring match: if extractor name is in hostname
+            # e.g. "instagram" in "instagram.com" -> True
+            if dh in h:
                 return True
-        # Also check name/description/valid_url heuristically
-        for key in ('name', 'description', 'valid_url'):
-            v = ent.get(key) or ''
-            if v and dh and dh in h:
-                return True
-            if v and h in str(v).lower():
-                return True
+
     return False

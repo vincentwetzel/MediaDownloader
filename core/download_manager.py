@@ -3,7 +3,7 @@ import os
 import sys
 import shutil
 import time
-from core.yt_dlp_worker import DownloadWorker, check_yt_dlp_available, fetch_metadata, is_url_valid
+from core.yt_dlp_worker import DownloadWorker, check_yt_dlp_available, fetch_metadata, is_url_valid, is_gallery_url_valid
 from core.playlist_expander import expand_playlist
 import threading
 from core.config_manager import ConfigManager
@@ -37,171 +37,6 @@ class DownloadManager(QObject):
         if not is_available:
             log.warning(f"yt-dlp may not be available: {status_msg}")
 
-    def _convert_opts_to_args(self, opts):
-        """Convert options dict to list of command-line arguments."""
-        if isinstance(opts, list):
-            return opts  # Already a list
-
-        args = []
-        if not isinstance(opts, dict):
-            return args
-
-        # Output directory
-        temp_dir = self.config.get("Paths", "temporary_downloads_directory", fallback="")
-        output_dir = temp_dir or self.config.get("Paths", "completed_downloads_directory", fallback="")
-        if output_dir:
-            try:
-                os.makedirs(output_dir, exist_ok=True)
-                # Test write permissions
-                test_file = os.path.join(output_dir, ".test_write")
-                try:
-                    with open(test_file, 'w') as f:
-                        f.write("test")
-                finally:
-                    if os.path.exists(test_file):
-                        try:
-                            os.remove(test_file)
-                        except Exception:
-                            pass
-                
-                # Removed length restrictions from title and uploader
-                default_template = "%(title)s [%(uploader)s][%(upload_date>%m-%d-%Y)s][%(id)s].%(ext)s"
-                configured_template = self.config.get("General", "output_template", fallback=default_template)
-                output_template = os.path.join(output_dir, configured_template)
-                # Normalize path separators for yt-dlp
-                output_template = output_template.replace("\\", "/")
-                args.extend(["-o", output_template])
-            except (PermissionError, OSError) as e:
-                log.error(f"Output directory is not writable or accessible: {output_dir} - {e}")
-                raise ValueError(f"Output directory is not writable or accessible: {output_dir}. Please check permissions or select a different directory.")
-
-        args.append("--newline")
-        # Force utf-8 encoding for stdout/stderr to avoid character mapping issues
-        args.extend(["--encoding", "utf-8"])
-
-        # --- Audio/Video Format Selection ---
-        audio_only = opts.get("audio_only")
-
-        if audio_only:
-            audio_codec = opts.get("audio_codec") or self.config.get("General", "audio_codec", fallback="")
-            format_string = "bestaudio/best"
-            if audio_codec:
-                # Prioritize the selected codec, but fall back to bestaudio if not available
-                format_string = f"bestaudio[acodec~={audio_codec}]/bestaudio/best"
-
-            args.extend(["-f", format_string])
-            args.append("--extract-audio")
-            audio_ext = opts.get("audio_ext") or self.config.get("General", "audio_ext", fallback="mp3")
-            args.extend(["--audio-format", audio_ext])
-
-            audio_quality = opts.get("audio_quality") or self.config.get("General", "audio_quality", fallback="best")
-            if audio_quality and audio_quality != "best":
-                quality_val = str(audio_quality).replace("k", "").replace("K", "")
-                args.extend(["--audio-quality", quality_val])
-
-            # Embed metadata from the source (e.g., artist, title) and embed the thumbnail as album art.
-            # This is crucial for getting a complete audio file.
-            args.append("--embed-metadata")
-            args.append("--embed-thumbnail")
-
-        else:
-            # Build a format selector string for video + audio
-            video_format_parts = []
-            video_quality = opts.get("video_quality") or self.config.get("General", "video_quality", fallback="best")
-            if video_quality and video_quality != "best":
-                try:
-                    height = int(video_quality.replace("p", "").replace("P", ""))
-                    video_format_parts.append(f"[height<={height}]")
-                except ValueError:
-                    log.warning(f"Invalid video quality format: {video_quality}, ignoring.")
-
-            video_codec = opts.get("video_codec") or self.config.get("General", "video_codec", fallback="")
-            if video_codec:
-                # Use `~=` for fuzzy matching (e.g., avc1.xxxxxx matches avc1)
-                video_format_parts.append(f"[vcodec~={video_codec}]")
-
-            video_ext = opts.get("video_ext") or self.config.get("General", "video_ext", fallback="")
-            if video_ext:
-                video_format_parts.append(f"[ext={video_ext}]")
-
-            # Audio format parts (for the audio component of the video)
-            audio_format_parts = []
-            audio_codec = opts.get("audio_codec") or self.config.get("General", "audio_codec", fallback="")
-            if audio_codec:
-                audio_format_parts.append(f"[acodec~={audio_codec}]")
-
-            # Combine parts into final format string
-            video_selector = "bestvideo" + "".join(video_format_parts)
-            audio_selector = "bestaudio" + "".join(audio_format_parts)
-            
-            # Final format string: e.g., "bestvideo[height<=1080]+bestaudio/best"
-            format_string = f"{video_selector}+{audio_selector}/best"
-            args.extend(["-f", format_string])
-
-            # Specify the final container format after merging
-            merge_ext = video_ext or self.config.get("General", "video_ext", fallback="")
-            if merge_ext:
-                args.extend(["--merge-output-format", merge_ext])
-
-            # Embed metadata (title, artist, etc.) and thumbnail as album art for videos as well
-            args.append("--embed-metadata")
-            args.append("--embed-thumbnail")
-
-        # --- Other Options ---
-        playlist_mode = opts.get("playlist_mode", "Ask")
-        if "ignore" in playlist_mode.lower() or "single" in playlist_mode.lower():
-            args.append("--no-playlist")
-        elif "all" in playlist_mode.lower() or "no prompt" in playlist_mode.lower():
-            args.append("--yes-playlist")
-
-        if self.config.get("General", "sponsorblock", fallback="True") == "True":
-            args.append("--sponsorblock-remove")
-            args.append("sponsor,intro,outro,selfpromo,interaction,preview,music_offtopic")
-
-        windows_cfg = self.config.get("General", "windowsfilenames", fallback=None)
-        restrict_cfg = self.config.get("General", "restrict_filenames", fallback=None)
-        if str(windows_cfg) == "True":
-            args.append("--windows-filenames")
-        elif str(restrict_cfg) == "True":
-            args.append("--restrict-filenames")
-        elif os.name == 'nt':
-            args.append("--windows-filenames")
-
-        # Replace pipe characters to prevent filename issues.
-        args.extend(["--replace-in-metadata", "title", "re:[|｜]", "-"])
-
-        rate_limit = self.config.get("General", "rate_limit", fallback="0")
-        if rate_limit and rate_limit not in ("0", "", "no limit", "No limit"):
-            args.extend(["--limit-rate", rate_limit])
-            
-        # --- Cookies ---
-        cookies_browser = self.config.get("General", "cookies_from_browser", fallback="None")
-        if cookies_browser and cookies_browser != "None":
-            args.extend(["--cookies-from-browser", cookies_browser])
-
-        # --- JavaScript Runtime ---
-        js_runtime_path = self.config.get("General", "js_runtime_path", fallback="")
-        # First, try user-configured path
-        if js_runtime_path and os.path.exists(js_runtime_path):
-            log.debug(f"Using user-configured JavaScript runtime at {js_runtime_path}")
-        else:
-            if js_runtime_path:  # Path was configured but not found
-                log.warning(f"Configured JavaScript runtime not found at: {js_runtime_path}. Falling back to bundled.")
-            # If not configured or not found, try to use the bundled deno
-            js_runtime_path = get_binary_path("deno")
-
-        if js_runtime_path and os.path.exists(js_runtime_path):
-            # yt-dlp expects the runtime name (e.g., "deno") followed by its path
-            runtime_name = os.path.basename(js_runtime_path).split('.')[0]  # "deno" from "deno.exe"
-            args.extend(["--js-runtimes", f"{runtime_name}:{js_runtime_path}"])
-            log.debug(f"Using JavaScript runtime: {runtime_name} at {js_runtime_path}")
-        else:
-            log.debug("No valid JavaScript runtime found (neither configured nor bundled).")
-
-
-        return args
-
-
     def _enqueue_single_download(self, url, opts, parent_url=None):
         """Create and queue a single DownloadWorker for the given URL.
         Keeps the original behavior but is factored so playlists can be expanded
@@ -213,14 +48,10 @@ class DownloadManager(QObject):
         except Exception:
             self._original_opts[url] = opts
 
-        try:
-            cmd_args = self._convert_opts_to_args(opts)
-        except ValueError as e:
-            log.error(f"Failed to prepare download for {url}: {e}")
-            self.download_error.emit(url, str(e))
-            return
-        log.info(f"Queueing download for {url} with args: {cmd_args}")
-        worker = DownloadWorker(url, cmd_args, self.config)
+        # We now pass the opts dictionary directly to the worker.
+        # The worker will handle argument construction.
+        log.info(f"Queueing download for {url} with opts: {opts}")
+        worker = DownloadWorker(url, opts, self.config)
         worker.progress.connect(self._on_progress)
         # Connect finished/error signals to wrapper slots that use QObject.sender()
         # This avoids potential issues with lambdas and ensures the original worker
@@ -320,15 +151,37 @@ class DownloadManager(QObject):
         # The "Active Download" UI entry is only generated if this probe confirms the URL is a valid target.
         def _validate_and_enqueue(u, o):
             try:
-                # Use is_url_valid which uses --simulate
-                if is_url_valid(u, timeout=20):
-                    self._enqueue_single_download(u, o)
+                # Check if gallery mode is enabled
+                use_gallery_dl = o.get("use_gallery_dl", False)
+                
+                if use_gallery_dl:
+                    # Use gallery-dl validation
+                    if is_gallery_url_valid(u, timeout=20):
+                        self._enqueue_single_download(u, o)
+                    else:
+                        # Fallback for common gallery sites
+                        common_gallery_hosts = ['instagram.com', 'twitter.com', 'x.com', 'reddit.com', 'tumblr.com', 'deviantart.com', 'artstation.com', 'pixiv.net']
+                        parsed = urlparse(u)
+                        host = (parsed.hostname or "").lower()
+                        if any(ch in host for ch in common_gallery_hosts):
+                            log.info(f"Tier 2 validation failed for {u} but host is common gallery site. Enqueuing anyway.")
+                            self._enqueue_single_download(u, o)
+                        else:
+                            log.info(f"Tier 2 validation failed for {u} (gallery-dl simulate)")
+                            try:
+                                self.download_error.emit(u, "Unsupported or invalid URL for Gallery Download")
+                            except Exception:
+                                pass
                 else:
-                    log.info(f"Tier 2 validation failed for {u} (simulate)")
-                    try:
-                        self.download_error.emit(u, "Unsupported or invalid URL")
-                    except Exception:
-                        pass
+                    # Use yt-dlp validation
+                    if is_url_valid(u, timeout=20):
+                        self._enqueue_single_download(u, o)
+                    else:
+                        log.info(f"Tier 2 validation failed for {u} (yt-dlp simulate)")
+                        try:
+                            self.download_error.emit(u, "Unsupported or invalid URL")
+                        except Exception:
+                            pass
             except Exception:
                 log.exception(f"Exception during Tier 2 validation for: {u}")
 

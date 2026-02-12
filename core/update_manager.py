@@ -35,6 +35,7 @@ except Exception:
     requests = None
 
 from core.version import __version__ as LOCAL_VERSION, GITHUB_REPO
+from core.binary_manager import get_binary_path
 
 log = logging.getLogger(__name__)
 
@@ -360,6 +361,120 @@ def check_and_download_update(
     target = os.path.join(tmp, name)
     ok = download_asset(asset, target, progress_callback=progress_callback)
     return (ok, target if ok else None)
+
+
+def get_gallery_dl_version() -> Optional[str]:
+    """Gets the version of the bundled gallery-dl binary."""
+    binary_path = get_binary_path("gallery-dl")
+    if not binary_path:
+        return None
+    try:
+        # gallery-dl --version outputs "gallery-dl <version>"
+        result = subprocess.run(
+            [binary_path, "--version"],
+            capture_output=True,
+            text=True,
+            check=True,
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
+        )
+        output = result.stdout.strip()
+        # Example output: gallery-dl 1.25.0
+        match = re.search(r"gallery-dl\s+([\d\.]+)", output)
+        if match:
+            return match.group(1)
+        return output # fallback to full output
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        log.error(f"Failed to get gallery-dl version: {e}")
+        return None
+
+
+def check_for_gallery_dl_update() -> Tuple[bool, Optional[str], Optional[dict]]:
+    """Check GitHub for a newer gallery-dl release.
+
+    Returns a tuple: (is_newer_available, latest_version_tag, asset_dict_or_None)
+    """
+    owner, repo = "gallery-dl", "gallery-dl"
+    current_version = get_gallery_dl_version()
+    if not current_version:
+        # If we can't determine the current version, we can't compare.
+        # We could assume an update is available, but it's safer to not update.
+        return False, None, None
+
+    rel = get_latest_release(owner, repo)
+    if not rel:
+        return False, None, None
+    tag = rel.get('tag_name') or rel.get('name') or ''
+    # gallery-dl tags are just the version number, e.g. "1.25.0"
+    cmp_result = _compare_versions(current_version, tag)
+    is_newer = cmp_result == -1
+    
+    # gallery-dl releases have assets like gallery-dl.exe
+    asset_name = "gallery-dl.exe" if sys.platform == "win32" else "gallery-dl"
+    asset = find_asset_for_platform(rel, asset_name)
+    
+    return is_newer, tag, asset
+
+
+def download_gallery_dl_update(progress_callback=None) -> Optional[str]:
+    """
+    Checks for a gallery-dl update, and if one is available, downloads it
+    to the correct binary path.
+
+    Returns the path to the downloaded file if successful, otherwise None.
+    """
+    is_newer, tag, asset = check_for_gallery_dl_update()
+    if not is_newer or not asset:
+        log.info("gallery-dl is up to date or no update asset found.")
+        return None
+
+    binary_path = get_binary_path("gallery-dl")
+    if not binary_path:
+        log.error("Could not determine path for gallery-dl binary.")
+        return None
+
+    target_dir = os.path.dirname(binary_path)
+    
+    # Create a temporary file to download to, then move it into place.
+    # This is safer than downloading directly to the final destination.
+    temp_dir = tempfile.mkdtemp(prefix="gallery-dl-update-")
+    download_path = os.path.join(temp_dir, os.path.basename(binary_path))
+
+    log.info(f"Downloading gallery-dl update {tag} to {download_path}")
+    success = download_asset(asset, download_path, progress_callback)
+
+    if success:
+        try:
+            # Make a backup of the old binary
+            backup_path = binary_path + ".bak"
+            if os.path.exists(binary_path):
+                shutil.move(binary_path, backup_path)
+                log.info(f"Backed up old gallery-dl to {backup_path}")
+            
+            # Move the new binary into place
+            shutil.move(download_path, binary_path)
+            log.info(f"Moved new gallery-dl to {binary_path}")
+
+            # On non-windows, make sure it's executable
+            if sys.platform != "win32":
+                os.chmod(binary_path, 0o755)
+
+            # Clean up backup
+            if os.path.exists(backup_path):
+                os.remove(backup_path)
+
+            return binary_path
+        except Exception as e:
+            log.exception(f"Failed to move downloaded gallery-dl into place: {e}")
+            # Try to restore backup
+            if os.path.exists(backup_path):
+                shutil.move(backup_path, binary_path)
+            return None
+        finally:
+            shutil.rmtree(temp_dir)
+    else:
+        log.error("Failed to download gallery-dl update.")
+        shutil.rmtree(temp_dir)
+        return None
 
 
 if __name__ == '__main__':

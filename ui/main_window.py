@@ -425,7 +425,7 @@ class MediaDownloaderApp(QMainWindow):
         """Check for application updates in a background thread."""
         def _check():
             try:
-                import core.updater as updater
+                import core.update_manager as updater
                 owner = "vincentwetzel"
                 repo = "MediaDownloader"
                 release_info = updater.get_latest_release(owner, repo)
@@ -493,7 +493,7 @@ class MediaDownloaderApp(QMainWindow):
         target_path = os.path.join(temp_dir, asset_name)
 
         def _download_worker():
-            import core.updater as updater
+            import core.update_manager as updater
             success = updater.download_asset(
                 asset,
                 target_path,
@@ -517,7 +517,7 @@ class MediaDownloaderApp(QMainWindow):
                 "Update Ready",
                 "The update has been downloaded. The application will now restart to apply the update.",
             )
-            import core.updater as updater
+            import core.update_manager as updater
             updater.perform_self_update(path)
         else:
             QMessageBox.critical(self, "Update Failed", "Failed to download the update.")

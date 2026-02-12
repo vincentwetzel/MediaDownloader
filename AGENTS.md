@@ -5,7 +5,7 @@ It defines the project's purpose, architecture, constraints, and rules for safe 
 
 All agents MUST follow this document as the source of truth.
 
-Fast Start: Keep UI responsive (no blocking I/O on GUI thread; use background threads). Preserve download lifecycle (temp -> verify -> move to completed dir). Use bundled binaries in `bin/` only; no runtime installs. Update `CHANGELOG.md` for significant changes. Update Section 3 + Quick-Reference list when files/roles change. For file locations, jump to the Quick-Reference list in Section 3.
+Fast Start: Keep UI responsive (no blocking I/O on GUI thread; use background threads). Preserve download lifecycle (temp → verify → move to completed dir). Use bundled binaries in `bin/` only; no runtime installations. Update `CHANGELOG.md` for significant changes. Update Section 3 + Quick-Reference list when files/roles change. For file locations, jump to the Quick-Reference list in Section 3.
 
 ---
 
@@ -31,10 +31,10 @@ Agents MUST preserve and respect the following behaviors:
 - Media downloading via `yt-dlp`
 - Concurrent download management with user-defined limits (capped at 4 on app startup)
 - Playlist expansion and processing
-- **Format inspection**: Users can view available download formats for a URL via "View Formats" option in Download Type dropdown
+- **Format inspection**: Users can view available download formats via "View Formats" option in Download Type dropdown
 - Configurable output options: audio/video quality, formats, SponsorBlock, filename sanitization
 - Robust error handling with **user-friendly messages**
-- File lifecycle: download into temp dir -> verify file stability -> move to completed downloads directory
+- File lifecycle: download into temp dir → verify file stability → move to completed downloads directory
 - Metadata embedding (title, artist, etc.) and thumbnail embedding for both audio and video downloads
 - Thumbnail downloading and embedding using `ffmpeg`
 - Responsive GUI at all times (no blocking I/O on the main thread)
@@ -67,6 +67,7 @@ The project follows a **modular, separation-of-concerns design**.
 - `core/config_manager.py` - State persistence; reads/writes `settings.json`, provides default config values.
 - `core/download_manager.py` - "Brain"; URL validation (Tier 1 regex, Tier 2 probe), queue management (max 4 startup / 8 runtime), lifecycle (Queue -> Active -> Completed), file ops (move `temp` -> `output` on completion).
 - `core/yt_dlp_worker.py` - "Muscle"; runs `yt-dlp` subprocesses, parses stdout for progress % and speed, handles thumbnail embedding and JSON metadata extraction.
+- `core/yt_dlp_args_builder.py` - "Helper"; constructs command-line arguments for `yt-dlp` based on user options.
 - `core/updater.py` - Self-maintenance; checks GitHub Releases API for application updates and handles self-update.
 - `core/playlist_expander.py` - Pre-processing; takes a playlist URL and yields individual video URLs.
 - `core/logger_config.py` - Diagnostics; configures Python `logging`, handles `sys.stderr` redirection to GUI console.
@@ -80,6 +81,7 @@ The project follows a **modular, separation-of-concerns design**.
 - URL Validation: `core/download_manager.py` (Tier 1 regex, Tier 2 probe).
 - Download Queue: `core/download_manager.py` (concurrency semaphores and queue state).
 - Process Execution: `core/yt_dlp_worker.py` (wraps `yt-dlp` subprocess; parses stdout/stderr).
+- Argument Building: `core/yt_dlp_args_builder.py` (constructs `yt-dlp` CLI args).
 - Progress Bars: `ui/tab_active.py` (updates UI based on worker signals).
 - App Updates: `core/updater.py` (checks GitHub for new app versions and handles self-update).
 - Settings/Config: `core/config_manager.py` (handles `settings.json` I/O).
@@ -95,6 +97,7 @@ When compiled, the application MUST remain **standalone**.
 
 Bundled binaries (located in `bin/`):
 - `yt-dlp`
+- `gallery-dl`
 - `ffmpeg`
 - `ffprobe`
 - `aria2c`
@@ -128,6 +131,8 @@ Dependencies are defined in `requirements.txt`.
 - Respect existing file lifecycle and temp directory logic
 - Add logging for non-trivial changes
 - **Update AGENTS.md** (Architecture & Quick-Reference) if you add files or change core logic locations
+- **Enforce the 600-line modularity rule (See Section 13)**
+- **Ensure all UI elements have tooltips**
 
 ### You MUST NOT:
 - Change download paths, archive formats, or config formats without explicit intent
@@ -183,7 +188,25 @@ Agents should not log changes in `AGENTS.md` beyond architectural updates requir
 
 ---
 
-## 12. Agent Task Persistence Protocol
+## 12. Token Efficiency & Modularity (The 600-Line Rule)
+
+To maintain AI accuracy and minimize token consumption, agents must enforce strict modularity:
+
+### 12.1 File Size Limits
+- **The 600-Line / 25KB Threshold:** Any Python file exceeding 600 lines OR 25,000 characters is considered "Monolithic" and must be refactored.
+- **Mandatory Refactoring:** Before adding a new feature to a file near this limit, the agent must propose a plan to split the code into smaller, logical modules (e.g., moving helper methods to a `utils/` or `core/` file).
+- **Proactive Splitting:** If a requested feature will push a file over these limits, the agent should split the file as part of the implementation.
+
+### 12.2 Separation of Concerns
+- **Logic vs. UI:** Do not place non-UI logic (regex, file operations, subprocess parsing) inside `ui/` files. Use the `core/` directory.
+- **Signal Decoupling:** Use PyQt Signals to communicate between the `core/` workers and the `ui/` layer to keep files independent.
+
+### 12.3 Response Efficiency
+- **Partial Updates:** When modifying large files, provide only the specific functions or classes that changed, rather than rewriting the entire file, to save tokens.
+
+---
+
+## 13. Agent Task Persistence Protocol
 
 To ensure continuity and seamless handover between different AI agents working on this project, all agents MUST adhere to the following protocol. This section is the **live tracker** for current development tasks.
 
@@ -200,3 +223,10 @@ This section of `AGENTS.md` serves as the single source of truth for the current
 
 ### Current Tasks
 
+- **Task: Refactor `ui/tab_advanced.py` to reduce file size**
+  - [ ] Create a new file `ui/tab_advanced_widgets.py` (or similar) to house helper widgets or logic.
+  - [ ] Extract UI group building logic (e.g., `_build_config_group`, `_build_auth_group`) into separate methods or a helper class.
+  - [ ] Move large static data (like `SUBTITLE_LANGUAGES`) to a separate file or the new helper file.
+  - [ ] Update `ui/tab_advanced.py` to use the refactored code.
+  - [ ] Verify that the Advanced Settings tab still functions correctly.
+  - [ ] Update `AGENTS.md` to reflect the changes.

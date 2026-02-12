@@ -45,6 +45,7 @@ class ConfigManager:
             "yt_dlp_update_channel": "stable",
             "yt_dlp_version": "Unknown",
             "cookies_from_browser": "None",
+            "gallery_cookies_from_browser": "None",
             "js_runtime_path": "",  # New setting for JavaScript runtime
             "output_template": "%(title)s [%(uploader)s][%(upload_date>%m-%d-%Y)s][%(id)s].%(ext)s",
             "embed_chapters": "True",
@@ -77,6 +78,7 @@ class ConfigManager:
             "yt_dlp_update_channel": "stable",
             "yt_dlp_version": "Unknown",
             "cookies_from_browser": "None",
+            "gallery_cookies_from_browser": "None",
             "js_runtime_path": "",  # New setting for JavaScript runtime
             "output_template": "%(title)s [%(uploader)s][%(upload_date>%m-%d-%Y)s][%(id)s].%(ext)s",
             "embed_chapters": "True",

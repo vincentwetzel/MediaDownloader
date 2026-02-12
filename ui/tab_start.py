@@ -45,8 +45,8 @@ class StartTab(QWidget):
         
         # New download type dropdown
         self.download_type_combo = QComboBox()
-        self.download_type_combo.addItems(["Video", "Audio Only", "View Formats"])
-        self.download_type_combo.setToolTip("Choose whether to download the full video, just the audio, or view available formats for the URL.")
+        self.download_type_combo.addItems(["Video", "Audio Only", "Gallery", "View Formats"])
+        self.download_type_combo.setToolTip("Choose whether to download the full video, just the audio, image gallery, or view available formats for the URL.")
         # Default to "Video" on first launch
         self.download_type_combo.setCurrentText("Video")
         # Update button text when download type changes
@@ -313,6 +313,7 @@ class StartTab(QWidget):
 
         opts = {
             "audio_only": self.download_type_combo.currentText() == "Audio Only",
+            "use_gallery_dl": self.download_type_combo.currentText() == "Gallery",
             "video_quality": self.video_quality_combo.currentText(),
             "video_ext": self.video_ext_combo.currentText() or "",
             "vcodec": self.vcodec_combo.currentText() or "",
@@ -332,6 +333,9 @@ class StartTab(QWidget):
         elif text == "Audio Only":
             self.download_btn.setText("Download Audio")
             self.download_btn.setToolTip("Start downloading audio from the URLs above.")
+        elif text == "Gallery":
+            self.download_btn.setText("Download Gallery")
+            self.download_btn.setToolTip("Start downloading image gallery from the URLs above.")
         else:  # "Video"
             self.download_btn.setText("Download Video")
             self.download_btn.setToolTip("Start downloading video from the URLs above.")

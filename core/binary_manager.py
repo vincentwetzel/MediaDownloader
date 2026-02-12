@@ -11,6 +11,7 @@ log = logging.getLogger(__name__)
 _BINARY_PATHS = {
     "windows": {
         "yt-dlp": "bin/windows/yt-dlp.exe",
+        "gallery-dl": "bin/windows/gallery-dl.exe",
         "ffmpeg": "bin/windows/ffmpeg-8.0.1-essentials_build/bin/ffmpeg.exe",
         "ffprobe": "bin/windows/ffmpeg-8.0.1-essentials_build/bin/ffprobe.exe",
         "deno": "bin/windows/deno.exe",
@@ -18,6 +19,7 @@ _BINARY_PATHS = {
     },
     "linux": {
         "yt-dlp": "bin/linux/yt-dlp",
+        "gallery-dl": "bin/linux/gallery-dl.bin",
         "ffmpeg": "bin/linux/ffmpeg",
         "ffprobe": "bin/linux/ffprobe",
         "deno": "bin/linux/deno",
@@ -25,6 +27,7 @@ _BINARY_PATHS = {
     },
     "darwin": { # macOS
         "yt-dlp": "bin/macos/yt-dlp_macos",
+        "gallery-dl": "bin/macos/gallery-dl",
         "ffmpeg": "bin/macos/ffmpeg",
         "ffprobe": "bin/macos/ffprobe",
         "deno": "bin/macos/deno",

@@ -12,6 +12,7 @@ import platform
 import time
 from PyQt6.QtCore import QThread, pyqtSignal
 from core.binary_manager import get_binary_path, get_ffmpeg_location
+from core.yt_dlp_args_builder import build_yt_dlp_args
 
 # --- HIDE CONSOLE WINDOW for SUBPROCESS ---
 creation_flags = 0
@@ -22,6 +23,7 @@ log = logging.getLogger(__name__)
 
 # Global variable to store the working yt-dlp path
 _YT_DLP_PATH = None
+_GALLERY_DL_PATH = None
 
 
 def check_yt_dlp_available():
@@ -64,6 +66,48 @@ def check_yt_dlp_available():
         log.error(f"Error verifying yt-dlp at {yt_dlp_path}: {str(e)}")
         _YT_DLP_PATH = None
         return False, f"Error verifying yt-dlp at {yt_dlp_path}."
+
+
+def check_gallery_dl_available():
+    """Check if gallery-dl is available by consulting the binary manager and verifying the executable."""
+    global _GALLERY_DL_PATH
+
+    gallery_dl_path = get_binary_path("gallery-dl")
+
+    if not gallery_dl_path:
+        _GALLERY_DL_PATH = None
+        return False, "gallery-dl executable not found in system PATH or bundled binaries."
+
+    try:
+        log.debug(f"Attempting to verify gallery-dl at: {gallery_dl_path}")
+        result = subprocess.run(
+            [gallery_dl_path, "--version"],
+            capture_output=True, text=True, timeout=5, shell=False,
+            errors='replace', stdin=subprocess.DEVNULL, creationflags=creation_flags
+        )
+
+        if result.returncode == 0:
+            version = result.stdout.strip()
+            _GALLERY_DL_PATH = gallery_dl_path
+            log.info(f"Working gallery-dl found at: {_GALLERY_DL_PATH}, version: {version}")
+            return True, f"gallery-dl found at: {_GALLERY_DL_PATH}, version: {version}"
+        else:
+            stderr = (result.stderr or "").strip()
+            stdout = (result.stdout or "").strip()
+            log.warning(f"gallery-dl at {gallery_dl_path} --version failed. RC: {result.returncode}, Stderr: {stderr}")
+            _GALLERY_DL_PATH = None
+            extra = []
+            if stdout:
+                extra.append(f"stdout: {stdout}")
+            if stderr:
+                extra.append(f"stderr: {stderr}")
+            extra_msg = f" ({'; '.join(extra)})" if extra else ""
+            return False, f"gallery-dl at {gallery_dl_path} failed verification (rc={result.returncode}).{extra_msg}"
+
+    except Exception as e:
+        log.error(f"Error verifying gallery-dl at {gallery_dl_path}: {str(e)}")
+        _GALLERY_DL_PATH = None
+        return False, f"Error verifying gallery-dl at {gallery_dl_path}."
 
 
 def get_yt_dlp_version():
@@ -149,6 +193,34 @@ def is_url_valid(url: str, timeout: int = 15):
         return False
 
 
+def is_gallery_url_valid(url: str, timeout: int = 15):
+    """Check if a URL is valid using gallery-dl --simulate.
+    Returns True if valid, False otherwise.
+    """
+    try:
+        gallery_dl_cmd = get_binary_path("gallery-dl")
+        if not gallery_dl_cmd:
+            log.error("is_gallery_url_valid: gallery-dl binary not found.")
+            return False
+        # --simulate: do not download
+        # --quiet: suppress output
+        # NOTE: gallery-dl --simulate might fail if it can't extract info, but it's the best check we have.
+        # Some gallery-dl extractors might require cookies or other config.
+        cmd = [gallery_dl_cmd, "--simulate", url]
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, shell=False, stdin=subprocess.DEVNULL, creationflags=creation_flags)
+        
+        # If return code is 0, it's valid.
+        if proc.returncode == 0:
+            return True
+            
+        # If it failed, check stderr. Sometimes it fails due to 403 but the URL is technically valid for the extractor.
+        # However, for our purpose, if we can't simulate, we probably can't download.
+        log.warning(f"gallery-dl validation failed for {url}. RC: {proc.returncode}, Stderr: {proc.stderr}")
+        return False
+    except Exception:
+        return False
+
+
 class DownloadWorker(QThread):
     progress = pyqtSignal(dict)
     title_updated = pyqtSignal(str)
@@ -180,77 +252,103 @@ class DownloadWorker(QThread):
         error_output = []
         stdout_lines = []
         try:
-            # First, verify yt-dlp is available
-            global _YT_DLP_PATH
-            is_available, status_msg = check_yt_dlp_available()
-            log.info(f"yt-dlp check: {status_msg}")
-            if not is_available:
-                error_msg = f"yt-dlp not available: {status_msg}"
-                log.error(error_msg)
-                self.error.emit(self.url, error_msg)
-                return
-            
-            yt_dlp_cmd = _YT_DLP_PATH
+            # Determine if we should use gallery-dl or yt-dlp
+            use_gallery_dl = self.opts.get("use_gallery_dl", False)
 
-            # Attempt to extract metadata (title) first
+            # Build arguments internally
             try:
-                meta_cmd = [yt_dlp_cmd, "--dump-single-json", self.url]
-                meta_proc = subprocess.run(meta_cmd, capture_output=True, text=True, timeout=15, shell=False, stdin=subprocess.DEVNULL, creationflags=creation_flags)
-                if meta_proc.returncode == 0 and meta_proc.stdout:
-                    try:
-                        info = json.loads(meta_proc.stdout)
-                        title = info.get("title") or info.get("id")
-                        self._meta_info = info
-                        if title:
-                            self.title_updated.emit(str(title))
-                    except Exception:
-                        pass
-            except Exception:
-                pass
+                cmd_args = build_yt_dlp_args(self.opts, self.config_manager)
+            except ValueError as e:
+                self.error.emit(self.url, str(e))
+                return
 
-            cmd = [yt_dlp_cmd] + (self.opts.get("args", []) if isinstance(self.opts, dict) else self.opts)
+            if use_gallery_dl:
+                global _GALLERY_DL_PATH
+                is_available, status_msg = check_gallery_dl_available()
+                log.info(f"gallery-dl check: {status_msg}")
+                if not is_available:
+                    error_msg = f"gallery-dl not available: {status_msg}"
+                    log.error(error_msg)
+                    self.error.emit(self.url, error_msg)
+                    return
+                
+                cmd_executable = _GALLERY_DL_PATH
+                cmd = [cmd_executable] + cmd_args
+                cmd.append(self.url)
 
-            # Add subtitle options
-            embed_subs = self.config_manager.get("General", "subtitles_embed", fallback="False") == "True"
-            write_subs = self.config_manager.get("General", "subtitles_write", fallback="False") == "True"
-            write_auto_subs = self.config_manager.get("General", "subtitles_write_auto", fallback="False") == "True"
-            
-            sub_langs = self.config_manager.get("General", "subtitles_langs", fallback="en")
-            sub_format = self.config_manager.get("General", "subtitles_format", fallback="None")
-            embed_chapters = self.config_manager.get("General", "embed_chapters", fallback="True") == "True"
-
-            if embed_subs:
-                cmd.append("--embed-subs")
-            if write_subs:
-                cmd.append("--write-subs")
-            if write_auto_subs:
-                cmd.append("--write-auto-subs")
-            if embed_chapters:
-                cmd.append("--embed-chapters")
-
-            if embed_subs or write_subs or write_auto_subs:
-                if sub_langs:
-                    cmd.extend(["--sub-langs", sub_langs])
-                if sub_format and sub_format.lower() != 'none':
-                    cmd.extend(["--convert-subs", sub_format])
-
-            # Check for external downloader setting
-            external_downloader = self.config_manager.get("General", "external_downloader", fallback="none")
-            if external_downloader == "aria2":
-                aria2c_path = get_binary_path("aria2c")
-                if aria2c_path:
-                    cmd.extend(["--external-downloader", aria2c_path])
-                else:
-                    log.warning("aria2c not found in bundled binaries, falling back to PATH.")
-                    cmd.extend(["--external-downloader", "aria2c"])
-
-            ffmpeg_location = get_ffmpeg_location(prefer_system=True)
-            if ffmpeg_location:
-                cmd.extend(["--ffmpeg-location", ffmpeg_location])
             else:
-                log.warning("No ffmpeg location resolved. yt-dlp will rely on PATH.")
+                # First, verify yt-dlp is available
+                global _YT_DLP_PATH
+                is_available, status_msg = check_yt_dlp_available()
+                log.info(f"yt-dlp check: {status_msg}")
+                if not is_available:
+                    error_msg = f"yt-dlp not available: {status_msg}"
+                    log.error(error_msg)
+                    self.error.emit(self.url, error_msg)
+                    return
+                
+                cmd_executable = _YT_DLP_PATH
 
-            cmd.append(self.url)
+                # Attempt to extract metadata (title) first
+                try:
+                    meta_cmd = [cmd_executable, "--dump-single-json", self.url]
+                    meta_proc = subprocess.run(meta_cmd, capture_output=True, text=True, timeout=15, shell=False, stdin=subprocess.DEVNULL, creationflags=creation_flags)
+                    if meta_proc.returncode == 0 and meta_proc.stdout:
+                        try:
+                            info = json.loads(meta_proc.stdout)
+                            title = info.get("title") or info.get("id")
+                            self._meta_info = info
+                            if title:
+                                self.title_updated.emit(str(title))
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+
+                cmd = [cmd_executable] + cmd_args
+
+                # Add subtitle options
+                embed_subs = self.config_manager.get("General", "subtitles_embed", fallback="False") == "True"
+                write_subs = self.config_manager.get("General", "subtitles_write", fallback="False") == "True"
+                write_auto_subs = self.config_manager.get("General", "subtitles_write_auto", fallback="False") == "True"
+                
+                sub_langs = self.config_manager.get("General", "subtitles_langs", fallback="en")
+                sub_format = self.config_manager.get("General", "subtitles_format", fallback="srt")
+                embed_chapters = self.config_manager.get("General", "embed_chapters", fallback="True") == "True"
+
+                if embed_subs:
+                    cmd.append("--embed-subs")
+                if write_subs:
+                    cmd.append("--write-subs")
+                if write_auto_subs:
+                    cmd.append("--write-auto-subs")
+                if embed_chapters:
+                    cmd.append("--embed-chapters")
+
+                if embed_subs or write_subs or write_auto_subs:
+                    if sub_langs:
+                        cmd.extend(["--sub-langs", sub_langs])
+                    if sub_format and sub_format.lower() != 'none':
+                        cmd.extend(["--convert-subs", sub_format])
+
+                # Check for external downloader setting
+                external_downloader = self.config_manager.get("General", "external_downloader", fallback="none")
+                if external_downloader == "aria2":
+                    aria2c_path = get_binary_path("aria2c")
+                    if aria2c_path:
+                        cmd.extend(["--external-downloader", aria2c_path])
+                    else:
+                        log.warning("aria2c not found in bundled binaries, falling back to PATH.")
+                        cmd.extend(["--external-downloader", "aria2c"])
+
+                ffmpeg_location = get_ffmpeg_location(prefer_system=True)
+                if ffmpeg_location:
+                    cmd.extend(["--ffmpeg-location", ffmpeg_location])
+                else:
+                    log.warning("No ffmpeg location resolved. yt-dlp will rely on PATH.")
+
+                cmd.append(self.url)
+
             log.info(f"Running command: {' '.join(cmd)}")
 
             temp_snapshot = {}
@@ -339,27 +437,50 @@ class DownloadWorker(QThread):
                 created_files = []
                 final_file_from_stdout = None
                 
-                try:
-                    for line in reversed(stdout_lines):
-                        m = re.search(r"Merging formats into\s*(.+)$", line)
-                        if m:
-                            final_file_from_stdout = m.group(1).strip()
-                            break
-                        if not final_file_from_stdout:
-                            m2 = re.search(r"Destination:\s*(.+)$", line)
-                            if m2:
-                                final_file_from_stdout = m2.group(1).strip()
-                except Exception:
-                    log.exception("Error parsing yt-dlp stdout for filenames.")
+                if use_gallery_dl:
+                    # gallery-dl output parsing
+                    for line in stdout_lines:
+                        fpath = line.strip()
+                        if not fpath or fpath.startswith('[') or fpath.startswith('#'):
+                            continue
+                        
+                        # Check if it exists as is
+                        if os.path.exists(fpath):
+                            created_files.append(os.path.normpath(fpath))
+                            continue
+                        
+                        # Check relative to temp_dir/output_dir
+                        t_dir = getattr(self, "temp_dir", "")
+                        c_dir = self.config_manager.get("Paths", "completed_downloads_directory", fallback="")
+                        target_dir = t_dir or c_dir
+                        
+                        if target_dir:
+                            cand = os.path.join(target_dir, fpath)
+                            if os.path.exists(cand):
+                                created_files.append(os.path.normpath(cand))
+                else:
+                    try:
+                        for line in reversed(stdout_lines):
+                            m = re.search(r"Merging formats into\s*(.+)$", line)
+                            if m:
+                                final_file_from_stdout = m.group(1).strip()
+                                break
+                            if not final_file_from_stdout:
+                                m2 = re.search(r"Destination:\s*(.+)$", line)
+                                if m2:
+                                    final_file_from_stdout = m2.group(1).strip()
+                    except Exception:
+                        log.exception("Error parsing yt-dlp stdout for filenames.")
 
                 if final_file_from_stdout:
                     if (final_file_from_stdout.startswith('"') and final_file_from_stdout.endswith('"')) or \
                        (final_file_from_stdout.startswith("'") and final_file_from_stdout.endswith("'")):
                         final_file_from_stdout = final_file_from_stdout[1:-1].strip()
                     created_files.append(os.path.normpath(final_file_from_stdout))
-                    log.info(f"Discovered final file from yt-dlp stdout: {created_files}")
+                    log.info(f"Discovered final file from stdout: {created_files}")
                 else:
-                    log.warning(f"Could not determine final file from yt-dlp output for {self.url}. Using directory snapshot fallback.")
+                    if not use_gallery_dl:
+                        log.warning(f"Could not determine final file from output for {self.url}. Using directory snapshot fallback.")
                     snapshot_files = []
                     try:
                         temp_dir = getattr(self, "temp_dir", None)
@@ -389,17 +510,28 @@ class DownloadWorker(QThread):
                             created_files.append(sp)
                         except Exception:
                             continue
-                    log.info(f"Discovered final files from snapshot: {created_files}")
+                    if not use_gallery_dl:
+                        log.info(f"Discovered final files from snapshot: {created_files}")
+                    else:
+                        # For gallery-dl, if we found files via stdout parsing, we append them.
+                        # If we didn't find any via stdout, we might want to use snapshot files too?
+                        # But gallery-dl usually downloads many files.
+                        # If created_files is empty, we can try snapshot.
+                        if not created_files:
+                            for f in snapshot_files:
+                                if f not in created_files:
+                                    created_files.append(f)
 
-                try:
-                    self._handle_thumbnail_embedding(created_files)
-                except Exception:
-                    log.exception("Thumbnail handling failed")
+                if not use_gallery_dl:
+                    try:
+                        self._handle_thumbnail_embedding(created_files)
+                    except Exception:
+                        log.exception("Thumbnail handling failed")
 
                 self.finished.emit(self.url, True, created_files)
             else:
-                error_msg = self._parse_error_output(error_output) or f"yt-dlp error (code {return_code})"
-                if "yt-dlp error" in error_msg:
+                error_msg = self._parse_error_output(error_output) or f"Process error (code {return_code})"
+                if "error" in error_msg.lower():
                     if error_output:
                         relevant_errors = error_output[-5:]
                         error_msg += f"\n\n{''.join(relevant_errors)}"
@@ -417,7 +549,7 @@ class DownloadWorker(QThread):
 
                 self.error.emit(self.url, error_msg)
         except FileNotFoundError:
-            error_msg = "yt-dlp not found. Please install yt-dlp or check your PATH."
+            error_msg = "Executable not found. Please check your installation."
             log.error(error_msg)
             self.error.emit(self.url, error_msg)
         except Exception as e:

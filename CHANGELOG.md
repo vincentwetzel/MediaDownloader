@@ -8,10 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased] - YYYY-MM-DD
 
 ### Added
--
+- **gallery-dl Support**: Added support for downloading image galleries using `gallery-dl`.
+  - Added "Gallery" option to the Download Type dropdown in the Start tab.
+  - Bundled `gallery-dl` binary.
+  - Added `gallery-dl` update button in the Advanced Settings tab.
+  - Added browser cookie support for `gallery-dl` in Advanced Settings.
 
 ### Changed
--
+- **Improved Gallery Validation**: Relaxed validation for gallery downloads to allow common gallery sites (Instagram, Twitter, etc.) even if simulation fails, as `gallery-dl` simulation can be unreliable due to auth requirements.
+- **Gallery Download Parsing**: Enhanced file detection for `gallery-dl` downloads by parsing stdout for file paths and falling back to directory snapshots if needed.
 
 ### Deprecated
 -
@@ -178,5 +183,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [ ] Custom video/audio post-processing
 - [ ] Subtitle/caption download integration
 - [ ] Search and download by query
+- [ ] Download statistics and analytics dashboard
+- [ ] Cross-platform support (native builds for macOS/Linux)
 - [ ] Download statistics and analytics dashboard
 - [ ] Cross-platform support (native builds for macOS/Linux)
