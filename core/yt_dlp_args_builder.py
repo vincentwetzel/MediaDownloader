@@ -150,9 +150,9 @@ def build_yt_dlp_args(opts, config_manager):
         args.append("--windows-filenames")
 
     # Replace pipe characters to prevent filename issues.
-    # Using simple string replacement is more reliable than regex.
-    # We replace both standard and full-width pipes.
-    args.extend(["--replace-in-metadata", "title", "|", "-"])
+    # The standard pipe '|' is a regex metacharacter and must be escaped.
+    # The full-width pipe '｜' is not, but we replace it for consistency.
+    args.extend(["--replace-in-metadata", "title", r"\|", "-"])
     args.extend(["--replace-in-metadata", "title", "｜", "-"])
 
     rate_limit = config_manager.get("General", "rate_limit", fallback="0")
