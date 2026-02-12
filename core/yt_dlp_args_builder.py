@@ -155,6 +155,10 @@ def build_yt_dlp_args(opts, config_manager):
     args.extend(["--replace-in-metadata", "title", r"\|", "-"])
     args.extend(["--replace-in-metadata", "title", "｜", "-"])
 
+    # Replace invalid Windows characters to prevent yt-dlp from using full-width replacements
+    args.extend(["--replace-in-metadata", "title", r"\?", ""])
+    args.extend(["--replace-in-metadata", "title", r":", " -"])
+
     rate_limit = config_manager.get("General", "rate_limit", fallback="0")
     if rate_limit and rate_limit not in ("0", "", "no limit", "No limit"):
         args.extend(["--limit-rate", rate_limit])
