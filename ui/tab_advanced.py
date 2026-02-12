@@ -27,6 +27,7 @@ class AdvancedSettingsTab(QWidget):
     version_fetched = pyqtSignal(str)
     gallery_dl_update_finished = pyqtSignal(str, str)
     gallery_dl_version_fetched = pyqtSignal(str)
+    app_update_finished = pyqtSignal(str, object)
 
     def __init__(self, main_window, initial_yt_dlp_version: str = "Unknown"):
         super().__init__()
@@ -38,6 +39,7 @@ class AdvancedSettingsTab(QWidget):
         self.version_fetched.connect(self._on_version_fetched)
         self.gallery_dl_update_finished.connect(self._on_gallery_dl_update_finished)
         self.gallery_dl_version_fetched.connect(self._on_gallery_dl_version_fetched)
+        self.app_update_finished.connect(self._on_app_update_finished)
 
         self._build_tab_advanced()
 
@@ -505,6 +507,9 @@ class AdvancedSettingsTab(QWidget):
 
     def _check_app_update(self):
         """Check GitHub for a newer app release and prompt the user to update."""
+        self.check_app_update_btn.setEnabled(False)
+        self.check_app_update_btn.setText("Checking...")
+
         owner = 'vincentwetzel'
         repo = 'MediaDownloader'
 
@@ -513,28 +518,37 @@ class AdvancedSettingsTab(QWidget):
                 import core.update_manager as updater
                 rel = updater.get_latest_release(owner, repo)
                 if not rel:
-                    QTimer.singleShot(0, lambda: QMessageBox.information(self, 'Update Check',
-                                                                         'Could not fetch release information from GitHub.'))
+                    self.app_update_finished.emit("error", "Could not fetch release information from GitHub.")
                     return
                 tag = rel.get('tag_name') or rel.get('name') or ''
                 cmp = updater._compare_versions(APP_VERSION, tag)
                 if cmp == -1:
-                    QTimer.singleShot(0, lambda: self._prompt_update(rel))
+                    self.app_update_finished.emit("update_available", rel)
                 else:
-                    QTimer.singleShot(0, lambda: QMessageBox.information(self, 'Up To Date',
-                                                                         f'No update available. Current version: {APP_VERSION}'))
+                    self.app_update_finished.emit("up_to_date", None)
             except Exception as e:
                 log.exception('App update check failed')
-                QTimer.singleShot(0, lambda: QMessageBox.warning(self, 'Update Check Failed', str(e)))
+                self.app_update_finished.emit("error", str(e))
 
         t = threading.Thread(target=bg, daemon=True)
         t.start()
+
+    def _on_app_update_finished(self, status, data):
+        self.check_app_update_btn.setEnabled(True)
+        self.check_app_update_btn.setText("Check for App Update")
+
+        if status == "error":
+            QMessageBox.warning(self, 'Update Check Failed', str(data))
+        elif status == "up_to_date":
+            QMessageBox.information(self, 'Up To Date', f'No update available. Current version: {APP_VERSION}')
+        elif status == "update_available":
+            self._prompt_update(data)
 
     def _prompt_update(self, release_info: dict):
         tag = release_info.get('tag_name') or release_info.get('name') or 'unknown'
         body = release_info.get('body') or ''
         short_body = (body[:2000] + '...') if len(body) > 2000 else body
-        text = f"<b>A new version is available: {tag}</b><br><br>{short_body.replace('\n', '<br>')}"
+        text = f"<b>A new version is available: {tag}</b><br><br>{short_body.replace('\\n', '<br>')}"
 
         msg = QMessageBox(self)
         msg.setWindowTitle('Update Available')
