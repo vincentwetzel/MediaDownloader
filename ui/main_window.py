@@ -138,6 +138,18 @@ class MediaDownloaderApp(QMainWindow):
             self._process = None
             self._last_io_counters = None
 
+        # Schedule archive purge
+        QTimer.singleShot(5000, self._purge_archive)
+
+    def _purge_archive(self):
+        """Purge old entries from the archive in a background thread."""
+        def _purge():
+            try:
+                self.archive_manager.purge_old_entries()
+            except Exception:
+                log.exception("Failed to purge archive")
+        threading.Thread(target=_purge, daemon=True).start()
+
     def _get_total_io_counters(self):
         """Get total IO counters for the main process and all its children."""
         if not self._process:
