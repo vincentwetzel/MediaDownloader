@@ -24,6 +24,7 @@ log = logging.getLogger(__name__)
 # Global variable to store the working yt-dlp path
 _YT_DLP_PATH = None
 _GALLERY_DL_PATH = None
+_YT_DLP_VERSION_CACHE = None
 
 
 def check_yt_dlp_available():
@@ -110,13 +111,19 @@ def check_gallery_dl_available():
         return False, f"Error verifying gallery-dl at {gallery_dl_path}."
 
 
-def get_yt_dlp_version():
-    """Return the version string of the current yt-dlp executable, or None if not found."""
-    global _YT_DLP_PATH
+def get_yt_dlp_version(force_check=False):
+    """
+    Return the version string of the current yt-dlp executable.
+    Uses a cache unless force_check is True.
+    """
+    global _YT_DLP_PATH, _YT_DLP_VERSION_CACHE
+    
+    if not force_check and _YT_DLP_VERSION_CACHE:
+        return _YT_DLP_VERSION_CACHE
+
     try:
-        if not _YT_DLP_PATH:
-            # Try to find it if not already found
-            log.debug("get_yt_dlp_version: _YT_DLP_PATH not set, checking availability...")
+        if not _YT_DLP_PATH or force_check:
+            log.debug("get_yt_dlp_version: _YT_DLP_PATH not set or check is forced, checking availability...")
             check_yt_dlp_available()
         
         if _YT_DLP_PATH:
@@ -135,20 +142,27 @@ def get_yt_dlp_version():
                 if result.returncode == 0:
                     ver = result.stdout.strip()
                     log.debug(f"Version fetched: {ver}")
+                    _YT_DLP_VERSION_CACHE = ver
                     return ver
                 else:
                     log.warning(f"Failed to get version. RC: {result.returncode}, Stderr: {result.stderr}")
+                    _YT_DLP_VERSION_CACHE = None
+                    return None
             except subprocess.TimeoutExpired:
                 log.warning("get_yt_dlp_version: subprocess timed out")
+                _YT_DLP_VERSION_CACHE = None
                 return None
             except Exception as e:
                 log.error(f"Exception getting version: {e}")
+                _YT_DLP_VERSION_CACHE = None
                 return None
         else:
             log.warning("get_yt_dlp_version: No yt-dlp path found.")
+            _YT_DLP_VERSION_CACHE = None
             return None
     except Exception as outer_e:
         log.error(f"Unexpected error in get_yt_dlp_version: {outer_e}")
+        _YT_DLP_VERSION_CACHE = None
         return None
 
 

@@ -6,7 +6,7 @@ import threading
 import time
 
 from core.version import __version__ as APP_VERSION
-from core.update_manager import get_gallery_dl_version, download_gallery_dl_update
+from core.update_manager import get_gallery_dl_version, download_gallery_dl_update, get_latest_release, _compare_versions
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox, QCheckBox, QFileDialog, QMessageBox, QLineEdit,
@@ -25,7 +25,7 @@ class AdvancedSettingsTab(QWidget):
     # Define signals for background thread communication
     update_finished = pyqtSignal(bool, str)
     version_fetched = pyqtSignal(str)
-    gallery_dl_update_finished = pyqtSignal(bool, str)
+    gallery_dl_update_finished = pyqtSignal(str, str)
     gallery_dl_version_fetched = pyqtSignal(str)
 
     def __init__(self, main_window, initial_yt_dlp_version: str = "Unknown"):
@@ -575,125 +575,140 @@ class AdvancedSettingsTab(QWidget):
             t.start()
 
     def _on_version_fetched(self, ver):
-        is_nightly = "nightly" in ver.lower() or ".dev" in ver.lower()
+        # A nightly build can be identified by 'nightly', '.dev', or a version string with more than two dots (e.g., YYYY.MM.DD.HHMMSS)
+        is_nightly = "nightly" in ver.lower() or ".dev" in ver.lower() or ver.count('.') > 2
         channel_text = " (Nightly)" if is_nightly else " (Stable)"
         if ver == "Unknown":
             channel_text = ""
         self.version_lbl.setText(f"Current version: {ver}{channel_text}")
 
     def _update_yt_dlp(self):
-        """Run yt-dlp -U (or --update-to nightly) in a background thread."""
+        """
+        Checks for a yt-dlp update against GitHub, and if available, runs the
+        update process. This avoids running the updater unnecessarily.
+        """
+        self.update_btn.setEnabled(False)
+        self.update_btn.setText("Checking...")
+
+        # Run the check in a background thread to keep the UI responsive
+        thread = threading.Thread(target=self._run_yt_dlp_update_check, daemon=True)
+        thread.start()
+
+    def _run_yt_dlp_update_check(self):
+        """
+        Performs the logic for checking and potentially running the yt-dlp update.
+        This should be run in a background thread.
+        """
         import core.yt_dlp_worker
-        import shutil
-
-        target_exe = core.yt_dlp_worker._YT_DLP_PATH
-        if not target_exe:
-            core.yt_dlp_worker.check_yt_dlp_available()
-            target_exe = core.yt_dlp_worker._YT_DLP_PATH
-
-        if not target_exe:
-            target_exe = shutil.which("yt-dlp")
-
-        if not target_exe:
-            QMessageBox.critical(self, "Update Failed", "Could not locate yt-dlp executable to update.")
-            return
 
         channel = self.update_channel_combo.currentData()
+        repo_owner = "yt-dlp"
+        repo_name = "yt-dlp-nightly-builds" if channel == "nightly" else "yt-dlp"
 
-        cmd = [target_exe]
-        if channel == "nightly":
-            cmd.extend(["--update-to", "nightly"])
-        else:
-            cmd.append("-U")
+        try:
+            # 1. Get local version
+            local_version = core.yt_dlp_worker.get_yt_dlp_version(force_check=True)
+            if not local_version:
+                self.update_finished.emit(False, "Could not determine local yt-dlp version.")
+                return
 
-        self.update_btn.setEnabled(False)
-        self.update_btn.setText("Updating...")
+            # 2. Get remote version
+            release_info = get_latest_release(repo_owner, repo_name)
+            if not release_info:
+                self.update_finished.emit(False, "Could not fetch latest release info from GitHub.")
+                return
+            
+            remote_version = release_info.get('tag_name') or release_info.get('name') or ''
+            if not remote_version:
+                self.update_finished.emit(False, "Could not determine remote version from GitHub release.")
+                return
 
-        def run_update():
-            log.info(f"Starting yt-dlp update with command: {cmd}")
-            try:
-                creation_flags = 0
-                if sys.platform == "win32" and getattr(sys, "frozen", False):
-                    creation_flags = subprocess.CREATE_NO_WINDOW
+            # 3. Compare versions
+            if _compare_versions(local_version, remote_version) != -1:
+                # Local is greater than or equal to remote
+                self.update_finished.emit(True, "yt-dlp is already up to date.")
+                return
 
+            # 4. If we get here, an update is needed. Proceed with the update process.
+            self.update_btn.setText("Updating...")
+            
+            target_exe = core.yt_dlp_worker._YT_DLP_PATH
+            if not target_exe:
+                self.update_finished.emit(False, "Could not locate yt-dlp executable to update.")
+                return
+
+            update_args = ["--update-to", channel] if channel == "nightly" else ["-U"]
+            cmd_list = [target_exe] + update_args
+
+            # On Windows, launch detached and start monitor.
+            if sys.platform == "win32":
+                creation_flags = subprocess.CREATE_NO_WINDOW
+                subprocess.Popen(
+                    cmd_list, 
+                    creationflags=creation_flags, 
+                    stdout=subprocess.DEVNULL, 
+                    stderr=subprocess.DEVNULL, 
+                    close_fds=True
+                )
+                monitor_thread = threading.Thread(target=self._monitor_update_completion, args=(local_version,), daemon=True)
+                monitor_thread.start()
+            else:
+                # On other platforms, run synchronously and get result.
                 proc = subprocess.run(
-                    cmd,
+                    cmd_list,
                     capture_output=True,
                     text=True,
-                    creationflags=creation_flags,
                     stdin=subprocess.DEVNULL,
                     timeout=120
                 )
-
                 success = proc.returncode == 0
                 output = proc.stdout + "\n" + proc.stderr
-                log.info(f"Update finished. Success: {success}. Output len: {len(output)}")
-
                 self.update_finished.emit(success, output)
-            except subprocess.TimeoutExpired:
-                log.error("Update timed out")
-                self.update_finished.emit(False, "Update timed out after 120 seconds.")
-            except Exception as e:
-                log.exception("Update failed with exception")
-                self.update_finished.emit(False, str(e))
 
-        t = threading.Thread(target=run_update, daemon=True)
-        t.start()
+        except Exception as e:
+            log.exception("yt-dlp update check failed with an exception.")
+            self.update_finished.emit(False, f"An error occurred: {e}")
+
+    def _monitor_update_completion(self, original_version):
+        """
+        Polls in the background to see if the yt-dlp version has changed.
+        This is used on Windows where the update process is detached.
+        """
+        import core.yt_dlp_worker
+        start_time = time.time()
+        timeout = 120  # 2 minutes
+
+        while time.time() - start_time < timeout:
+            time.sleep(2)  # Check every 2 seconds
+            
+            new_version = core.yt_dlp_worker.get_yt_dlp_version(force_check=True)
+            
+            if new_version and new_version != original_version:
+                log.info(f"yt-dlp update detected: {original_version} -> {new_version}")
+                self.update_finished.emit(True, f"Successfully updated to version {new_version}")
+                return
+
+        # If the loop finishes, it timed out
+        log.warning("yt-dlp update check timed out.")
+        self.update_finished.emit(False, "Update check timed out after 2 minutes. Please check your connection or try again.")
 
     def _on_update_finished(self, success, message):
         self.update_btn.setEnabled(True)
         self.update_btn.setText("Update yt-dlp")
 
-        channel = self.update_channel_combo.currentData()
-        channel_name = "Nightly" if channel == "nightly" else "Stable"
-
-        msg_lower = message.lower()
-        if "pip" in msg_lower and ("installed" in msg_lower or "package manager" in msg_lower):
-            self._update_via_pip(channel)
-            return
-
-        if message.startswith("PIP_UPDATE:"):
-            message = message.replace("PIP_UPDATE:", "", 1)
-            if success or "requirement already satisfied" in message.lower():
-                if "requirement already satisfied" in message.lower():
-                    msg_title = "Already Up to Date"
-                    msg_body = f"yt-dlp ({channel_name}) is already at the latest version (via pip).\n\nOutput:\n{message}"
-                else:
-                    msg_title = "Update Successful"
-                    msg_body = f"yt-dlp has been updated via pip to the latest {channel_name} version.\n\nOutput:\n{message}"
-
-                icon = QMessageBox.Icon.Information
-                msg = QMessageBox(self)
-                msg.setWindowTitle(msg_title)
-                msg.setText(msg_body)
-                msg.setIcon(icon)
-                msg.exec()
-
-                self._refresh_version_label()
-            else:
-                QMessageBox.warning(self, "Update Failed", f"Pip update command failed.\n\nOutput:\n{message}")
-            return
-
         if success:
             if "is up to date" in message:
                 msg_title = "Already Up to Date"
-                msg_body = f"yt-dlp ({channel_name}) is already at the latest version.\n\nOutput:\n{message}"
-                icon = QMessageBox.Icon.Information
+                msg_body = "yt-dlp is already at the latest version."
+                QMessageBox.information(self, msg_title, msg_body)
+                # No further action needed, label is already correct.
             else:
                 msg_title = "Update Successful"
-                msg_body = f"yt-dlp has been updated to the latest {channel_name} version.\n\nOutput:\n{message}"
-                icon = QMessageBox.Icon.Information
-
-            msg = QMessageBox(self)
-            msg.setWindowTitle(msg_title)
-            msg.setText(msg_body)
-            msg.setIcon(icon)
-            msg.exec()
-
-            self._refresh_version_label()
+                msg_body = message
+                QMessageBox.information(self, msg_title, msg_body)
+                self._refresh_version_label()
         else:
-            QMessageBox.warning(self, "Update Failed",
-                                f"Update command failed.\n\nOutput:\n{message}\n\nNote: If yt-dlp is installed in a protected directory, you may need to run this app as Administrator.")
+            QMessageBox.warning(self, "Update Failed", message)
 
     def _on_subs_lang_changed(self, index):
         lang_code = self.subs_lang_combo.itemData(index)
@@ -924,24 +939,38 @@ class AdvancedSettingsTab(QWidget):
 
         def run_update():
             try:
-                path = download_gallery_dl_update()
-                if path:
-                    self.gallery_dl_update_finished.emit(True, f"gallery-dl updated successfully to {path}")
-                else:
-                    self.gallery_dl_update_finished.emit(False, "Update failed or was not necessary.")
+                status, message = download_gallery_dl_update()
+                self.gallery_dl_update_finished.emit(status, message)
             except Exception as e:
                 log.exception("gallery-dl update failed with exception")
-                self.gallery_dl_update_finished.emit(False, str(e))
+                self.gallery_dl_update_finished.emit("failed", str(e))
 
         t = threading.Thread(target=run_update, daemon=True)
         t.start()
 
-    def _on_gallery_dl_update_finished(self, success, message):
+    def _on_gallery_dl_update_finished(self, status, message):
         self.gallery_update_btn.setEnabled(True)
         self.gallery_update_btn.setText("Update gallery-dl")
         
-        if success:
+        if status == "success":
             QMessageBox.information(self, "Update Successful", message)
             self._fetch_gallery_dl_version() # Refresh version label
+        elif status == "up_to_date":
+            QMessageBox.information(self, "Up to Date", message)
         else:
             QMessageBox.warning(self, "Update Failed", message)
+    
+    def _refresh_version_label(self):
+        """Refreshes the yt-dlp version label by re-running the version check."""
+        import core.yt_dlp_worker
+        
+        self.version_lbl.setText("Current version: (checking...)")
+        def do_refresh():
+            # This forces a re-check of the yt-dlp version
+            new_version = core.yt_dlp_worker.get_yt_dlp_version(force_check=True)
+            if new_version:
+                self.version_fetched.emit(new_version)
+
+        # Run the refresh in a background thread to avoid blocking the UI
+        t = threading.Thread(target=do_refresh, daemon=True)
+        t.start()

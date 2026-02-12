@@ -55,6 +55,8 @@ def main():
     logging.info("Starting Media Downloader...")
 
     try:
+        config_manager = ConfigManager()
+
         def log_binary_sources():
             from core.binary_manager import get_bundled_binary_path, get_system_binary_path, get_ffmpeg_location
             names = ["yt-dlp", "gallery-dl", "ffmpeg", "ffprobe", "aria2c", "deno"]
@@ -75,49 +77,9 @@ def main():
             else:
                 logging.warning("yt-dlp ffmpeg location could not be resolved.")
 
-        log_binary_sources()
-
-        app = QApplication(sys.argv)
-        
-        # Initialize ConfigManager
-        config_manager = ConfigManager()
-
-        # Apply theme based on settings using pyqtdarktheme
-        theme = config_manager.get("General", "theme", fallback="auto")
-        # Map legacy "system" to "auto"
-        if theme == "system":
-            theme = "auto"
-            
-        try:
-            import qdarktheme
-            if hasattr(qdarktheme, 'setup_theme'):
-                qdarktheme.setup_theme(theme)
-            elif hasattr(qdarktheme, 'load_stylesheet'):
-                # Fallback for older versions or different libs
-                if theme == 'auto':
-                    theme_to_load = _get_system_theme()
-                else:
-                    theme_to_load = theme
-                app.setStyleSheet(qdarktheme.load_stylesheet(theme_to_load))
-            else:
-                logging.error("qdarktheme module found but has no setup_theme or load_stylesheet")
-                app.setStyle("Fusion")
-        except ImportError:
-            logging.warning("pyqtdarktheme not found. Theme will default to system style.")
-            app.setStyle("Fusion")
-        except Exception as e:
-            logging.error(f"Failed to apply theme '{theme}': {e}")
-            app.setStyle("Fusion")
-        
-        # Get stored yt-dlp version
-        initial_yt_dlp_version = config_manager.get("General", "yt_dlp_version", fallback="Unknown")
-
-        wnd = MediaDownloaderApp(config_manager=config_manager, initial_yt_dlp_version=initial_yt_dlp_version)
-        wnd.show()
-
         def auto_update_yt_dlp():
             """
-            Automatically updates yt-dlp on startup based on the configured channel.
+            Synchronously updates yt-dlp on startup before the GUI loads.
             """
             channel = config_manager.get("General", "yt_dlp_update_channel", fallback="nightly")
             if channel == "none":
@@ -148,6 +110,8 @@ def main():
                 cmd.append("-U")
 
             try:
+                # Since the GUI is not running, a synchronous call is safe on all platforms.
+                # For frozen Windows apps, hide the console.
                 creation_flags = 0
                 if sys.platform == "win32" and getattr(sys, "frozen", False):
                     creation_flags = subprocess.CREATE_NO_WINDOW
@@ -167,7 +131,6 @@ def main():
                         logging.info(f"yt-dlp is already up to date on the '{channel}' channel.")
                     else:
                         logging.info(f"yt-dlp successfully updated on the '{channel}' channel.")
-                        refresh_yt_dlp_version() # Refresh version after update
                 else:
                     logging.error(f"yt-dlp auto-update failed. Output:\n{output}")
 
@@ -178,48 +141,61 @@ def main():
 
         def auto_update_gallery_dl():
             """
-            Automatically updates gallery-dl on startup.
+            Synchronously updates gallery-dl on startup.
             """
             from core.update_manager import download_gallery_dl_update
             logging.info("Starting automatic gallery-dl update.")
             try:
-                path = download_gallery_dl_update()
-                if path:
-                    logging.info(f"gallery-dl successfully updated to {path}")
-                    if hasattr(wnd, 'tab_advanced'):
-                        wnd.tab_advanced._fetch_gallery_dl_version()
+                status, message = download_gallery_dl_update()
+                if status == 'success':
+                    logging.info(f"gallery-dl update status: {status}, message: {message}")
+                elif status == 'up_to_date':
+                    logging.info(message)
                 else:
-                    logging.info("gallery-dl is up to date or update failed.")
+                    logging.warning(f"gallery-dl update status: {status}, message: {message}")
             except Exception as e:
                 logging.exception("gallery-dl auto-update failed with an exception.")
 
-        #--- Function to check for new yt-dlp version in a background thread ---
-        def refresh_yt_dlp_version():
-            logging.info("Checking for yt-dlp version in background...")
-            from core.yt_dlp_worker import get_yt_dlp_version
+        # --- Run startup tasks synchronously before creating the GUI ---
+        log_binary_sources()
+        auto_update_yt_dlp()
+        auto_update_gallery_dl()
+        
+        # --- Create and run the application ---
+        app = QApplication(sys.argv)
+        
+        # Apply theme based on settings
+        theme = config_manager.get("General", "theme", fallback="auto")
+        if theme == "system":
+            theme = "auto"
             
-            try:
-                current_version = get_yt_dlp_version()
-                if current_version and current_version != initial_yt_dlp_version:
-                    logging.info(f"yt-dlp version changed from '{initial_yt_dlp_version}' to '{current_version}'. Updating config and UI.")
-                    # Save to config
-                    config_manager.set("General", "yt_dlp_version", current_version)
-                    # Update UI
-                    if hasattr(wnd, 'tab_advanced'):
-                        wnd.tab_advanced.version_fetched.emit(current_version)
-                elif not current_version:
-                    logging.warning("Could not fetch current yt-dlp version.")
+        try:
+            import qdarktheme
+            if hasattr(qdarktheme, 'setup_theme'):
+                qdarktheme.setup_theme(theme)
+            elif hasattr(qdarktheme, 'load_stylesheet'):
+                if theme == 'auto':
+                    theme_to_load = _get_system_theme()
                 else:
-                    logging.info(f"yt-dlp version is up to date: {current_version}")
-            except Exception as e:
-                logging.error(f"Error checking for yt-dlp version in background: {e}", exc_info=True)
+                    theme_to_load = theme
+                app.setStyleSheet(qdarktheme.load_stylesheet(theme_to_load))
+            else:
+                logging.error("qdarktheme module found but has no setup_theme or load_stylesheet")
+                app.setStyle("Fusion")
+        except ImportError:
+            logging.warning("pyqtdarktheme not found. Theme will default to system style.")
+            app.setStyle("Fusion")
+        except Exception as e:
+            logging.error(f"Failed to apply theme '{theme}': {e}")
+            app.setStyle("Fusion")
+        
+        # Get the yt-dlp version *after* the update has run
+        from core.yt_dlp_worker import get_yt_dlp_version
+        initial_yt_dlp_version = get_yt_dlp_version(force_check=True)
+        config_manager.set("General", "yt_dlp_version", initial_yt_dlp_version)
 
-        # Start the auto-update and version check in a separate thread
-        update_thread = threading.Thread(target=auto_update_yt_dlp, daemon=True)
-        update_thread.start()
-
-        gallery_dl_update_thread = threading.Thread(target=auto_update_gallery_dl, daemon=True)
-        gallery_dl_update_thread.start()
+        wnd = MediaDownloaderApp(config_manager=config_manager, initial_yt_dlp_version=initial_yt_dlp_version)
+        wnd.show()
 
         sys.exit(app.exec())
     except Exception as e:

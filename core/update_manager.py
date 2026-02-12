@@ -61,13 +61,16 @@ def _compare_versions(local: str, remote: str) -> int:
     """
     a = _normalize_version(local)
     b = _normalize_version(remote)
+    
     # lexicographic compare padded by zeros
     la, lb = len(a), len(b)
     n = max(la, lb)
     a = a + (0,) * (n - la)
     b = b + (0,) * (n - lb)
+    
     if a == b:
         return 0
+    
     return -1 if a < b else 1
 
 
@@ -393,7 +396,7 @@ def check_for_gallery_dl_update() -> Tuple[bool, Optional[str], Optional[dict]]:
 
     Returns a tuple: (is_newer_available, latest_version_tag, asset_dict_or_None)
     """
-    owner, repo = "gallery-dl", "gallery-dl"
+    owner, repo = "mikf", "gallery-dl"
     current_version = get_gallery_dl_version()
     if not current_version:
         # If we can't determine the current version, we can't compare.
@@ -415,25 +418,39 @@ def check_for_gallery_dl_update() -> Tuple[bool, Optional[str], Optional[dict]]:
     return is_newer, tag, asset
 
 
-def download_gallery_dl_update(progress_callback=None) -> Optional[str]:
+def download_gallery_dl_update(progress_callback=None) -> Tuple[str, str]:
     """
     Checks for a gallery-dl update, and if one is available, downloads it
     to the correct binary path.
 
-    Returns the path to the downloaded file if successful, otherwise None.
+    Returns a tuple of (status, message).
+    status can be: 'success', 'up_to_date', 'no_asset', 'check_failed', 'failed'.
     """
-    is_newer, tag, asset = check_for_gallery_dl_update()
-    if not is_newer or not asset:
-        log.info("gallery-dl is up to date or no update asset found.")
-        return None
+    try:
+        is_newer, tag, asset = check_for_gallery_dl_update()
+    except Exception as e:
+        log.exception("Failed to check for gallery-dl update.")
+        return "check_failed", f"Failed to check for updates: {e}"
+
+    current_version = get_gallery_dl_version() or "unknown"
+
+    if not tag:
+        log.warning("Could not determine latest gallery-dl version from GitHub.")
+        return "check_failed", "Could not determine the latest version from GitHub."
+
+    if not is_newer:
+        log.info(f"gallery-dl is up to date (current: {current_version}, latest: {tag}).")
+        return "up_to_date", f"gallery-dl is already up to date (version {current_version})."
+
+    if not asset:
+        log.warning(f"Found newer gallery-dl version {tag}, but no suitable asset was found for this platform.")
+        return "no_asset", f"A new version ({tag}) is available, but a compatible file for your system was not found."
 
     binary_path = get_binary_path("gallery-dl")
     if not binary_path:
         log.error("Could not determine path for gallery-dl binary.")
-        return None
+        return "failed", "Could not determine the path for the gallery-dl binary."
 
-    target_dir = os.path.dirname(binary_path)
-    
     # Create a temporary file to download to, then move it into place.
     # This is safer than downloading directly to the final destination.
     temp_dir = tempfile.mkdtemp(prefix="gallery-dl-update-")
@@ -462,19 +479,19 @@ def download_gallery_dl_update(progress_callback=None) -> Optional[str]:
             if os.path.exists(backup_path):
                 os.remove(backup_path)
 
-            return binary_path
+            return "success", f"gallery-dl successfully updated to version {tag}."
         except Exception as e:
             log.exception(f"Failed to move downloaded gallery-dl into place: {e}")
             # Try to restore backup
             if os.path.exists(backup_path):
                 shutil.move(backup_path, binary_path)
-            return None
+            return "failed", f"Failed to move downloaded file: {e}"
         finally:
             shutil.rmtree(temp_dir)
     else:
         log.error("Failed to download gallery-dl update.")
         shutil.rmtree(temp_dir)
-        return None
+        return "failed", "Failed to download the update."
 
 
 if __name__ == '__main__':
