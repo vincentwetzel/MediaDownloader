@@ -22,15 +22,15 @@ class DownloadManager(QObject):
     download_error = pyqtSignal(str, str)
     video_quality_warning = pyqtSignal(str, str)
 
-    def __init__(self):
+    def __init__(self, config_manager):
         super().__init__()
         self.active_downloads = []
         # Queue for downloads waiting to start due to concurrency limits
         self._pending_queue = []
         # Map url -> original opts passed when starting the download
         self._original_opts = {}
-        self.config = ConfigManager()
-        self.archive_manager = ArchiveManager()
+        self.config = config_manager
+        self.archive_manager = ArchiveManager(self.config)
         # Check yt-dlp availability on initialization
         is_available, status_msg = check_yt_dlp_available()
         log.info(f"DownloadManager initialized. yt-dlp check: {status_msg}")

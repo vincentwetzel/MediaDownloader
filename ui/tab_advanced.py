@@ -7,6 +7,7 @@ import time
 
 from core.version import __version__ as APP_VERSION
 from core.update_manager import get_gallery_dl_version, download_gallery_dl_update, get_latest_release, _compare_versions
+from core.archive_manager import ArchiveManager
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox, QCheckBox, QFileDialog, QMessageBox, QLineEdit,
@@ -33,6 +34,7 @@ class AdvancedSettingsTab(QWidget):
         super().__init__()
         self.main = main_window
         self.config = main_window.config_manager
+        self.archive_manager = ArchiveManager(self.config, self)
 
         # Connect signals to slots
         self.update_finished.connect(self._on_update_finished)
@@ -300,6 +302,33 @@ class AdvancedSettingsTab(QWidget):
         options_group.addWidget(self.restrict_cb)
 
         layout.addWidget(build_media_group(self))
+
+        # Download Archive Group
+        archive_group = add_group("Download Archive")
+        
+        archive_row = QHBoxLayout()
+        self.archive_cb = QCheckBox("Use Download Archive")
+        self.archive_cb.setToolTip("Keep a record of downloaded files to prevent re-downloading them.")
+        archive_val = self.config.get("General", "download_archive", fallback="False")
+        self.archive_cb.setChecked(str(archive_val) == "True")
+        self.archive_cb.stateChanged.connect(
+            lambda s: self._save_general("download_archive", str(bool(s)))
+        )
+        
+        self.view_archive_btn = QPushButton("View Archive")
+        self.view_archive_btn.setToolTip("View the contents of the download archive file.")
+        self.view_archive_btn.clicked.connect(self.archive_manager.view_archive)
+        
+        self.clear_archive_btn = QPushButton("Clear Archive")
+        self.clear_archive_btn.setToolTip("Clear the download archive file.")
+        self.clear_archive_btn.clicked.connect(self.archive_manager.clear_archive)
+        
+        archive_row.addWidget(self.archive_cb)
+        archive_row.addStretch()
+        archive_row.addWidget(self.view_archive_btn)
+        archive_row.addWidget(self.clear_archive_btn)
+        
+        archive_group.addLayout(archive_row)
 
         updates_group = add_group("Updates")
 
@@ -817,6 +846,10 @@ class AdvancedSettingsTab(QWidget):
 
             default_template = "%(title)s [%(uploader)s][%(upload_date>%m-%d-%Y)s][%(id)s].%(ext)s"
             self.pattern_input.setText(default_template)
+            
+            # Reset download archive
+            self.archive_cb.setChecked(False)
+            self._save_general("download_archive", "False")
 
             start_tab = getattr(self.main, "tab_start", None)
             if start_tab:

@@ -13,6 +13,10 @@ class ConfigManager:
         self.config = configparser.ConfigParser(interpolation=None)
         self.load_config()
 
+    def get_config_dir(self):
+        """Returns the directory where the config file is stored."""
+        return os.path.dirname(os.path.abspath(self.ini_path))
+
     def load_config(self):
         if not os.path.exists(self.ini_path):
             self._set_defaults()
@@ -36,8 +40,8 @@ class ConfigManager:
             "video_ext": "mp4",
             "vcodec": "h264",
             "audio_quality": "best",
-            "audio_ext": "mp3",
-            "acodec": "aac",
+            "audio_ext": "opus",
+            "acodec": "opus",
             "max_threads": "2",
             "sponsorblock": "True",
             "restrict_filenames": "False",
@@ -54,6 +58,7 @@ class ConfigManager:
             "subtitles_write_auto": "False",
             "subtitles_langs": "en",
             "subtitles_format": "None",
+            "download_archive": "False",
         }
         self.config["Paths"] = {
             "completed_downloads_directory": "",
@@ -69,8 +74,8 @@ class ConfigManager:
             "video_ext": "mp4",
             "vcodec": "h264",
             "audio_quality": "best",
-            "audio_ext": "mp3",
-            "acodec": "aac",
+            "audio_ext": "opus",
+            "acodec": "opus",
             "max_threads": "2",
             "sponsorblock": "True",
             "restrict_filenames": "False",
@@ -87,10 +92,11 @@ class ConfigManager:
             "subtitles_write_auto": "False",
             "subtitles_langs": "en",
             "subtitles_format": "None",
+            "download_archive": "False",
         }
         for key, value in general_defaults.items():
-            if key not in self.config["General"]:
-                self.config["General"][key] = value
+            if not self.config.has_option("General", key):
+                self.config.set("General", key, value)
                 log.debug(f"Added missing default General setting: {key}={value}")
 
         # Paths section defaults
@@ -99,14 +105,12 @@ class ConfigManager:
             "temporary_downloads_directory": "",
         }
         for key, value in paths_defaults.items():
-            if key not in self.config["Paths"]:
-                self.config["Paths"][key] = value
+            if not self.config.has_option("Paths", key):
+                self.config.set("Paths", key, value)
                 log.debug(f"Added missing default Paths setting: {key}={value}")
         
         # Save config if any defaults were added
-        if any(key not in self.config["General"] for key in general_defaults) or \
-           any(key not in self.config["Paths"] for key in paths_defaults):
-            self.save()
+        self.save()
 
 
     def save(self):

@@ -1,11 +1,14 @@
 import os
 import logging
 from core.binary_manager import get_binary_path
+from core.archive_manager import ArchiveManager
 
 log = logging.getLogger(__name__)
 
 def build_yt_dlp_args(opts, config_manager):
     """Convert options dict to list of command-line arguments for yt-dlp."""
+    archive_manager = ArchiveManager(config_manager)
+
     if isinstance(opts, list):
         return opts  # Already a list
 
@@ -60,12 +63,14 @@ def build_yt_dlp_args(opts, config_manager):
     args.append("--newline")
     # Force utf-8 encoding for stdout/stderr to avoid character mapping issues
     args.extend(["--encoding", "utf-8"])
+    # Continue on download errors
+    args.append("--ignore-errors")
 
     # --- Audio/Video Format Selection ---
     audio_only = opts.get("audio_only")
 
     if audio_only:
-        audio_codec = opts.get("audio_codec") or config_manager.get("General", "audio_codec", fallback="")
+        audio_codec = opts.get("acodec") or config_manager.get("General", "acodec", fallback="")
         format_string = "bestaudio/best"
         if audio_codec:
             # Prioritize the selected codec, but fall back to bestaudio if not available
@@ -97,7 +102,7 @@ def build_yt_dlp_args(opts, config_manager):
             except ValueError:
                 log.warning(f"Invalid video quality format: {video_quality}, ignoring.")
 
-        video_codec = opts.get("video_codec") or config_manager.get("General", "video_codec", fallback="")
+        video_codec = opts.get("vcodec") or config_manager.get("General", "vcodec", fallback="")
         if video_codec:
             # Use `~=` for fuzzy matching (e.g., avc1.xxxxxx matches avc1)
             video_format_parts.append(f"[vcodec~={video_codec}]")
@@ -108,7 +113,7 @@ def build_yt_dlp_args(opts, config_manager):
 
         # Audio format parts (for the audio component of the video)
         audio_format_parts = []
-        audio_codec = opts.get("audio_codec") or config_manager.get("General", "audio_codec", fallback="")
+        audio_codec = opts.get("video_acodec") or config_manager.get("General", "video_acodec", fallback="")
         if audio_codec:
             audio_format_parts.append(f"[acodec~={audio_codec}]")
 
@@ -187,5 +192,11 @@ def build_yt_dlp_args(opts, config_manager):
     else:
         log.debug("No valid JavaScript runtime found (neither configured nor bundled).")
 
+    # --- Download Archive ---
+    if config_manager.get("General", "download_archive", fallback="False") == "True":
+        archive_path = archive_manager.get_archive_path()
+        if archive_path:
+            args.extend(["--download-archive", archive_path])
+            log.info(f"Using download archive at: {archive_path}")
 
     return args

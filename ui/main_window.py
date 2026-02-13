@@ -13,7 +13,6 @@ from PyQt6.QtGui import QDesktopServices
 
 from core.config_manager import ConfigManager
 from core.download_manager import DownloadManager
-from core.archive_manager import ArchiveManager
 from core.version import __version__ as APP_VERSION
 from core.playlist_expander import expand_playlist, is_likely_playlist, PlaylistExpansionError
 from ui.tab_start import StartTab
@@ -40,14 +39,7 @@ class MediaDownloaderApp(QMainWindow):
 
         # Core components
         self.config_manager = config_manager
-        self.download_manager = DownloadManager()
-        self.archive_manager = ArchiveManager()
-        # Ensure the download manager uses the same config instance so
-        # runtime changes to settings (e.g. max_threads) are seen immediately.
-        try:
-            self.download_manager.config = self.config_manager
-        except Exception:
-            pass
+        self.download_manager = DownloadManager(self.config_manager)
 
         # UI setup
         self.tabs = QTabWidget()
@@ -137,18 +129,6 @@ class MediaDownloaderApp(QMainWindow):
         except Exception:
             self._process = None
             self._last_io_counters = None
-
-        # Schedule archive purge
-        QTimer.singleShot(5000, self._purge_archive)
-
-    def _purge_archive(self):
-        """Purge old entries from the archive in a background thread."""
-        def _purge():
-            try:
-                self.archive_manager.purge_old_entries()
-            except Exception:
-                log.exception("Failed to purge archive")
-        threading.Thread(target=_purge, daemon=True).start()
 
     def _get_total_io_counters(self):
         """Get total IO counters for the main process and all its children."""
@@ -373,22 +353,6 @@ class MediaDownloaderApp(QMainWindow):
             self._handle_special_command(url, opts)
             return
 
-        # Check archive before adding download
-        if self.archive_manager.is_in_archive(url):
-            reply = QMessageBox.question(
-                self,
-                'Download Confirmation',
-                f'This URL is already in the archive:\n{url}\n\nDo you want to download it again?',
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.No
-            )
-            if reply == QMessageBox.StandardButton.No:
-                log.info(f"Skipping download of archived URL: {url}")
-                # We need to inform the UI that this download is "finished" so it can be removed from active view
-                # This is a bit of a hack, but it's the cleanest way to hook into the existing UI updates.
-                self.download_manager.download_finished.emit(url, False) # "False" indicates it wasn't a "successful" new download
-                return
-
         try:
             self.download_manager.add_download(url, opts)
         except Exception:
@@ -423,9 +387,7 @@ class MediaDownloaderApp(QMainWindow):
 
     def _on_download_finished(self, url, success):
         log.info(f"Download finished: {url}, success={success}")
-        if success:
-            self.archive_manager.add_to_archive(url)
-        else:
+        if not success:
             self._downloads_failed.append(url)
 
         if self._all_downloads_complete():

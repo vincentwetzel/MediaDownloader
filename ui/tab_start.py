@@ -13,6 +13,24 @@ log = logging.getLogger(__name__)
 
 
 class StartTab(QWidget):
+    GUI_MAPPING = {
+        "Opus": ["opus", "webm", "ogg"],
+        "AAC": ["m4a", "mp4", "aac"],
+        "FLAC": ["flac"],
+        "ALAC": ["m4a"],
+        "MP3": ["mp3"],
+        "Vorbis": ["ogg", "webm"],
+        "WAV": ["wav"]
+    }
+    VIDEO_GUI_MAPPING = {
+        "H.264 (AVC)": ["mp4", ["AAC", "MP3"]],
+        "H.265 (HEVC)": ["mp4", ["AAC", "AC3"]],
+        "VP9": ["webm", ["Opus", "Vorbis"]],
+        "AV1": ["webm", ["Opus"]],
+        "ProRes (Archive)": ["mov", ["PCM_S16LE"]], # Using PCM as a safe default for ProRes
+        "Theora": ["ogv", ["Vorbis"]]
+    }
+
     def __init__(self, main_window):
         super().__init__()
         self.main = main_window
@@ -98,34 +116,54 @@ class StartTab(QWidget):
         self.video_quality_combo.setToolTip("Preferred video quality.")
         self.video_quality_combo.currentTextChanged.connect(lambda v: self.config.set("General", "video_quality", v))
 
+        self.vcodec_combo = QComboBox()
+        # Manually map display names to codec values for yt-dlp
+        self.vcodec_map = {
+            "H.264 (AVC)": "h264",
+            "H.265 (HEVC)": "h265",
+            "VP9": "vp9",
+            "AV1": "av1",
+            "ProRes (Archive)": "prores",
+            "Theora": "theora"
+        }
+        for display_name in self.VIDEO_GUI_MAPPING.keys():
+            self.vcodec_combo.addItem(display_name, self.vcodec_map.get(display_name))
+        
+        cur_vcodec = self.config.get("General", "vcodec", "h264")
+        # Find the display name from the value
+        for display_name, codec_val in self.vcodec_map.items():
+            if codec_val == cur_vcodec:
+                self.vcodec_combo.setCurrentText(display_name)
+                break
+        self.vcodec_combo.setToolTip("Preferred video codec.")
+
         self.video_ext_combo = QComboBox()
-        for ex in ("mp4", "mkv", "webm", "avi", "flv", "mov"):
-            self.video_ext_combo.addItem(ex, ex)
-        cur_ext = self.config.get("General", "video_ext", "mp4")
-        if cur_ext:
-            self.video_ext_combo.setCurrentText(cur_ext)
         self.video_ext_combo.setToolTip("Preferred video file format.")
+
+        # New Audio Codec dropdown for Video Settings
+        self.video_acodec_combo = QComboBox()
+        self.video_acodec_combo.setToolTip("Preferred audio codec for the video.")
+
+        # Connect signals
+        self.vcodec_combo.currentTextChanged.connect(self._on_vcodec_changed)
+        self.vcodec_combo.currentIndexChanged.connect(
+            lambda idx: self.config.set("General", "vcodec", self.vcodec_combo.itemData(idx) or "")
+        )
         self.video_ext_combo.currentTextChanged.connect(
             lambda v: self.config.set("General", "video_ext", v or "")
         )
-
-        self.vcodec_combo = QComboBox()
-        for c in ("h264", "h265", "vp9", "av1"):
-            self.vcodec_combo.addItem(c, c)
-        cur_codec = self.config.get("General", "vcodec", "h264")
-        if cur_codec:
-            self.vcodec_combo.setCurrentText(cur_codec)
-        self.vcodec_combo.setToolTip("Preferred video codec (e.g., h264).")
-        self.vcodec_combo.currentTextChanged.connect(
-            lambda v: self.config.set("General", "vcodec", v or "")
+        self.video_acodec_combo.currentTextChanged.connect(
+            lambda v: self.config.set("General", "video_acodec", v or "")
         )
 
         vg_layout.addWidget(QLabel("Quality:"), 0, 0)
         vg_layout.addWidget(self.video_quality_combo, 0, 1)
-        vg_layout.addWidget(QLabel("Extension:"), 1, 0)
-        vg_layout.addWidget(self.video_ext_combo, 1, 1)
-        vg_layout.addWidget(QLabel("Codec:"), 2, 0)
-        vg_layout.addWidget(self.vcodec_combo, 2, 1)
+        vg_layout.addWidget(QLabel("Codec:"), 1, 0)
+        vg_layout.addWidget(self.vcodec_combo, 1, 1)
+        vg_layout.addWidget(QLabel("Extension:"), 2, 0)
+        vg_layout.addWidget(self.video_ext_combo, 2, 1)
+        vg_layout.addWidget(QLabel("Audio Codec:"), 3, 0)
+        vg_layout.addWidget(self.video_acodec_combo, 3, 1)
 
         # Audio settings
         ag = QGroupBox("Audio Settings")
@@ -145,34 +183,59 @@ class StartTab(QWidget):
             lambda idx: self.config.set("General", "audio_quality", self.audio_quality_combo.itemData(idx))
         )
 
+        self.acodec_combo = QComboBox()
+        ordered_codecs = ["Opus", "AAC", "FLAC", "ALAC", "MP3", "Vorbis", "WAV"]
+        for codec_name in ordered_codecs:
+            if codec_name in self.GUI_MAPPING:
+                self.acodec_combo.addItem(codec_name, codec_name.lower())
+        
+        curaud = self.config.get("General", "acodec", "opus")
+        if curaud:
+            index = self.acodec_combo.findData(curaud)
+            if index != -1:
+                self.acodec_combo.setCurrentIndex(index)
+        self.acodec_combo.setToolTip("Preferred audio codec.")
+
         self.audio_ext_combo = QComboBox()
-        for ex in ("mp3", "m4a", "opus", "aac", "flac", "alac", "vorbis", "wav"):
-            self.audio_ext_combo.addItem(ex, ex)
-        cura = self.config.get("General", "audio_ext", "mp3")
-        if cura:
-            self.audio_ext_combo.setCurrentText(cura)
         self.audio_ext_combo.setToolTip("Preferred audio file format.")
+
+        self.acodec_combo.currentTextChanged.connect(self._on_acodec_changed)
+        self.acodec_combo.currentIndexChanged.connect(
+            lambda idx: self.config.set("General", "acodec", self.acodec_combo.itemData(idx) or "")
+        )
         self.audio_ext_combo.currentTextChanged.connect(
             lambda v: self.config.set("General", "audio_ext", v or "")
         )
 
-        self.acodec_combo = QComboBox()
-        for a in ("aac", "opus", "mp3", "vorbis", "flac", "alac"):
-            self.acodec_combo.addItem(a, a)
-        curaud = self.config.get("General", "acodec", "aac")
-        if curaud:
-            self.acodec_combo.setCurrentText(curaud)
-        self.acodec_combo.setToolTip("Preferred audio codec.")
-        self.acodec_combo.currentTextChanged.connect(
-            lambda v: self.config.set("General", "acodec", v or "")
-        )
+        # Initial population
+        self._on_vcodec_changed(self.vcodec_combo.currentText())
+        self._on_acodec_changed(self.acodec_combo.currentText())
+
+        # After populating, try to set the saved extensions
+        cur_vext = self.config.get("General", "video_ext")
+        if cur_vext:
+            self.video_ext_combo.setCurrentText(cur_vext)
+        
+        cur_vacodec = self.config.get("General", "video_acodec")
+        if cur_vacodec:
+            index = self.video_acodec_combo.findText(cur_vacodec, Qt.MatchFlag.MatchFixedString)
+            if index != -1:
+                self.video_acodec_combo.setCurrentIndex(index)
+        
+        cur_aext = self.config.get("General", "audio_ext")
+        if cur_aext:
+            index = self.audio_ext_combo.findText(cur_aext)
+            if index != -1:
+                item = self.audio_ext_combo.model().item(index)
+                if item and item.isEnabled():
+                    self.audio_ext_combo.setCurrentText(cur_aext)
 
         ag_layout.addWidget(QLabel("Quality:"), 0, 0)
         ag_layout.addWidget(self.audio_quality_combo, 0, 1)
-        ag_layout.addWidget(QLabel("Extension:"), 1, 0)
-        ag_layout.addWidget(self.audio_ext_combo, 1, 1)
-        ag_layout.addWidget(QLabel("Codec:"), 2, 0)
-        ag_layout.addWidget(self.acodec_combo, 2, 1)
+        ag_layout.addWidget(QLabel("Codec:"), 1, 0)
+        ag_layout.addWidget(self.acodec_combo, 1, 1)
+        ag_layout.addWidget(QLabel("Extension:"), 2, 0)
+        ag_layout.addWidget(self.audio_ext_combo, 2, 1)
 
         groups_row.addWidget(vg)
         groups_row.addWidget(ag)
@@ -190,7 +253,6 @@ class StartTab(QWidget):
         self.max_threads_combo = QComboBox()
         self.max_threads_combo.addItems([str(i) for i in range(1, 9)])
         
-        # Load max_threads from config, but cap it at 4 when loading
         saved_threads = self.config.get("General", "max_threads", "2")
         try:
             threads_val = int(saved_threads)
@@ -203,12 +265,8 @@ class StartTab(QWidget):
         
         self.max_threads_combo.setToolTip("Maximum concurrent downloads.")
         def _on_max_changed(t):
-            # Persist the new value (capped at 4 for persistence) and notify the download manager so it
-            # can immediately start more downloads if the limit increased.
-            # Note: Users can temporarily run more than 4 in the current session, but on restart it will revert to 4.
             try:
                 threads_val = int(t)
-                # Cap at 4 before saving to config for app restart
                 if threads_val > 4:
                     threads_val = 4
                 self.config.set("General", "max_threads", str(threads_val))
@@ -223,7 +281,6 @@ class StartTab(QWidget):
 
         self.max_threads_combo.currentTextChanged.connect(_on_max_changed)
 
-        # Add rate limit dropdown
         rate_limit_lbl = QLabel("Rate Limit:")
         rate_limit_lbl.setToolTip("Limit the download speed for each individual download (e.g., 5M for 5 MB/s).")
         self.rate_limit_combo = QComboBox()
@@ -246,11 +303,8 @@ class StartTab(QWidget):
         )
 
         self.exit_after_cb = QCheckBox("Exit after all downloads complete")
-        # Always start unchecked on app launch; do not persist this checkbox's state.
         self.exit_after_cb.setChecked(False)
         self.exit_after_cb.setToolTip("Automatically close app after all downloads finish.")
-        # Update runtime flag on change, but don't save to config file.
-        # Use boolean conversion of the state (non-zero => checked) to avoid Qt enum issues.
         self.exit_after_cb.stateChanged.connect(
             lambda s: setattr(self.main, "exit_after", (s != 0)))
 
@@ -270,7 +324,63 @@ class StartTab(QWidget):
         layout.addStretch()
         self.setLayout(layout)
 
-    # --- actions ---
+    def _on_vcodec_changed(self, codec_display_name):
+        if not codec_display_name:
+            return
+
+        mapping = self.VIDEO_GUI_MAPPING.get(codec_display_name)
+        if not mapping:
+            return
+
+        preferred_ext, supported_audio_codecs = mapping
+        
+        # Update video extension
+        self.video_ext_combo.blockSignals(True)
+        self.video_ext_combo.clear()
+        self.video_ext_combo.addItem(preferred_ext)
+        self.video_ext_combo.setCurrentText(preferred_ext)
+        self.video_ext_combo.blockSignals(False)
+        self.config.set("General", "video_ext", preferred_ext)
+
+        # Update audio codec dropdown for video
+        self.video_acodec_combo.blockSignals(True)
+        self.video_acodec_combo.clear()
+        for acodec in supported_audio_codecs:
+            self.video_acodec_combo.addItem(acodec, acodec.lower())
+        
+        # Select the first one as default if available
+        if self.video_acodec_combo.count() > 0:
+            self.video_acodec_combo.setCurrentIndex(0)
+            self.config.set("General", "video_acodec", self.video_acodec_combo.currentText())
+            
+        self.video_acodec_combo.blockSignals(False)
+
+    def _on_acodec_changed(self, codec_name):
+        if not codec_name:
+            return
+
+        valid_extensions = self.GUI_MAPPING.get(codec_name, [])
+        
+        current_ext = self.audio_ext_combo.currentText()
+
+        self.audio_ext_combo.blockSignals(True)
+        self.audio_ext_combo.clear()
+
+        for ext in valid_extensions:
+            self.audio_ext_combo.addItem(ext)
+        
+        if current_ext and current_ext in valid_extensions:
+            self.audio_ext_combo.setCurrentText(current_ext)
+        elif valid_extensions:
+            preferred_ext = valid_extensions[0]
+            self.audio_ext_combo.setCurrentText(preferred_ext)
+            
+        self.audio_ext_combo.blockSignals(False)
+        
+        current_selection = self.audio_ext_combo.currentText()
+        if current_selection:
+            self.config.set("General", "audio_ext", current_selection)
+
     def _on_download_clicked(self):
         from PyQt6.QtWidgets import QMessageBox
         from utils.validators import is_search_url
@@ -284,7 +394,6 @@ class StartTab(QWidget):
         if not urls:
             return
 
-        # Filter out search URLs
         valid_urls = []
         search_urls_found = []
         for url in urls:
@@ -293,7 +402,6 @@ class StartTab(QWidget):
             else:
                 valid_urls.append(url)
 
-        # If any search URLs were found, show a warning
         if search_urls_found:
             bad_urls_str = "\n".join(f"- {u}" for u in search_urls_found)
             QMessageBox.warning(
@@ -302,31 +410,37 @@ class StartTab(QWidget):
                 f"The following URLs appear to be search pages and cannot be downloaded:\n{bad_urls_str}\n\nPlease provide direct links to videos or playlists."
             )
 
-        # If there are no valid URLs left, stop here
         if not valid_urls:
             return
 
-        # Handle "View Formats" mode
         if self.download_type_combo.currentText() == "View Formats":
             self._show_formats_dialog(valid_urls)
             return
 
+        # Determine which audio codec to use based on download type
+        is_audio_only = self.download_type_combo.currentText() == "Audio Only"
+        
+        if is_audio_only:
+            audio_codec = self.acodec_combo.itemData(self.acodec_combo.currentIndex()) or ""
+        else:
+            # For video, use the audio codec from the video settings group
+            audio_codec = self.video_acodec_combo.itemData(self.video_acodec_combo.currentIndex()) or ""
+
         opts = {
-            "audio_only": self.download_type_combo.currentText() == "Audio Only",
+            "audio_only": is_audio_only,
             "use_gallery_dl": self.download_type_combo.currentText() == "Gallery",
             "video_quality": self.video_quality_combo.currentText(),
             "video_ext": self.video_ext_combo.currentText() or "",
-            "vcodec": self.vcodec_combo.currentText() or "",
+            "vcodec": self.vcodec_combo.itemData(self.vcodec_combo.currentIndex()) or "",
             "audio_quality": self.audio_quality_combo.itemData(self.audio_quality_combo.currentIndex()) or "best",
             "audio_ext": self.audio_ext_combo.currentText() or "",
-            "acodec": self.acodec_combo.currentText() or "",
+            "acodec": audio_codec,
             "playlist_mode": self.playlist_mode.currentText(),
             "rate_limit": self.rate_limit_combo.itemData(self.rate_limit_combo.currentIndex()),
         }
         self.main.start_downloads(valid_urls, opts)
 
     def _on_download_type_changed(self, text):
-        """Update button text and tooltip based on the selected download type."""
         if text == "View Formats":
             self.download_btn.setText("View Formats")
             self.download_btn.setToolTip("Display available download formats for the URL.")
@@ -336,26 +450,41 @@ class StartTab(QWidget):
         elif text == "Gallery":
             self.download_btn.setText("Download Gallery")
             self.download_btn.setToolTip("Start downloading image gallery from the URLs above.")
-        else:  # "Video"
+        else:
             self.download_btn.setText("Download Video")
             self.download_btn.setToolTip("Start downloading video from the URLs above.")
 
     def reset_to_defaults(self):
-        # Video settings
         self.video_quality_combo.setCurrentText(self.config.get("General", "video_quality", "best"))
+        
+        default_vcodec = self.config.get("General", "vcodec", "h264")
+        for display_name, codec_val in self.vcodec_map.items():
+            if codec_val == default_vcodec:
+                self.vcodec_combo.setCurrentText(display_name)
+                break
+        
+        self._on_vcodec_changed(self.vcodec_combo.currentText())
         self.video_ext_combo.setCurrentText(self.config.get("General", "video_ext", "mp4"))
-        self.vcodec_combo.setCurrentText(self.config.get("General", "vcodec", "h264"))
 
-        # Audio settings
         curaq = self.config.get("General", "audio_quality", "best")
         for i in range(self.audio_quality_combo.count()):
             if self.audio_quality_combo.itemData(i) == curaq:
                 self.audio_quality_combo.setCurrentIndex(i)
                 break
-        self.audio_ext_combo.setCurrentText(self.config.get("General", "audio_ext", "mp3"))
-        self.acodec_combo.setCurrentText(self.config.get("General", "acodec", "aac"))
+        
+        default_acodec = self.config.get("General", "acodec", "opus")
+        index = self.acodec_combo.findData(default_acodec)
+        if index != -1:
+            self.acodec_combo.setCurrentIndex(index)
+        
+        self._on_acodec_changed(self.acodec_combo.currentText())
+        default_aext = self.config.get("General", "audio_ext", "opus")
+        index = self.audio_ext_combo.findText(default_aext)
+        if index != -1:
+            item = self.audio_ext_combo.model().item(index)
+            if item and item.isEnabled():
+                self.audio_ext_combo.setCurrentText(default_aext)
 
-        # Rate limit
         saved_rate_limit = self.config.get("General", "rate_limit")
         if saved_rate_limit:
             index = self.rate_limit_combo.findData(saved_rate_limit)
@@ -367,7 +496,6 @@ class StartTab(QWidget):
             self.rate_limit_combo.setCurrentIndex(0)
 
     def _on_open_downloads_clicked(self):
-        """Safely open the downloads folder via Advanced tab."""
         adv = getattr(self.main, "tab_advanced", None)
         if adv and hasattr(adv, "open_downloads_folder"):
             adv.open_downloads_folder()
@@ -380,9 +508,8 @@ class StartTab(QWidget):
             )
 
     def _show_formats_dialog(self, urls):
-        """Display available download formats for the given URLs using yt-dlp -F"""
         from PyQt6.QtWidgets import QMessageBox
-        from core.yt_dlp_worker import check_yt_dlp_available, _YT_DLP_PATH
+        from core.yt_dlp_worker import _YT_DLP_PATH
         import shutil
         import sys
         
@@ -396,20 +523,13 @@ class StartTab(QWidget):
         
         url = urls[0]
         
-        # Find yt-dlp executable
-        yt_dlp_cmd = None
-        if _YT_DLP_PATH:
-            yt_dlp_cmd = _YT_DLP_PATH
-        else:
-            yt_dlp_cmd = shutil.which("yt-dlp") or "yt-dlp"
+        yt_dlp_cmd = _YT_DLP_PATH or shutil.which("yt-dlp") or "yt-dlp"
         
-        # Hide console window on Windows for compiled builds
         creation_flags = 0
         if sys.platform == "win32" and getattr(sys, "frozen", False):
             creation_flags = subprocess.CREATE_NO_WINDOW
         
         try:
-            # Run yt-dlp -F to get available formats
             cmd = [yt_dlp_cmd, "-F", url]
             result = subprocess.run(
                 cmd,
@@ -428,7 +548,6 @@ class StartTab(QWidget):
                 )
                 return
             
-            # Create and display a dialog with the formats
             dialog = QDialog(self)
             dialog.setWindowTitle(f"Available Formats - {url}")
             dialog.setGeometry(100, 100, 900, 600)
@@ -438,7 +557,6 @@ class StartTab(QWidget):
             text_edit = QTextEdit()
             text_edit.setReadOnly(True)
             text_edit.setPlainText(result.stdout)
-            text_edit.setFont(text_edit.font())  # Use monospace would be better, but using default
             
             close_btn = QPushButton("Close")
             close_btn.clicked.connect(dialog.accept)

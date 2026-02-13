@@ -1,66 +1,130 @@
-import os
 import logging
-import sqlite3
-import time
-from threading import Lock
+import os
+from PyQt6.QtWidgets import QMessageBox, QDialog, QVBoxLayout, QTextEdit, QPushButton
+import re
 
 log = logging.getLogger(__name__)
 
 class ArchiveManager:
-    def __init__(self, db_file='download_archive.db'):
-        # Place archive file in the parent directory of the 'core' directory
-        # which is the project root.
-        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        self.db_file = os.path.join(base_dir, db_file)
-        self.lock = Lock()
-        self._init_db()
+    def __init__(self, config_manager, parent_widget=None):
+        self.config_manager = config_manager
+        self.parent_widget = parent_widget
+        self.archive_filename = "download_archive.txt"
 
-    def _init_db(self):
-        try:
-            with sqlite3.connect(self.db_file) as conn:
-                cursor = conn.cursor()
-                cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS downloads (
-                        url TEXT PRIMARY KEY,
-                        timestamp REAL
-                    )
-                ''')
-                conn.commit()
-        except sqlite3.Error as e:
-            log.error(f"Failed to initialize archive database: {e}")
-
-    def is_in_archive(self, url):
-        with self.lock:
-            try:
-                with sqlite3.connect(self.db_file) as conn:
-                    cursor = conn.cursor()
-                    cursor.execute('SELECT 1 FROM downloads WHERE url = ?', (url.strip(),))
-                    return cursor.fetchone() is not None
-            except sqlite3.Error as e:
-                log.error(f"Failed to check archive: {e}")
-                return False
+    def get_archive_path(self):
+        """Returns the full path to the download archive file."""
+        config_dir = self.config_manager.get_config_dir()
+        if not config_dir:
+            return None
+        return os.path.join(config_dir, self.archive_filename)
 
     def add_to_archive(self, url):
-        with self.lock:
-            try:
-                with sqlite3.connect(self.db_file) as conn:
-                    cursor = conn.cursor()
-                    cursor.execute('INSERT OR REPLACE INTO downloads (url, timestamp) VALUES (?, ?)', (url.strip(), time.time()))
-                    conn.commit()
-                log.info(f"Added to archive: {url}")
-            except sqlite3.Error as e:
-                log.error(f"Failed to write to archive: {e}")
+        """Adds a video ID to the archive file."""
+        if self.config_manager.get("General", "download_archive", "False") != "True":
+            return
 
-    def purge_old_entries(self, max_age_seconds=31536000): # Default: 365 days
-        with self.lock:
+        archive_path = self.get_archive_path()
+        if not archive_path:
+            return
+
+        video_id = self._extract_video_id(url)
+        if not video_id:
+            log.warning(f"Could not extract video ID from URL: {url}")
+            return
+
+        try:
+            with open(archive_path, "a", encoding="utf-8") as f:
+                f.write(f"youtube {video_id}\n")
+            log.info(f"Added to archive: youtube {video_id}")
+        except Exception as e:
+            log.error(f"Failed to write to archive file: {e}")
+
+    def _extract_video_id(self, url):
+        """Extracts the YouTube video ID from a URL."""
+        patterns = [
+            r"(?:v=|\/)([0-9A-Za-z_-]{11}).*",
+            r"youtu\.be\/([0-9A-Za-z_-]{11})"
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, url)
+            if match:
+                return match.group(1)
+        return None
+
+    def view_archive(self):
+        """Displays the contents of the archive file in a dialog."""
+        archive_path = self.get_archive_path()
+        if not archive_path or not os.path.exists(archive_path):
+            QMessageBox.information(
+                self.parent_widget,
+                "Archive Not Found",
+                "The download archive file does not exist yet. It will be created when you download a file with the archive option enabled."
+            )
+            return
+
+        try:
+            with open(archive_path, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            dialog = QDialog(self.parent_widget)
+            dialog.setWindowTitle("Download Archive")
+            dialog.setGeometry(100, 100, 700, 500)
+            
+            layout = QVBoxLayout()
+            
+            text_edit = QTextEdit()
+            text_edit.setReadOnly(True)
+            text_edit.setPlainText(content)
+            
+            close_btn = QPushButton("Close")
+            close_btn.clicked.connect(dialog.accept)
+            
+            layout.addWidget(text_edit)
+            layout.addWidget(close_btn)
+            
+            dialog.setLayout(layout)
+            dialog.exec()
+
+        except Exception as e:
+            log.error(f"Failed to read or display archive file: {e}")
+            QMessageBox.critical(
+                self.parent_widget,
+                "Error",
+                f"An error occurred while trying to view the archive file:\n\n{str(e)}"
+            )
+
+    def clear_archive(self):
+        """Deletes the archive file after confirmation."""
+        archive_path = self.get_archive_path()
+        if not archive_path or not os.path.exists(archive_path):
+            QMessageBox.information(
+                self.parent_widget,
+                "Archive Not Found",
+                "The download archive is already empty."
+            )
+            return
+
+        reply = QMessageBox.question(
+            self.parent_widget,
+            "Confirm Clear",
+            "Are you sure you want to clear the download archive? This will remove the record of all previously downloaded files.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
             try:
-                cutoff = time.time() - max_age_seconds
-                with sqlite3.connect(self.db_file) as conn:
-                    cursor = conn.cursor()
-                    cursor.execute('DELETE FROM downloads WHERE timestamp < ?', (cutoff,))
-                    deleted_count = cursor.rowcount
-                    conn.commit()
-                if deleted_count > 0:
-                    log.info(f"Purged {deleted_count} old entries from archive.")
-            except sqlite3.Error as e:
-                log.error(f"Failed to purge old entries: {e}")
+                os.remove(archive_path)
+                log.info(f"Download archive cleared: {archive_path}")
+                QMessageBox.information(
+                    self.parent_widget,
+                    "Archive Cleared",
+                    "The download archive has been successfully cleared."
+                )
+            except Exception as e:
+                log.error(f"Failed to clear archive file: {e}")
+                QMessageBox.critical(
+                    self.parent_widget,
+                    "Error",
+                    f"An error occurred while trying to clear the archive file:\n\n{str(e)}"
+                )
