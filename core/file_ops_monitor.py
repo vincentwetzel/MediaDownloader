@@ -15,9 +15,9 @@ _original_shutil_move = shutil.move
 
 def _log_and_call(func_name, orig_func, *args, **kwargs):
     try:
-        log.warning(f"File op intercepted: {func_name} args={args} kwargs={kwargs}")
+        log.info(f"File op intercepted: {func_name} args={args} kwargs={kwargs}")
         stack = ''.join(traceback.format_stack(limit=8)[:-1])
-        log.warning(f"Call stack for {func_name}:\n{stack}")
+        log.debug(f"Call stack for {func_name}:\n{stack}")
     except Exception:
         pass
     return orig_func(*args, **kwargs)

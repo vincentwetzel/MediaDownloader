@@ -35,7 +35,7 @@ def check_yt_dlp_available():
 
     if not yt_dlp_path:
         _YT_DLP_PATH = None
-        return False, "yt-dlp executable not found in system PATH or bundled binaries."
+        return False, "yt-dlp executable not found in bundled binaries."
 
     try:
         log.debug(f"Attempting to verify yt-dlp at: {yt_dlp_path}")
@@ -77,7 +77,7 @@ def check_gallery_dl_available():
 
     if not gallery_dl_path:
         _GALLERY_DL_PATH = None
-        return False, "gallery-dl executable not found in system PATH or bundled binaries."
+        return False, "gallery-dl executable not found in bundled binaries."
 
     try:
         log.debug(f"Attempting to verify gallery-dl at: {gallery_dl_path}")
@@ -352,14 +352,13 @@ class DownloadWorker(QThread):
                     if aria2c_path:
                         cmd.extend(["--external-downloader", aria2c_path])
                     else:
-                        log.warning("aria2c not found in bundled binaries, falling back to PATH.")
-                        cmd.extend(["--external-downloader", "aria2c"])
+                        log.warning("aria2c not found in bundled binaries. Skipping external downloader.")
 
-                ffmpeg_location = get_ffmpeg_location(prefer_system=True)
+                ffmpeg_location = get_ffmpeg_location()
                 if ffmpeg_location:
                     cmd.extend(["--ffmpeg-location", ffmpeg_location])
                 else:
-                    log.warning("No ffmpeg location resolved. yt-dlp will rely on PATH.")
+                    log.warning("No bundled ffmpeg location resolved.")
 
                 cmd.append(self.url)
 

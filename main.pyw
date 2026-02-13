@@ -57,110 +57,6 @@ def main():
     try:
         config_manager = ConfigManager()
 
-        def log_binary_sources():
-            from core.binary_manager import get_bundled_binary_path, get_system_binary_path, get_ffmpeg_location
-            names = ["yt-dlp", "gallery-dl", "ffmpeg", "ffprobe", "aria2c", "deno"]
-            for name in names:
-                bundled = get_bundled_binary_path(name)
-                system = get_system_binary_path(name)
-                if bundled:
-                    logging.info("Bundled %s: %s", name, bundled)
-                else:
-                    logging.warning("Bundled %s not found.", name)
-                if system:
-                    logging.info("System %s: %s", name, system)
-                else:
-                    logging.info("System %s not found.", name)
-            ffmpeg_location = get_ffmpeg_location(prefer_system=True)
-            if ffmpeg_location:
-                logging.info("yt-dlp ffmpeg location resolved to: %s", ffmpeg_location)
-            else:
-                logging.warning("yt-dlp ffmpeg location could not be resolved.")
-
-        def auto_update_yt_dlp():
-            """
-            Synchronously updates yt-dlp on startup before the GUI loads.
-            """
-            channel = config_manager.get("General", "yt_dlp_update_channel", fallback="nightly")
-            if channel == "none":
-                logging.info("yt-dlp auto-update is disabled.")
-                return
-
-            logging.info(f"Starting automatic yt-dlp update for '{channel}' channel.")
-            
-            import core.yt_dlp_worker
-            import shutil
-
-            target_exe = core.yt_dlp_worker._YT_DLP_PATH
-            if not target_exe:
-                core.yt_dlp_worker.check_yt_dlp_available()
-                target_exe = core.yt_dlp_worker._YT_DLP_PATH
-
-            if not target_exe:
-                target_exe = shutil.which("yt-dlp")
-
-            if not target_exe:
-                logging.error("Could not locate yt-dlp executable for auto-update.")
-                return
-
-            cmd = [target_exe]
-            if channel == "nightly":
-                cmd.extend(["--update-to", "nightly"])
-            else:
-                cmd.append("-U")
-
-            try:
-                # Since the GUI is not running, a synchronous call is safe on all platforms.
-                # For frozen Windows apps, hide the console.
-                creation_flags = 0
-                if sys.platform == "win32" and getattr(sys, "frozen", False):
-                    creation_flags = subprocess.CREATE_NO_WINDOW
-
-                proc = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    creationflags=creation_flags,
-                    stdin=subprocess.DEVNULL,
-                    timeout=120
-                )
-
-                output = proc.stdout + "\n" + proc.stderr
-                if proc.returncode == 0:
-                    if "is up to date" in output:
-                        logging.info(f"yt-dlp is already up to date on the '{channel}' channel.")
-                    else:
-                        logging.info(f"yt-dlp successfully updated on the '{channel}' channel.")
-                else:
-                    logging.error(f"yt-dlp auto-update failed. Output:\n{output}")
-
-            except subprocess.TimeoutExpired:
-                logging.error("yt-dlp auto-update timed out.")
-            except Exception as e:
-                logging.exception("yt-dlp auto-update failed with an exception.")
-
-        def auto_update_gallery_dl():
-            """
-            Synchronously updates gallery-dl on startup.
-            """
-            from core.update_manager import download_gallery_dl_update
-            logging.info("Starting automatic gallery-dl update.")
-            try:
-                status, message = download_gallery_dl_update()
-                if status == 'success':
-                    logging.info(f"gallery-dl update status: {status}, message: {message}")
-                elif status == 'up_to_date':
-                    logging.info(message)
-                else:
-                    logging.warning(f"gallery-dl update status: {status}, message: {message}")
-            except Exception as e:
-                logging.exception("gallery-dl auto-update failed with an exception.")
-
-        # --- Run startup tasks synchronously before creating the GUI ---
-        log_binary_sources()
-        auto_update_yt_dlp()
-        auto_update_gallery_dl()
-        
         # --- Create and run the application ---
         app = QApplication(sys.argv)
         
@@ -189,7 +85,9 @@ def main():
             logging.error(f"Failed to apply theme '{theme}': {e}")
             app.setStyle("Fusion")
         
-        # Get the yt-dlp version *after* the update has run
+        # Get the yt-dlp version
+        # We do this after theme setup but before window show.
+        # Note: The heavy lifting of updates is now handled in background by main_window.
         from core.yt_dlp_worker import get_yt_dlp_version
         initial_yt_dlp_version = get_yt_dlp_version(force_check=True)
         config_manager.set("General", "yt_dlp_version", initial_yt_dlp_version)

@@ -904,16 +904,12 @@ class AdvancedSettingsTab(QWidget):
             log.warning("Template validation failed: unbalanced parentheses.")
             return False
 
-        import shutil
         import core.yt_dlp_worker
 
         target_exe = core.yt_dlp_worker._YT_DLP_PATH
         if not target_exe:
             core.yt_dlp_worker.check_yt_dlp_available()
             target_exe = core.yt_dlp_worker._YT_DLP_PATH
-
-        if not target_exe:
-            target_exe = shutil.which("yt-dlp")
 
         if not target_exe:
             log.warning("Could not find yt-dlp to validate template. Skipping advanced validation.")

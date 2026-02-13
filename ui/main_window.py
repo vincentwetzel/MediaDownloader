@@ -4,6 +4,8 @@ import html
 import sys
 import psutil
 import tempfile
+import shutil
+import subprocess
 from PyQt6.QtWidgets import (
     QWidget, QMainWindow, QVBoxLayout, QTabWidget,
     QMessageBox, QProgressDialog, QLabel, QHBoxLayout
@@ -29,6 +31,7 @@ class MediaDownloaderApp(QMainWindow):
     app_update_available = pyqtSignal(dict)
     update_progress = pyqtSignal(int)
     update_finished = pyqtSignal(bool, str)
+    startup_checks_complete = pyqtSignal()
 
     def __init__(self, config_manager: ConfigManager, initial_yt_dlp_version: str):
         super().__init__()
@@ -89,6 +92,7 @@ class MediaDownloaderApp(QMainWindow):
         self.app_update_available.connect(self._on_app_update_available)
         self.update_progress.connect(self._on_update_progress)
         self.update_finished.connect(self._on_update_finished)
+        self.startup_checks_complete.connect(self._on_startup_checks_complete)
 
         # Window close handling
         self._downloads_in_progress = False
@@ -129,6 +133,9 @@ class MediaDownloaderApp(QMainWindow):
         except Exception:
             self._process = None
             self._last_io_counters = None
+
+        # Perform startup checks (binaries, updates) in background
+        self._perform_startup_checks()
 
     def _get_total_io_counters(self):
         """Get total IO counters for the main process and all its children."""
@@ -551,6 +558,95 @@ class MediaDownloaderApp(QMainWindow):
         # Use original options where possible so yt-dlp can attempt to resume
         opts = self.download_manager._original_opts.get(url, [])
         self.download_manager.add_download(url, opts)
+
+    def _perform_startup_checks(self):
+        """Runs startup checks (binaries, updates) in a background thread."""
+        def _checks():
+            # 1. Log binary sources
+            try:
+                from core.binary_manager import get_bundled_binary_path, get_ffmpeg_location
+                names = ["yt-dlp", "gallery-dl", "ffmpeg", "ffprobe", "aria2c", "deno"]
+                for name in names:
+                    bundled = get_bundled_binary_path(name)
+                    if bundled:
+                        log.info("Bundled %s: %s", name, bundled)
+                    else:
+                        log.warning("Bundled %s not found.", name)
+                
+                ffmpeg_location = get_ffmpeg_location()
+                if ffmpeg_location:
+                    log.info("yt-dlp ffmpeg location resolved to: %s", ffmpeg_location)
+                else:
+                    log.warning("yt-dlp ffmpeg location could not be resolved.")
+            except Exception:
+                log.exception("Error logging binary sources")
+
+            # 2. Auto-update yt-dlp
+            try:
+                channel = self.config_manager.get("General", "yt_dlp_update_channel", fallback="nightly")
+                if channel != "none":
+                    log.info(f"Starting automatic yt-dlp update for '{channel}' channel.")
+                    import core.yt_dlp_worker
+                    
+                    target_exe = core.yt_dlp_worker._YT_DLP_PATH
+                    if not target_exe:
+                        core.yt_dlp_worker.check_yt_dlp_available()
+                        target_exe = core.yt_dlp_worker._YT_DLP_PATH
+                    
+                    if target_exe:
+                        cmd = [target_exe]
+                        if channel == "nightly":
+                            cmd.extend(["--update-to", "nightly"])
+                        else:
+                            cmd.append("-U")
+                            
+                        creation_flags = 0
+                        if sys.platform == "win32" and getattr(sys, "frozen", False):
+                            creation_flags = subprocess.CREATE_NO_WINDOW
+                            
+                        proc = subprocess.run(
+                            cmd,
+                            capture_output=True,
+                            text=True,
+                            creationflags=creation_flags,
+                            stdin=subprocess.DEVNULL,
+                            timeout=120
+                        )
+                        
+                        output = proc.stdout + "\n" + proc.stderr
+                        if proc.returncode == 0:
+                            if "is up to date" in output:
+                                log.info(f"yt-dlp is already up to date on the '{channel}' channel.")
+                            else:
+                                log.info(f"yt-dlp successfully updated on the '{channel}' channel.")
+                        else:
+                            log.error(f"yt-dlp auto-update failed. Output:\n{output}")
+            except Exception:
+                log.exception("yt-dlp auto-update failed")
+
+            # 3. Auto-update gallery-dl
+            try:
+                from core.update_manager import download_gallery_dl_update
+                log.info("Starting automatic gallery-dl update.")
+                status, message = download_gallery_dl_update()
+                if status == 'success':
+                    log.info(f"gallery-dl update status: {status}, message: {message}")
+                elif status == 'up_to_date':
+                    log.info(message)
+                else:
+                    log.warning(f"gallery-dl update status: {status}, message: {message}")
+            except Exception:
+                log.exception("gallery-dl auto-update failed")
+
+            self.startup_checks_complete.emit()
+
+        threading.Thread(target=_checks, daemon=True).start()
+
+    def _on_startup_checks_complete(self):
+        log.info("Startup checks complete. Refreshing versions...")
+        if hasattr(self, 'tab_advanced'):
+            self.tab_advanced._refresh_version_label()
+            self.tab_advanced._fetch_gallery_dl_version()
 
     # -------------------------------------------------------------------------
     # WINDOW CLOSE HANDLING

@@ -67,6 +67,7 @@ class ConfigManager:
         log.debug("Default configuration created")
 
     def _add_missing_defaults(self):
+        modified = False
         # Add any new default settings that might be missing from an older config file
         # General section defaults
         general_defaults = {
@@ -98,6 +99,7 @@ class ConfigManager:
             if not self.config.has_option("General", key):
                 self.config.set("General", key, value)
                 log.debug(f"Added missing default General setting: {key}={value}")
+                modified = True
 
         # Paths section defaults
         paths_defaults = {
@@ -108,9 +110,11 @@ class ConfigManager:
             if not self.config.has_option("Paths", key):
                 self.config.set("Paths", key, value)
                 log.debug(f"Added missing default Paths setting: {key}={value}")
+                modified = True
         
         # Save config if any defaults were added
-        self.save()
+        if modified:
+            self.save()
 
 
     def save(self):
@@ -132,5 +136,12 @@ class ConfigManager:
     def set(self, section, option, value):
         if not self.config.has_section(section):
             self.config.add_section(section)
-        self.config.set(section, option, value)
+        
+        # Check if value is actually different to avoid unnecessary disk writes
+        if self.config.has_option(section, option):
+            current_value = self.config.get(section, option)
+            if current_value == str(value):
+                return
+
+        self.config.set(section, option, str(value))
         self.save()

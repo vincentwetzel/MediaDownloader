@@ -9,7 +9,6 @@ import threading
 from core.config_manager import ConfigManager
 from PyQt6.QtCore import QObject, pyqtSignal
 from core.archive_manager import ArchiveManager
-from core.binary_manager import get_binary_path
 from urllib.parse import urlparse
 import re
 

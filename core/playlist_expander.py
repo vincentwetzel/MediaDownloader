@@ -5,6 +5,7 @@ import shutil
 import sys
 from yt_dlp.utils import DownloadError
 from core.yt_dlp_worker import _YT_DLP_PATH
+from core.binary_manager import get_binary_path
 
 # --- HIDE CONSOLE WINDOW for SUBPROCESS ---
 creation_flags = 0
@@ -49,7 +50,13 @@ def expand_playlist(url):
     blocking the GUI thread.
     """
     try:
-        yt_dlp_cmd = _YT_DLP_PATH if _YT_DLP_PATH else shutil.which("yt-dlp") or "yt-dlp"
+        yt_dlp_cmd = _YT_DLP_PATH
+        if not yt_dlp_cmd:
+             yt_dlp_cmd = get_binary_path("yt-dlp")
+        
+        if not yt_dlp_cmd:
+            log.error("yt-dlp binary not found for playlist expansion.")
+            raise PlaylistExpansionError("yt-dlp binary not found.")
         
         # Use --dump-single-json and --flat-playlist for efficient metadata extraction
         cmd = [
