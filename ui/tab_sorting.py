@@ -28,7 +28,7 @@ class SortingTab(QWidget):
 
         description = QLabel(
             "Create rules to automatically move downloaded files to specific folders based on metadata like uploader, title, or tags.\n"
-            "You can also define dynamic subfolder patterns using metadata tokens like {uploader} or {upload_year}."
+            "You can also define dynamic subfolder patterns using metadata tokens like {uploader}, {upload_year}, or {album}."
         )
         description.setWordWrap(True)
         layout.addWidget(description)
@@ -402,8 +402,10 @@ class RuleDialog(QDialog):
         # --- Populate and Connect ---
         browse_btn.clicked.connect(self.browse_path)
         
-        self.subfolder_pattern_edit.setPlaceholderText("e.g., {upload_year}/{uploader}")
-        self.subfolder_pattern_edit.setToolTip("Create dynamic subfolders using tokens like {upload_year}, {upload_month}, {uploader}, etc.")
+        self.subfolder_pattern_edit.setPlaceholderText("e.g., {upload_year}/{uploader} or {album}")
+        self.subfolder_pattern_edit.setToolTip(
+            "Create dynamic subfolders using tokens like {upload_year}, {upload_month}, {uploader}, or {album}."
+        )
         
         self.tokens_combo.addItem("Insert...")
         self.tokens_combo.addItem("Year {upload_year}", "{upload_year}")
@@ -412,9 +414,17 @@ class RuleDialog(QDialog):
         self.tokens_combo.addItem("Uploader {uploader}", "{uploader}")
         self.tokens_combo.addItem("Title {title}", "{title}")
         self.tokens_combo.addItem("ID {id}", "{id}")
+        self.tokens_combo.addItem("Album {album}", "{album}")
         self.tokens_combo.activated.connect(self.insert_token)
         
-        self.type_combo.addItems(["All Downloads", "Video Downloads", "Audio Downloads", "Gallery Downloads"])
+        self.type_combo.addItems([
+            "All Downloads",
+            "Video Downloads",
+            "Audio Downloads",
+            "Gallery Downloads",
+            "Video Playlist Downloads",
+            "Audio Playlist Downloads",
+        ])
         
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
@@ -431,7 +441,13 @@ class RuleDialog(QDialog):
 
             saved_type = rule.get('download_type') or 'All'
             if rule.get('audio_only', False) and saved_type == 'All': saved_type = 'Audio'
-            type_map = {"Video": 1, "Audio": 2, "Gallery": 3}
+            type_map = {
+                "Video": 1,
+                "Audio": 2,
+                "Gallery": 3,
+                "Video Playlist": 4,
+                "Audio Playlist": 5,
+            }
             self.type_combo.setCurrentIndex(type_map.get(saved_type, 0))
 
             # Populate conditions
@@ -483,7 +499,14 @@ class RuleDialog(QDialog):
 
     def get_data(self):
         # Type
-        type_map = {0: "All", 1: "Video", 2: "Audio", 3: "Gallery"}
+        type_map = {
+            0: "All",
+            1: "Video",
+            2: "Audio",
+            3: "Gallery",
+            4: "Video Playlist",
+            5: "Audio Playlist",
+        }
         download_type = type_map.get(self.type_combo.currentIndex(), "All")
         
         # Collect conditions

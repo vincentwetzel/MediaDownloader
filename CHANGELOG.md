@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Users can define custom subfolder structures using tokens like `{upload_year}`, `{upload_month}`, `{uploader}`, `{title}`, etc.
   - Example: `{upload_year}/{uploader}` will sort files into `Target Folder\2025\Agadmator`.
   - Existing date-based rules are automatically migrated to the pattern `{upload_year} - {upload_month}`.
+- **Playlist-Aware Sorting Rules**: Added playlist-specific sort targeting and playlist-name token insertion.
+  - Added two new **Rule Applies To** options: **Video Playlist Downloads** and **Audio Playlist Downloads**.
+  - Added a new subfolder insert token option: `%(playlist)s` to create dedicated folders per playlist name.
+  - Sorting subfolder patterns now support both `{token}` and `%(token)s` styles, including `%(playlist)s`.
 - **gallery-dl Support**: Added support for downloading image galleries using `gallery-dl`.
   - Added "Gallery" option to the Download Type dropdown in the Start tab.
   - Bundled `gallery-dl` binary.
@@ -28,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added browser cookie support for `gallery-dl` in Advanced Settings.
 
 ### Changed
+- **Sorting token insert dropdown**: Replaced the sorting editor insert option `%(playlist)s` with `Album {album}` for subfolder pattern building.
 - **Improved Gallery Validation**: Relaxed validation for gallery downloads to allow common gallery sites (Instagram, Twitter, etc.) even if simulation fails, as `gallery-dl` simulation can be unreliable due to auth requirements.
 - **Gallery Download Parsing**: Enhanced file detection for `gallery-dl` downloads by parsing stdout for file paths and falling back to directory snapshots if needed.
 - **Download Archive Always On**: Archive checks and writes are now always enabled (UI toggle is removed and config is enforced to `download_archive=True`).
@@ -42,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 -
 
 ### Fixed
+- **Failed-download list cleanup after successful retry**: URLs are now removed from the failed-download summary once a retry succeeds, so only currently failed downloads are shown.
 - **Download archive repeat detection**: Duplicate downloads are now blocked before queueing by checking the archive directly in `DownloadManager`.
 - **Archive key handling**: `ArchiveManager` now uses robust URL key generation (including YouTube `watch`, `shorts`, `live`, `embed`, and `youtu.be` forms), normalizes non-YouTube URLs, and avoids writing duplicate archive entries.
 - **Archive duplicate UX**: When a URL is already archived, users are now prompted to either cancel or "Download Again" instead of being hard-rejected.

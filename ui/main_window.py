@@ -151,6 +151,19 @@ class MediaDownloaderApp(QMainWindow):
         # Perform startup checks (binaries, updates) in background
         self._perform_startup_checks()
 
+    def _add_failed_download(self, url: str):
+        """Track a URL as failed without duplicate entries."""
+        if not url:
+            return
+        if url not in self._downloads_failed:
+            self._downloads_failed.append(url)
+
+    def _remove_failed_download(self, url: str):
+        """Remove a URL from the failed list after a successful retry."""
+        if not url or not self._downloads_failed:
+            return
+        self._downloads_failed = [failed_url for failed_url in self._downloads_failed if failed_url != url]
+
     def _get_total_io_counters(self):
         """Get total IO counters for the main process and all its children."""
         if not self._process:
@@ -528,10 +541,11 @@ class MediaDownloaderApp(QMainWindow):
         log.info(f"Download finished: {url}, success={success}, path={final_path}")
         
         if success:
+            self._remove_failed_download(url)
             # Pass None for title so ActiveDownloadsTab extracts it from the widget
             self.tab_active.mark_completed(url, title=None, final_path=final_path)
         else:
-            self._downloads_failed.append(url)
+            self._add_failed_download(url)
 
         if self._all_downloads_complete():
             if self.exit_after:
@@ -652,7 +666,7 @@ class MediaDownloaderApp(QMainWindow):
         msg_box.setText(f"Failed to download:<br><a href='{url}'>{url}</a><br><br>{escaped_message}")
         msg_box.exec()
         
-        self._downloads_failed.append(url)
+        self._add_failed_download(url)
 
     def _on_duplicate_download_detected(self, url, opts):
         """Prompt user whether to re-download archived media."""

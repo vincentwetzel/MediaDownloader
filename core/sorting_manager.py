@@ -112,7 +112,7 @@ class SortingManager:
             if rule.get('audio_only', False) and rule_type == 'All':
                 rule_type = 'Audio'
 
-            if rule_type != 'All' and rule_type != current_download_type:
+            if not self._download_type_matches(rule_type, current_download_type, metadata):
                 continue
 
             # --- Backwards compatibility for single-filter rules ---
@@ -145,6 +145,30 @@ class SortingManager:
                 return self._get_final_path(rule, metadata)
         
         return None
+
+    def _is_playlist_item(self, metadata):
+        """Detect whether metadata belongs to an item downloaded from a playlist."""
+        playlist_keys = ('playlist', 'playlist_title', 'playlist_id', 'playlist_index')
+        for key in playlist_keys:
+            value = metadata.get(key)
+            if value not in (None, "", "NA"):
+                return True
+        return False
+
+    def _download_type_matches(self, rule_type, current_download_type, metadata):
+        """Check if a rule type applies to the current download and metadata context."""
+        normalized_rule_type = str(rule_type or 'All').strip()
+
+        if normalized_rule_type == 'All':
+            return True
+
+        if normalized_rule_type == 'Video Playlist':
+            return current_download_type == 'Video' and self._is_playlist_item(metadata)
+
+        if normalized_rule_type == 'Audio Playlist':
+            return current_download_type == 'Audio' and self._is_playlist_item(metadata)
+
+        return normalized_rule_type == current_download_type
 
     def _check_condition(self, condition, metadata):
         field_key = condition.get('field', 'uploader')
@@ -219,7 +243,12 @@ class SortingManager:
                 safe_metadata = {}
                 for k, v in metadata.items():
                     safe_metadata[k] = str(v) if v is not None else "NA"
-                
+
+                if safe_metadata.get('playlist', "NA") == "NA":
+                    playlist_fallback = metadata.get('playlist') or metadata.get('playlist_title')
+                    if playlist_fallback is not None:
+                        safe_metadata['playlist'] = str(playlist_fallback)
+                 
                 # Add some helper keys for dates if upload_date exists
                 upload_date = str(metadata.get('upload_date', ''))
                 if len(upload_date) == 8:
@@ -236,7 +265,9 @@ class SortingManager:
                     key = match.group(1)
                     return safe_metadata.get(key, "NA")
 
-                subfolder = re.sub(r'\{(\w+)\}', replace_token, pattern)
+                # Support both {token} and yt-dlp-style %(token)s placeholders.
+                subfolder = re.sub(r'%\(([^)]+)\)s', replace_token, pattern)
+                subfolder = re.sub(r'\{(\w+)\}', replace_token, subfolder)
                 
                 # Sanitize the subfolder path to remove illegal characters
                 # We normalize the pattern first to handle mixed slashes
