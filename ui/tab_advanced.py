@@ -7,7 +7,6 @@ import time
 
 from core.version import __version__ as APP_VERSION
 from core.update_manager import get_gallery_dl_version, download_gallery_dl_update, get_latest_release, _compare_versions
-from core.archive_manager import ArchiveManager
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox, QCheckBox, QFileDialog, QMessageBox, QLineEdit,
@@ -15,7 +14,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 
-from ui.tab_advanced_ui import build_media_group, SUBTITLE_LANGUAGES
+from ui.tab_advanced_ui import build_media_group, SUBTITLE_LANGUAGES, OUTPUT_TEMPLATE_TOKENS
 
 log = logging.getLogger(__name__)
 
@@ -34,7 +33,6 @@ class AdvancedSettingsTab(QWidget):
         super().__init__()
         self.main = main_window
         self.config = main_window.config_manager
-        self.archive_manager = ArchiveManager(self.config, self)
 
         # Connect signals to slots
         self.update_finished.connect(self._on_update_finished)
@@ -235,26 +233,69 @@ class AdvancedSettingsTab(QWidget):
         # Output Filename Pattern
         pattern_row = QHBoxLayout()
         pattern_lbl = QLabel("Filename Pattern:")
-        pattern_lbl.setToolTip("Define the output filename pattern using yt-dlp template variables.")
+        pattern_lbl.setToolTip(
+            "Controls how downloaded files are named.\n\n"
+            "You can type plain text (like brackets or dashes) and template fields like %(title)s.\n"
+            "When a download runs, yt-dlp replaces each field with real video data.\n\n"
+            "Example:\n"
+            "%(title)s [%(uploader)s][%(upload_date>%m-%d-%Y)s][%(id)s].%(ext)s\n"
+            "becomes:\n"
+            "My Video [ChannelName][02-14-2026][abc123].mp4"
+        )
 
         default_template = "%(title)s [%(uploader)s][%(upload_date>%m-%d-%Y)s][%(id)s].%(ext)s"
         current_template = self.config.get("General", "output_template", fallback=default_template)
 
         self.pattern_input = QLineEdit(current_template)
-        self.pattern_input.setToolTip("Enter yt-dlp output template. Click Save to apply.")
+        self.pattern_input.setToolTip(
+            "Build your output filename here.\n\n"
+            "How to use this:\n"
+            "1. Type normal text for separators, e.g. ' - ' or '[ ]'.\n"
+            "2. Insert fields from the dropdown (recommended), or type them manually.\n"
+            "3. Click Save to validate and store your pattern.\n\n"
+            "Common fields:\n"
+            "- %(title)s : Video title\n"
+            "- %(uploader)s : Channel/uploader name\n"
+            "- %(upload_date>%Y)s : Upload year\n"
+            "- %(id)s : Unique video ID\n"
+            "- %(ext)s : File extension (mp4, mp3, etc.)\n\n"
+            "Safe starter pattern:\n"
+            "%(title)s [%(uploader)s][%(id)s].%(ext)s"
+        )
+
+        self.pattern_tokens_combo = QComboBox()
+        self.pattern_tokens_combo.setToolTip(
+            "Click to insert common filename fields at the cursor position.\n\n"
+            "This helps avoid typos in template syntax.\n"
+            "After inserting a field, continue typing in the pattern box.\n\n"
+            "Tip: combine fields and plain text, e.g.\n"
+            "%(upload_date>%Y)s-%(upload_date>%m)s - %(title)s [%(id)s].%(ext)s"
+        )
+        for label, token in OUTPUT_TEMPLATE_TOKENS:
+            self.pattern_tokens_combo.addItem(label, token)
+        self.pattern_tokens_combo.activated.connect(self._insert_output_template_token)
 
         btn_save_pattern = QPushButton("Save")
         btn_save_pattern.setFixedWidth(60)
-        btn_save_pattern.setToolTip("Validate and save the filename pattern.")
+        btn_save_pattern.setToolTip(
+            "Validate this filename pattern with yt-dlp, then save it.\n\n"
+            "Use this after editing the pattern.\n"
+            "If the syntax is invalid, you will get a warning with a docs link."
+        )
         btn_save_pattern.clicked.connect(self._save_pattern)
 
         btn_reset_pattern = QPushButton("Reset")
         btn_reset_pattern.setFixedWidth(60)
-        btn_reset_pattern.setToolTip("Reset to default pattern.")
+        btn_reset_pattern.setToolTip(
+            "Restore the default filename pattern used by this app.\n\n"
+            "Default:\n"
+            "%(title)s [%(uploader)s][%(upload_date>%m-%d-%Y)s][%(id)s].%(ext)s"
+        )
         btn_reset_pattern.clicked.connect(self._reset_pattern)
 
         pattern_row.addWidget(pattern_lbl)
         pattern_row.addWidget(self.pattern_input, stretch=1)
+        pattern_row.addWidget(self.pattern_tokens_combo)
         pattern_row.addWidget(btn_save_pattern)
         pattern_row.addWidget(btn_reset_pattern)
         template_group.addLayout(pattern_row)
@@ -302,33 +343,6 @@ class AdvancedSettingsTab(QWidget):
         options_group.addWidget(self.restrict_cb)
 
         layout.addWidget(build_media_group(self))
-
-        # Download Archive Group
-        archive_group = add_group("Download Archive")
-        
-        archive_row = QHBoxLayout()
-        self.archive_cb = QCheckBox("Use Download Archive")
-        self.archive_cb.setToolTip("Keep a record of downloaded files to prevent re-downloading them.")
-        archive_val = self.config.get("General", "download_archive", fallback="False")
-        self.archive_cb.setChecked(str(archive_val) == "True")
-        self.archive_cb.stateChanged.connect(
-            lambda s: self._save_general("download_archive", str(bool(s)))
-        )
-        
-        self.view_archive_btn = QPushButton("View Archive")
-        self.view_archive_btn.setToolTip("View the contents of the download archive file.")
-        self.view_archive_btn.clicked.connect(self.archive_manager.view_archive)
-        
-        self.clear_archive_btn = QPushButton("Clear Archive")
-        self.clear_archive_btn.setToolTip("Clear the download archive file.")
-        self.clear_archive_btn.clicked.connect(self.archive_manager.clear_archive)
-        
-        archive_row.addWidget(self.archive_cb)
-        archive_row.addStretch()
-        archive_row.addWidget(self.view_archive_btn)
-        archive_row.addWidget(self.clear_archive_btn)
-        
-        archive_group.addLayout(archive_row)
 
         updates_group = add_group("Updates")
 
@@ -847,9 +861,7 @@ class AdvancedSettingsTab(QWidget):
             default_template = "%(title)s [%(uploader)s][%(upload_date>%m-%d-%Y)s][%(id)s].%(ext)s"
             self.pattern_input.setText(default_template)
             
-            # Reset download archive
-            self.archive_cb.setChecked(False)
-            self._save_general("download_archive", "False")
+            # Download archive remains enforced globally in config.
 
             start_tab = getattr(self.main, "tab_start", None)
             if start_tab:
@@ -888,6 +900,15 @@ class AdvancedSettingsTab(QWidget):
             if sender:
                 sender.setText(original_text)
                 sender.setEnabled(True)
+
+    def _insert_output_template_token(self, index):
+        if index == 0:
+            return
+        token = self.pattern_tokens_combo.itemData(index)
+        if token:
+            self.pattern_input.insert(token)
+            self.pattern_input.setFocus()
+        self.pattern_tokens_combo.setCurrentIndex(0)
 
     def _reset_pattern(self):
         default_template = "%(title)s [%(uploader)s][%(upload_date>%m-%d-%Y)s][%(id)s].%(ext)s"

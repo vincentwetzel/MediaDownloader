@@ -1,9 +1,11 @@
 import logging
+import os
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QProgressBar, QPushButton, QListWidget,
     QListWidgetItem, QMessageBox, QSizePolicy
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QObject
+from PyQt6.QtCore import Qt, pyqtSignal, QObject, QUrl
+from PyQt6.QtGui import QDesktopServices
 
 log = logging.getLogger(__name__)
 
@@ -21,6 +23,7 @@ class DownloadItemWidget(QWidget):
         self.title = title or f"Fetching Title: {url}"
         # Track whether the download has actually started (received progress/starting)
         self._started = False
+        self._final_path = None # Store final path for "Open Folder"
         self._build()
 
     def _build(self):
@@ -43,10 +46,19 @@ class DownloadItemWidget(QWidget):
         self.cancel_btn.clicked.connect(self._on_cancel_clicked)
         self.cancel_btn.setToolTip("Cancel or resume the download, or retry after a failure.")
         top.addWidget(self.cancel_btn)
+        
+        # Open Folder button (hidden initially)
+        self.open_folder_btn = QPushButton("Open Folder")
+        self.open_folder_btn.setFixedWidth(90)
+        self.open_folder_btn.clicked.connect(self._on_open_folder_clicked)
+        self.open_folder_btn.setToolTip("Open the folder containing this file.")
+        self.open_folder_btn.setVisible(False)
+        top.addWidget(self.open_folder_btn)
 
         layout.addLayout(top)
 
         self.progress = QProgressBar()
+        self.progress.setRange(0, 100)
         self.progress.setValue(0)
         # Show progress text centered inside the bar instead of a separate label
         self.progress.setTextVisible(True)
@@ -91,10 +103,18 @@ class DownloadItemWidget(QWidget):
         # the progress bar (percent or percent with bytes).
         # Normalize percent to float for display precision, but the widget
         # value must be an integer 0-100.
-        try:
-            val = float(percent)
-        except Exception:
-            val = 0.0
+        
+        # If percent is None, it means we received a status update without
+        # a numeric progress (e.g. a warning or info line). Preserve the
+        # current progress bar value.
+        if percent is None:
+            val = self._last_percent
+        else:
+            try:
+                val = float(percent)
+            except Exception:
+                val = 0.0
+
         # If the incoming text indicates postprocessing activity and the
         # widget previously reached 100%, preserve the full bar instead of
         # lowering it to 0 (yt-dlp often emits postprocessing lines without
@@ -118,22 +138,37 @@ class DownloadItemWidget(QWidget):
                 # If we see normal downloading progress below 100%, clear
                 # the postprocessing flag.
                 try:
-                    if float(val) < 100.0:
+                    if val < 100.0 and percent is not None:
                         self._postprocessing_active = False
                 except Exception:
                     pass
-            # Preserve 100% display during postprocessing if we previously
-            # reached it.
+            
+            # Keep progress monotonic for an active item so the bar/text
+            # never stutter backwards due to noisy yt-dlp output lines.
+            if val > self._last_percent:
+                self._last_percent = val
+
+            # Determine display value based on monotonic percent or postprocessing state
             if is_postprocessing and self._last_percent >= 100.0:
                 display_val = int(round(self._last_percent))
             else:
-                display_val = int(round(val))
+                display_val = int(round(self._last_percent))
+            
             self.progress.setValue(display_val)
-            # remember the highest percent we've shown
-            try:
-                self._last_percent = max(self._last_percent, float(display_val))
-            except Exception:
-                pass
+
+            # Ensure the text also reflects the monotonic percent if it contains "Downloading: XX.X%"
+            if "downloading:" in low_text:
+                import re
+                # Replace the percentage in the text with the monotonic _last_percent
+                # Pattern matches "Downloading: 31.2%" or "Downloading: 31%"
+                # Use \g<1> to preserve the case of "Downloading: "
+                text = re.sub(
+                    r"(downloading:\s*)\d+(?:\.\d+)?%", 
+                    f"\\g<1>{self._last_percent:.1f}%", 
+                    str(text), 
+                    flags=re.IGNORECASE
+                )
+            
         except Exception:
             try:
                 self.progress.setValue(int(val))
@@ -147,9 +182,9 @@ class DownloadItemWidget(QWidget):
             self.progress.setFormat(str(text))
         except Exception:
             try:
-                self.progress.setFormat(f"{val:.2f}%")
+                self.progress.setFormat(f"{val:.1f}%")
             except Exception:
-                self.progress.setFormat("0.00%")
+                self.progress.setFormat("0.0%")
 
         # If we've reached 100% but yt-dlp is still doing postprocessing
         # (merging, deleting originals, ffmpeg work, etc.) keep the bar
@@ -178,7 +213,7 @@ class DownloadItemWidget(QWidget):
         except Exception:
             pass
 
-    def mark_completed(self, title):
+    def mark_completed(self, title, final_path=None):
         """Mark this item as completed."""
         # Show only the video title (no 'Download Complete:' prefix)
         try:
@@ -193,6 +228,11 @@ class DownloadItemWidget(QWidget):
         # Use friendly 'Done' label instead of numeric 100%
         self.progress.setFormat("Done")
         self.cancel_btn.setVisible(False)
+        
+        # Show Open Folder button if path is available
+        if final_path:
+            self._final_path = final_path
+            self.open_folder_btn.setVisible(True)
 
     def mark_cancelled(self, title):
         """Mark this item as cancelled."""
@@ -252,6 +292,27 @@ class DownloadItemWidget(QWidget):
 
     def _on_cancel_clicked(self):
         self.cancel_requested.emit(self.url)
+        
+    def _on_open_folder_clicked(self):
+        if self._final_path and os.path.exists(self._final_path):
+            try:
+                # If it's a file, select it in explorer
+                if os.path.isfile(self._final_path):
+                    # Windows: explorer /select,"path"
+                    if os.name == 'nt':
+                        import subprocess
+                        subprocess.run(['explorer', '/select,', os.path.normpath(self._final_path)])
+                    else:
+                        # Fallback for other OS (just open parent folder)
+                        QDesktopServices.openUrl(QUrl.fromLocalFile(os.path.dirname(self._final_path)))
+                else:
+                    # It's a directory, just open it
+                    QDesktopServices.openUrl(QUrl.fromLocalFile(self._final_path))
+            except Exception:
+                log.exception(f"Failed to open folder: {self._final_path}")
+        else:
+            # Fallback if path is missing or invalid
+            log.warning(f"Cannot open folder, path invalid: {self._final_path}")
 
     def mark_active(self):
         """Set widget to active/downloading state (blue chunk, Cancel button)."""
@@ -276,6 +337,9 @@ class DownloadItemWidget(QWidget):
             self._started = False
         except Exception:
             pass
+        # Reset last percent so new attempts start fresh
+        self._last_percent = 0.0
+        self.open_folder_btn.setVisible(False)
 
 
 class ActiveDownloadsTab(QWidget):
@@ -345,7 +409,7 @@ class ActiveDownloadsTab(QWidget):
                 worker.progress.connect(lambda data, w=widget: self._on_worker_progress(w, data))
                 worker.progress.connect(lambda data, w=widget: self._maybe_set_title_from_progress(w, data))
                 worker.title_updated.connect(lambda t, w=widget, wr=worker: self._on_title_updated(w, wr, t))
-                worker.finished.connect(lambda url, success, files, w=widget, wr=worker: self._on_worker_finished(w, wr, success))
+                # Note: worker.finished is handled by DownloadManager signal in MainWindow
                 worker.error.connect(lambda url, msg, w=widget, wr=worker: self._on_worker_failed(w, wr, msg))
 
                 # Store worker reference on widget for speed calculation if needed
@@ -365,22 +429,29 @@ class ActiveDownloadsTab(QWidget):
         Accepts either dict-like progress updates or plain strings from yt-dlp.
         Tries to extract a numeric percent and a short human text.
         """
-        pct = 0.0
+        pct = None
         text = ""
 
         # dict-like (common)
         if isinstance(data, dict):
             # common keys
-            pct = data.get("percent") or data.get("pct") or data.get("progress") or 0
+            pct = data.get("percent")
+            if pct is None:
+                pct = data.get("pct")
+            if pct is None:
+                pct = data.get("progress")
+            
             # sometimes percent is string "12.3" or embedded in a text line
-            try:
-                pct = float(pct)
-            except Exception:
-                pct = 0.0
+            if pct is not None:
+                try:
+                    pct = float(pct)
+                except Exception:
+                    pct = None
+            
             text = data.get("text") or data.get("status") or data.get("msg") or ""
             # If percent not provided but we have a textual progress line, try to extract
             # a percentage like '12.3%' from that text (yt-dlp emits progress in text lines).
-            if (not pct or pct == 0.0) and isinstance(text, str) and text:
+            if pct is None and isinstance(text, str) and text:
                 try:
                     import re
                     m = re.search(r"(\d{1,3}(?:\.\d+)?)\s?%", text)
@@ -389,7 +460,7 @@ class ActiveDownloadsTab(QWidget):
                 except Exception:
                     pass
             # Fallback display text
-            if not text:
+            if not text and pct is not None:
                 text = f"{pct:.1f}%"
 
             # Update worker's current speed for global indicator
@@ -406,20 +477,34 @@ class ActiveDownloadsTab(QWidget):
                 try:
                     pct = float(m.group(1))
                 except Exception:
-                    pct = 0.0
+                    pct = None
             else:
-                pct = 0.0
+                pct = None
+
+        # Clamp and keep percent monotonic for this widget so transient
+        # parser noise cannot make display text move backward.
+        if pct is not None:
+            try:
+                pct = max(0.0, min(100.0, float(pct)))
+                last_pct = float(getattr(widget, "_last_percent", 0.0))
+                if pct < last_pct:
+                    pct = last_pct
+            except Exception:
+                pct = None
 
         # clamp (integer value for the progress bar widget)
         try:
-            percent_int = max(0, min(100, int(round(pct))))
+            if pct is not None:
+                percent_int = max(0, min(100, int(round(pct))))
+            else:
+                percent_int = 0
         except Exception:
             percent_int = 0
 
         # Build display text for the progress bar. Prefer user-friendly
         # status messages (use yt-dlp verbiage when available). When a
         # numeric percent is present prefer a two-decimal display.
-        right_text = f"{pct:.2f}%"
+        right_text = f"{pct:.1f}%" if pct is not None else ""
         if isinstance(data, dict):
             raw_text = (data.get("text") or data.get("status") or data.get("msg") or "").strip()
         else:
@@ -445,9 +530,9 @@ class ActiveDownloadsTab(QWidget):
             right_text = "Preparing Download..."
         # If we have a numeric percent and we're NOT in postprocessing, prefer
         # the concise downloading line using the numeric percent.
-        if percent_int > 0 and not is_postprocessing:
+        elif percent_int > 0 and not is_postprocessing:
             try:
-                right_text = f"Downloading: {pct:.2f}%"
+                right_text = f"Downloading: {pct:.1f}%"
             except Exception:
                 right_text = f"{percent_int}%"
         elif raw_text:
@@ -466,7 +551,7 @@ class ActiveDownloadsTab(QWidget):
                 try:
                     d_mb = float(downloaded) / 1024.0 / 1024.0
                     t_mb = float(total) / 1024.0 / 1024.0
-                    right_text = f"Downloading: {pct:.2f}% ({d_mb:.2f}MB/{t_mb:.2f}MB)"
+                    right_text = f"Downloading: {pct:.1f}% ({d_mb:.2f}MB/{t_mb:.2f}MB)"
                 except Exception:
                     pass
 
@@ -597,15 +682,17 @@ class ActiveDownloadsTab(QWidget):
 
     def _on_worker_finished(self, widget: DownloadItemWidget, worker, success: bool):
         """Worker finished handler — mark completed or failed."""
-        title = self._strip_title_prefix(widget.title_label.text())
-        if success:
-            widget.mark_completed(title)
-        else:
-            widget.mark_failed(title)
-
-        # Reset speed on finish
-        if hasattr(widget, 'worker'):
-            widget.worker.current_speed = 0.0
+        # This is called by the worker signal, but we want to wait for the move job to finish
+        # and provide the final path.
+        # Actually, the worker finishes BEFORE the move job.
+        # The move job is triggered in DownloadManager._on_worker_finished.
+        # So we shouldn't mark completed here if we want the final path.
+        # BUT, the UI needs to know it's done.
+        # We can mark it as "Processing..." or similar?
+        # Or we can just rely on the DownloadManager signal which comes later?
+        # Currently DownloadManager emits download_finished AFTER move job starts?
+        # No, let's check DownloadManager.
+        pass
 
 
     def _on_worker_failed(self, widget: DownloadItemWidget, worker, err_text: str):
@@ -734,9 +821,15 @@ class ActiveDownloadsTab(QWidget):
         if url in self.active_items:
             self.active_items[url].update_progress(percent, text)
 
-    def mark_completed(self, url, title):
+    def mark_completed(self, url, title=None, final_path=None):
         if url in self.active_items:
-            self.active_items[url].mark_completed(title)
+            if not title:
+                # If title not provided (e.g. from MainWindow signal), extract from widget
+                # and strip any status prefixes
+                current_text = self.active_items[url].title_label.text()
+                title = self._strip_title_prefix(current_text)
+
+            self.active_items[url].mark_completed(title, final_path)
         self._check_if_all_done()
 
     def mark_cancelled(self, url, title):
@@ -774,7 +867,7 @@ class ActiveDownloadsTab(QWidget):
     def _check_if_all_done(self):
         """Emit all_downloads_complete if all active items are finished."""
         if all(
-            self.active_items[url].percent_label.text() in ("100%", "Cancelled", "Error")
+            ((self.active_items[url].progress.format() or "").strip() in ("Done", "Cancelled", "Error"))
             for url in self.active_items
         ):
             log.debug("All downloads complete, emitting signal.")

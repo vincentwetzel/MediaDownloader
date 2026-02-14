@@ -34,7 +34,7 @@ git clone https://github.com/vincentwetzel/MediaDownloader.git
 cd MediaDownloader
 
 # Install dependencies
-pip install -r requirements.txt
+pip install .
 
 # Run from source
 python main.pyw
@@ -71,7 +71,7 @@ If you want to build your own Windows installer:
 ### Prerequisites
 
 - Python 3.10+
-- PyInstaller (in `requirements.txt`)
+- PyInstaller (in `pyproject.toml`)
 - NSIS (from https://nsis.sourceforge.io/Download)
 
 ### Build Steps
@@ -133,7 +133,7 @@ MediaDownloader/
 │   ├── windows/                # Windows: yt-dlp.exe, ffmpeg.exe, ffprobe.exe
 │   ├── linux/                  # Linux: yt-dlp, ffmpeg, ffprobe
 │   └── macos/                  # macOS: yt-dlp_macos, ffmpeg, ffprobe
-├── requirements.txt            # Python dependencies
+├── pyproject.toml              # Python dependencies and project metadata
 └── main.spec                   # PyInstaller configuration
 ```
 

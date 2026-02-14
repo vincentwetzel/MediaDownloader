@@ -166,7 +166,7 @@ def get_yt_dlp_version(force_check=False):
         return None
 
 
-def fetch_metadata(url: str, timeout: int = 15):
+def fetch_metadata(url: str, timeout: int = 15, noplaylist: bool = False):
     """Fetch metadata for a URL using yt-dlp --dump-single-json.
 
     Returns parsed JSON dict on success, or None on failure.
@@ -177,7 +177,20 @@ def fetch_metadata(url: str, timeout: int = 15):
         if not yt_dlp_cmd:
             log.error("fetch_metadata: yt-dlp binary not found.")
             return None
-        meta_cmd = [yt_dlp_cmd, "--dump-single-json", url]
+        
+        # Added --no-input to prevent interactive prompts
+        # Added --no-cache-dir to prevent locking issues
+        # Added --no-write-playlist-metafiles to avoid clutter
+        meta_cmd = [yt_dlp_cmd, "--dump-single-json", "--no-cache-dir", "--no-write-playlist-metafiles", "--no-input"]
+        if noplaylist:
+            meta_cmd.append("--no-playlist")
+        else:
+            # Use flat-playlist to avoid resolving all videos in a playlist, which causes hangs
+            meta_cmd.append("--flat-playlist")
+
+        meta_cmd.append(url)
+        
+        log.debug(f"fetch_metadata running: {meta_cmd}")
         proc = subprocess.run(meta_cmd, capture_output=True, text=True, timeout=timeout, shell=False, stdin=subprocess.DEVNULL, creationflags=creation_flags)
         if proc.returncode == 0 and proc.stdout:
             try:
@@ -186,11 +199,12 @@ def fetch_metadata(url: str, timeout: int = 15):
             except Exception:
                 return None
         return None
-    except Exception:
+    except Exception as e:
+        log.warning(f"fetch_metadata failed: {e}")
         return None
 
 
-def is_url_valid(url: str, timeout: int = 15):
+def is_url_valid(url: str, timeout: int = 15, noplaylist: bool = False):
     """Check if a URL is valid using yt-dlp --simulate.
     Returns True if valid, False otherwise.
     """
@@ -200,7 +214,11 @@ def is_url_valid(url: str, timeout: int = 15):
             log.error("is_url_valid: yt-dlp binary not found.")
             return False
         # --simulate: do not download the video and do not write anything to disk
-        cmd = [yt_dlp_cmd, "--simulate", url]
+        cmd = [yt_dlp_cmd, "--simulate", "--no-cache-dir", "--no-input"]
+        if noplaylist:
+            cmd.append("--no-playlist")
+        cmd.append(url)
+        
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, shell=False, stdin=subprocess.DEVNULL, creationflags=creation_flags)
         return proc.returncode == 0
     except Exception:
@@ -304,20 +322,28 @@ class DownloadWorker(QThread):
                 cmd_executable = _YT_DLP_PATH
 
                 # Attempt to extract metadata (title) first
-                try:
-                    meta_cmd = [cmd_executable, "--dump-single-json", self.url]
-                    meta_proc = subprocess.run(meta_cmd, capture_output=True, text=True, timeout=15, shell=False, stdin=subprocess.DEVNULL, creationflags=creation_flags)
-                    if meta_proc.returncode == 0 and meta_proc.stdout:
-                        try:
-                            info = json.loads(meta_proc.stdout)
-                            title = info.get("title") or info.get("id")
+                if not getattr(self, "_meta_info", None):
+                    log.info(f"Fetching metadata for {self.url}...")
+                    try:
+                        # Respect playlist mode to avoid hanging on large playlists
+                        playlist_mode = self.opts.get("playlist_mode", "Ask")
+                        noplaylist = False
+                        if "ignore" in playlist_mode.lower() or "single" in playlist_mode.lower():
+                            noplaylist = True
+                        
+                        info = fetch_metadata(self.url, timeout=20, noplaylist=noplaylist)
+                        if info:
                             self._meta_info = info
+                            title = info.get("title") or info.get("id")
                             if title:
                                 self.title_updated.emit(str(title))
-                        except Exception:
-                            pass
-                except Exception:
-                    pass
+                            log.info("Metadata fetch successful.")
+                        else:
+                            log.info("Metadata fetch returned None.")
+                    except Exception as e:
+                        log.warning(f"Metadata fetch failed: {e}")
+                else:
+                    log.info("Metadata already available, skipping fetch.")
 
                 cmd = [cmd_executable] + cmd_args
 

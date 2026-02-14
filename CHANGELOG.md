@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased] - YYYY-MM-DD
 
 ### Added
+- **Advanced Filename Template Insertables**: Added an insertables dropdown next to `Filename Pattern` in Advanced Settings.
+  - Users can click to insert common yt-dlp output tokens like `%(title)s`, `%(uploader)s`, `%(upload_date>%m)s`, `%(id)s`, and `%(ext)s`.
+  - This mirrors the token-insertion workflow used by sorting subfolder patterns for faster, less error-prone template building.
+- **Generic Sorting Rules**: Overhauled the sorting rule system to be more flexible.
+  - Users can now filter by various metadata fields: **Uploader**, **Title**, **Playlist Title**, **Tags**, **Description**, or **Duration**.
+  - Added operators for filtering: **Is one of**, **Contains**, **Equals**, **Greater than**, and **Less than**.
+  - Retained support for filtering by download type (All, Video, Audio, Gallery).
+  - Existing uploader-based rules are automatically migrated to the new format.
+- **Dynamic Subfolder Patterns**: Replaced the simple "Date-based Subfolders" checkbox with a powerful **Subfolder Pattern** field.
+  - Users can define custom subfolder structures using tokens like `{upload_year}`, `{upload_month}`, `{uploader}`, `{title}`, etc.
+  - Example: `{upload_year}/{uploader}` will sort files into `Target Folder\2025\Agadmator`.
+  - Existing date-based rules are automatically migrated to the pattern `{upload_year} - {upload_month}`.
 - **gallery-dl Support**: Added support for downloading image galleries using `gallery-dl`.
   - Added "Gallery" option to the Download Type dropdown in the Start tab.
   - Bundled `gallery-dl` binary.
@@ -17,6 +29,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **Improved Gallery Validation**: Relaxed validation for gallery downloads to allow common gallery sites (Instagram, Twitter, etc.) even if simulation fails, as `gallery-dl` simulation can be unreliable due to auth requirements.
 - **Gallery Download Parsing**: Enhanced file detection for `gallery-dl` downloads by parsing stdout for file paths and falling back to directory snapshots if needed.
+- **Download Archive Always On**: Archive checks and writes are now always enabled (UI toggle is removed and config is enforced to `download_archive=True`).
+- **Archive UI removed from Advanced tab**: Download archive now runs fully in the background with no archive toggle or archive controls shown to users.
+- **SQLite-only archive persistence**: Archive records now persist only in `download_archive.db` with no `.txt` archive path usage.
+- **Dependency management migrated**: Replaced `requirements.txt` with `pyproject.toml` (PEP 621 project metadata + dependencies).
 
 ### Deprecated
 -
@@ -25,7 +41,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 -
 
 ### Fixed
--
+- **Download archive repeat detection**: Duplicate downloads are now blocked before queueing by checking the archive directly in `DownloadManager`.
+- **Archive key handling**: `ArchiveManager` now uses robust URL key generation (including YouTube `watch`, `shorts`, `live`, `embed`, and `youtu.be` forms), normalizes non-YouTube URLs, and avoids writing duplicate archive entries.
+- **Archive duplicate UX**: When a URL is already archived, users are now prompted to either cancel or "Download Again" instead of being hard-rejected.
 
 ### Security
 -

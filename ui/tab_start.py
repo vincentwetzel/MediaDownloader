@@ -509,7 +509,7 @@ class StartTab(QWidget):
 
     def _show_formats_dialog(self, urls):
         from PyQt6.QtWidgets import QMessageBox
-        from core.yt_dlp_worker import _YT_DLP_PATH
+        from core.binary_manager import get_binary_path
         import shutil
         import sys
         
@@ -523,14 +523,22 @@ class StartTab(QWidget):
         
         url = urls[0]
         
-        yt_dlp_cmd = _YT_DLP_PATH or shutil.which("yt-dlp") or "yt-dlp"
+        yt_dlp_cmd = get_binary_path("yt-dlp") or shutil.which("yt-dlp") or "yt-dlp"
         
         creation_flags = 0
         if sys.platform == "win32" and getattr(sys, "frozen", False):
             creation_flags = subprocess.CREATE_NO_WINDOW
         
         try:
-            cmd = [yt_dlp_cmd, "-F", url]
+            cmd = [yt_dlp_cmd, "-F"]
+            
+            # Respect playlist mode
+            playlist_mode = self.playlist_mode.currentText()
+            if "ignore" in playlist_mode.lower() or "single" in playlist_mode.lower():
+                cmd.append("--no-playlist")
+                
+            cmd.append(url)
+
             result = subprocess.run(
                 cmd,
                 capture_output=True,

@@ -96,6 +96,25 @@ SUBTITLE_LANGUAGES = {
     "zu": "Zulu",
 }
 
+# Output template insertables shown in Advanced Settings.
+# Format: (visible label, inserted template token)
+OUTPUT_TEMPLATE_TOKENS = [
+    ("Insert...", None),
+    ("Title %(title)s", "%(title)s"),
+    ("Uploader %(uploader)s", "%(uploader)s"),
+    ("Upload Date %(upload_date)s", "%(upload_date)s"),
+    ("Upload Year %(upload_date>%Y)s", "%(upload_date>%Y)s"),
+    ("Upload Month %(upload_date>%m)s", "%(upload_date>%m)s"),
+    ("Upload Day %(upload_date>%d)s", "%(upload_date>%d)s"),
+    ("Video ID %(id)s", "%(id)s"),
+    ("Extension %(ext)s", "%(ext)s"),
+    ("Playlist %(playlist_title)s", "%(playlist_title)s"),
+    ("Playlist Index %(playlist_index)s", "%(playlist_index)s"),
+    ("Channel %(channel)s", "%(channel)s"),
+    ("Uploader ID %(uploader_id)s", "%(uploader_id)s"),
+    ("Duration %(duration)s", "%(duration)s"),
+]
+
 def build_config_group(tab):
     config_group = QGroupBox("Configuration")
     layout = QVBoxLayout()

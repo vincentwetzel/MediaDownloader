@@ -3,12 +3,14 @@ import os
 import sys
 import shutil
 import time
+import json
 from core.yt_dlp_worker import DownloadWorker, check_yt_dlp_available, fetch_metadata, is_url_valid, is_gallery_url_valid
 from core.playlist_expander import expand_playlist
 import threading
 from core.config_manager import ConfigManager
 from PyQt6.QtCore import QObject, pyqtSignal
 from core.archive_manager import ArchiveManager
+from core.sorting_manager import SortingManager
 from urllib.parse import urlparse
 import re
 
@@ -17,8 +19,9 @@ log = logging.getLogger(__name__)
 
 class DownloadManager(QObject):
     download_added = pyqtSignal(object)
-    download_finished = pyqtSignal(str, bool)
+    download_finished = pyqtSignal(str, bool) # Reverted signal signature
     download_error = pyqtSignal(str, str)
+    duplicate_download_detected = pyqtSignal(str, object)
     video_quality_warning = pyqtSignal(str, str)
 
     def __init__(self, config_manager):
@@ -28,13 +31,20 @@ class DownloadManager(QObject):
         self._pending_queue = []
         # Map url -> original opts passed when starting the download
         self._original_opts = {}
+        # Map url -> final destination path
+        self._completed_paths = {}
         self.config = config_manager
         self.archive_manager = ArchiveManager(self.config)
+        self.sorting_manager = SortingManager(self.config)
         # Check yt-dlp availability on initialization
         is_available, status_msg = check_yt_dlp_available()
         log.info(f"DownloadManager initialized. yt-dlp check: {status_msg}")
         if not is_available:
             log.warning(f"yt-dlp may not be available: {status_msg}")
+
+    def get_final_path(self, url):
+        """Retrieve the final destination path for a completed download."""
+        return self._completed_paths.get(url)
 
     def _enqueue_single_download(self, url, opts, parent_url=None):
         """Create and queue a single DownloadWorker for the given URL.
@@ -88,7 +98,13 @@ class DownloadManager(QObject):
         # Fetch metadata (title) in background so queued items can show their title
         def _fetch_and_emit_title(wrk):
             try:
-                info = fetch_metadata(wrk.url)
+                # Respect playlist mode to avoid hanging on large playlists
+                playlist_mode = wrk.opts.get("playlist_mode", "Ask")
+                noplaylist = False
+                if "ignore" in playlist_mode.lower() or "single" in playlist_mode.lower():
+                    noplaylist = True
+                    
+                info = fetch_metadata(wrk.url, noplaylist=noplaylist)
                 if info:
                     title = info.get("title") or info.get("id")
                     try:
@@ -118,6 +134,12 @@ class DownloadManager(QObject):
         Playlist expansion is handled by the UI/background worker so this
         method keeps enqueuing lightweight and non-blocking.
         """
+        allow_redownload = bool((opts or {}).get("allow_redownload"))
+        if not allow_redownload and self.archive_manager.is_in_archive(url):
+            log.info(f"Archive hit for URL: {url}. Requesting user confirmation.")
+            self.duplicate_download_detected.emit(url, dict(opts or {}))
+            return
+
         # Tier 1: Fast-Track for YouTube
         # Immediate string/regex check for high-traffic domains (e.g., youtube.com, youtu.be, music.youtube.com).
         # These are accepted instantly to provide zero-latency UI feedback.
@@ -173,7 +195,13 @@ class DownloadManager(QObject):
                                 pass
                 else:
                     # Use yt-dlp validation
-                    if is_url_valid(u, timeout=20):
+                    # Respect playlist mode to avoid hanging on large playlists
+                    playlist_mode = o.get("playlist_mode", "Ask")
+                    noplaylist = False
+                    if "ignore" in playlist_mode.lower() or "single" in playlist_mode.lower():
+                        noplaylist = True
+                        
+                    if is_url_valid(u, timeout=20, noplaylist=noplaylist):
                         self._enqueue_single_download(u, o)
                     else:
                         log.info(f"Tier 2 validation failed for {u} (yt-dlp simulate)")
@@ -220,29 +248,96 @@ class DownloadManager(QObject):
 
     def _move_files_job(self, worker, url, files):
         """This job runs in a background thread to move files without blocking the GUI."""
+        final_destination_dir = None
+        final_file_path = None
         try:
             # Prefer configured paths, but fall back to worker attributes if config is empty.
-            completed_dir = self.config.get("Paths", "completed_downloads_directory", fallback="") or getattr(worker, "completed_dir", "")
+            default_completed_dir = self.config.get("Paths", "completed_downloads_directory", fallback="") or getattr(worker, "completed_dir", "")
             temp_dir = self.config.get("Paths", "temporary_downloads_directory", fallback="") or getattr(worker, "temp_dir", "")
-            if not files or not completed_dir:
+            
+            if not files or not default_completed_dir:
                 log.debug("No files to move or no completed_dir configured; skipping move job")
+                # Even if no move, signal finished
+                self.download_finished.emit(url, True)
                 return
 
-            # Normalize and ensure existence of completed_dir; temp_dir may be optional
-            completed_dir = os.path.abspath(os.path.normpath(os.path.expanduser(completed_dir)))
+            # Normalize and ensure existence of default_completed_dir; temp_dir may be optional
+            default_completed_dir = os.path.abspath(os.path.normpath(os.path.expanduser(default_completed_dir)))
             temp_dir = os.path.abspath(os.path.normpath(os.path.expanduser(temp_dir))) if temp_dir else None
             try:
-                os.makedirs(completed_dir, exist_ok=True)
+                os.makedirs(default_completed_dir, exist_ok=True)
             except Exception:
-                log.exception(f"Could not create completed_dir: {completed_dir}")
+                log.exception(f"Could not create default_completed_dir: {default_completed_dir}")
 
-            log.debug(f"_move_files_job start: completed_dir={completed_dir}, temp_dir={temp_dir}, files={files}")
+            log.debug(f"_move_files_job start: default_completed_dir={default_completed_dir}, temp_dir={temp_dir}, files={files}")
             # Small pause to allow worker-side postprocessing (thumbnail embedding, replace/remove)
             try:
                 time.sleep(0.25)
                 log.debug("Brief pause before moving files to allow worker cleanup.")
             except Exception:
                 pass
+
+            # Determine target directory based on sorting rules
+            # We check metadata from the worker if available
+            target_dir = default_completed_dir
+            try:
+                info = getattr(worker, '_meta_info', {})
+                
+                # Try to read the .info.json file if it exists, as it contains the most accurate metadata
+                # especially after the download is complete (yt-dlp writes it)
+                json_file = None
+                for f in files:
+                    base, ext = os.path.splitext(f)
+                    candidate_json = base + ".info.json"
+                    if os.path.exists(candidate_json):
+                        json_file = candidate_json
+                        break
+                
+                if json_file:
+                    try:
+                        with open(json_file, 'r', encoding='utf-8') as jf:
+                            file_info = json.load(jf)
+                            if file_info:
+                                info = file_info
+                                log.debug(f"Loaded metadata from JSON file: {json_file}")
+                    except Exception:
+                        log.warning(f"Failed to read metadata from JSON file: {json_file}")
+
+                if info:
+                    log.debug(f"Sorting metadata keys: {list(info.keys())}")
+                    if 'uploader' in info:
+                        log.debug(f"Sorting metadata uploader: '{info.get('uploader')}'")
+                    if 'channel' in info:
+                        log.debug(f"Sorting metadata channel: '{info.get('channel')}'")
+
+                # Reload rules to ensure we have the latest
+                self.sorting_manager.load_rules()
+                
+                # Determine current download type
+                current_download_type = "Video" # Default
+                try:
+                    opts = self._original_opts.get(url, {})
+                    if opts.get("audio_only", False):
+                        current_download_type = "Audio"
+                    elif opts.get("use_gallery_dl", False):
+                        current_download_type = "Gallery"
+                except Exception:
+                    pass
+                
+                sorted_path = self.sorting_manager.get_target_path(info, current_download_type=current_download_type)
+                if sorted_path:
+                    # Ensure the sorted path exists
+                    sorted_path = os.path.abspath(os.path.normpath(os.path.expanduser(sorted_path)))
+                    try:
+                        os.makedirs(sorted_path, exist_ok=True)
+                        target_dir = sorted_path
+                        log.info(f"Sorting rule matched. Target directory changed to: {target_dir}")
+                    except Exception:
+                        log.exception(f"Could not create sorted target directory: {sorted_path}. Falling back to default.")
+            except Exception:
+                log.exception("Error applying sorting rules")
+
+            final_destination_dir = target_dir
 
             for f in files:
                 try:
@@ -261,10 +356,10 @@ class DownloadManager(QObject):
                     if temp_dir:
                         candidates.append(os.path.join(temp_dir, src))
                         candidates.append(os.path.join(temp_dir, os.path.basename(src)))
-                    # relative to completed_dir
-                    if completed_dir:
-                        candidates.append(os.path.join(completed_dir, src))
-                        candidates.append(os.path.join(completed_dir, os.path.basename(src)))
+                    # relative to default_completed_dir (in case it was somehow put there already)
+                    if default_completed_dir:
+                        candidates.append(os.path.join(default_completed_dir, src))
+                        candidates.append(os.path.join(default_completed_dir, os.path.basename(src)))
                     # relative to cwd
                     candidates.append(os.path.abspath(src))
                     candidates.append(os.path.join(os.getcwd(), src))
@@ -315,7 +410,7 @@ class DownloadManager(QObject):
                             return None
 
                         if search_tokens:
-                            candidate = _find_candidate_in_dir(temp_dir) or _find_candidate_in_dir(completed_dir) or _find_candidate_in_dir(os.getcwd())
+                            candidate = _find_candidate_in_dir(temp_dir) or _find_candidate_in_dir(default_completed_dir) or _find_candidate_in_dir(os.getcwd())
 
                         if candidate:
                             file_to_move = candidate
@@ -324,10 +419,10 @@ class DownloadManager(QObject):
                     if file_to_move:
                         try:
                             abs_path = os.path.abspath(file_to_move)
-                            dst = os.path.normpath(os.path.join(completed_dir, os.path.basename(abs_path)))
+                            dst = os.path.normpath(os.path.join(target_dir, os.path.basename(abs_path)))
 
                             if os.path.abspath(dst) == os.path.abspath(abs_path):
-                                log.info(f"File already in completed_dir, skipping move: {abs_path}")
+                                log.info(f"File already in target directory, skipping move: {abs_path}")
                                 continue
 
                             if not self._wait_for_file_stable(abs_path, timeout=10):
@@ -342,6 +437,8 @@ class DownloadManager(QObject):
                                             log.debug(f"Could not remove existing destination {dst}, will attempt move anyway")
                                     shutil.move(abs_path, dst)
                                     log.info(f"Moved file {abs_path} -> {dst}")
+                                    if final_file_path is None:
+                                        final_file_path = dst
                                     break
                                 except (FileNotFoundError, PermissionError, OSError) as e:
                                     log.exception(f"Attempt {attempt+1}: Error moving {abs_path} to {dst}")
@@ -354,6 +451,16 @@ class DownloadManager(QObject):
                                         time.sleep(0.2 * (attempt + 1))
                                         continue
                                     break
+                            
+                            # Clean up the .info.json file
+                            try:
+                                json_src = os.path.splitext(abs_path)[0] + ".info.json"
+                                if os.path.exists(json_src):
+                                    os.remove(json_src)
+                                    log.info(f"Removed metadata file {json_src}")
+                            except Exception:
+                                log.warning(f"Failed to remove metadata file for {abs_path}")
+
                         except Exception:
                             log.exception(f"Failed to prepare or execute move for {file_to_move}")
                     else:
@@ -375,10 +482,22 @@ class DownloadManager(QObject):
 
         except Exception:
             log.exception("Error in file moving job")
+        
+        # Store final path
+        if final_file_path:
+            self._completed_paths[url] = str(final_file_path)
+        elif final_destination_dir:
+            self._completed_paths[url] = str(final_destination_dir)
+
+        # Emit finished signal (reverted to 2 args)
+        try:
+            log.debug(f"Emitting download_finished for {url}")
+            self.download_finished.emit(url, True)
+        except Exception:
+            log.exception(f"Failed to emit download_finished signal for {url}")
 
 
     def _on_worker_finished(self, worker, url, success, files=None):
-        print(f"[HANDLER] _on_worker_finished called: url={url}, success={success}, files={files}")  # Direct print
         log.info(f"Download finished: {url} success={success} files={files}")
         log.debug(f"_on_worker_finished: files type={type(files)}, files value={files}, bool(files)={bool(files)}")
 
@@ -413,6 +532,11 @@ class DownloadManager(QObject):
             move_thread.start()
         else:
             log.error(f"Move job NOT triggered: success={success}, files={files}, bool(files)={bool(files)}")
+            # If no files to move, still emit finished signal (e.g. for failed downloads or no-file success)
+            # But wait, if success is False, we emit finished(False) below.
+            # If success is True but no files, we should probably emit finished(True) here.
+            if success:
+                 self.download_finished.emit(url, True)
 
         # Clean up active downloads list (remove this worker if present)
         try:
@@ -421,7 +545,8 @@ class DownloadManager(QObject):
         except Exception:
             pass
 
-        self.download_finished.emit(url, success)
+        if not success:
+             self.download_finished.emit(url, False)
 
         # Start next queued download if any
         self._maybe_start_next()

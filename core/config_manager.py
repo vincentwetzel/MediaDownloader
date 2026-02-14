@@ -32,7 +32,8 @@ class ConfigManager:
             # Add new default settings if they don't exist in existing config
             self._add_missing_defaults()
 
-            log.debug(f"Loaded configuration from {self.ini_path}")
+        self._enforce_required_settings()
+        log.debug(f"Loaded configuration from {self.ini_path}")
 
     def _set_defaults(self):
         self.config["General"] = {
@@ -58,7 +59,7 @@ class ConfigManager:
             "subtitles_write_auto": "False",
             "subtitles_langs": "en",
             "subtitles_format": "None",
-            "download_archive": "False",
+            "download_archive": "True",
         }
         self.config["Paths"] = {
             "completed_downloads_directory": "",
@@ -93,7 +94,7 @@ class ConfigManager:
             "subtitles_write_auto": "False",
             "subtitles_langs": "en",
             "subtitles_format": "None",
-            "download_archive": "False",
+            "download_archive": "True",
         }
         for key, value in general_defaults.items():
             if not self.config.has_option("General", key):
@@ -113,6 +114,16 @@ class ConfigManager:
                 modified = True
         
         # Save config if any defaults were added
+        if modified:
+            self.save()
+
+    def _enforce_required_settings(self):
+        """Enforce settings that are intentionally always enabled."""
+        modified = False
+        if self.get("General", "download_archive", fallback="True") != "True":
+            self.config.set("General", "download_archive", "True")
+            modified = True
+            log.info("Forced setting: General.download_archive=True")
         if modified:
             self.save()
 

@@ -1,13 +1,11 @@
 import os
 import logging
 from core.binary_manager import get_binary_path
-from core.archive_manager import ArchiveManager
 
 log = logging.getLogger(__name__)
 
 def build_yt_dlp_args(opts, config_manager):
     """Convert options dict to list of command-line arguments for yt-dlp."""
-    archive_manager = ArchiveManager(config_manager)
 
     if isinstance(opts, list):
         return opts  # Already a list
@@ -163,6 +161,9 @@ def build_yt_dlp_args(opts, config_manager):
     # Replace invalid Windows characters to prevent yt-dlp from using full-width replacements
     args.extend(["--replace-in-metadata", "title", r"\?", ""])
     args.extend(["--replace-in-metadata", "title", r":", " -"])
+    
+    # Force writing metadata to a JSON file so we can read it reliably
+    args.append("--write-info-json")
 
     rate_limit = config_manager.get("General", "rate_limit", fallback="0")
     if rate_limit and rate_limit not in ("0", "", "no limit", "No limit"):
@@ -191,12 +192,5 @@ def build_yt_dlp_args(opts, config_manager):
         log.debug(f"Using JavaScript runtime: {runtime_name} at {js_runtime_path}")
     else:
         log.debug("No valid JavaScript runtime found (neither configured nor bundled).")
-
-    # --- Download Archive ---
-    if config_manager.get("General", "download_archive", fallback="False") == "True":
-        archive_path = archive_manager.get_archive_path()
-        if archive_path:
-            args.extend(["--download-archive", archive_path])
-            log.info(f"Using download archive at: {archive_path}")
 
     return args

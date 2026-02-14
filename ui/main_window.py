@@ -20,6 +20,7 @@ from core.playlist_expander import expand_playlist, is_likely_playlist, Playlist
 from ui.tab_start import StartTab
 from ui.tab_active import ActiveDownloadsTab
 from ui.tab_advanced import AdvancedSettingsTab
+from ui.tab_sorting import SortingTab
 import threading
 from core import extractor_index
 
@@ -48,10 +49,12 @@ class MediaDownloaderApp(QMainWindow):
         self.tabs = QTabWidget()
         self.tab_start = StartTab(self)
         self.tab_active = ActiveDownloadsTab(self)
+        self.tab_sorting = SortingTab(self, self.config_manager)
         self.tab_advanced = AdvancedSettingsTab(self, initial_yt_dlp_version=initial_yt_dlp_version)
 
         self.tabs.addTab(self.tab_start, "Start a Download")
         self.tabs.addTab(self.tab_active, "Active Downloads")
+        self.tabs.addTab(self.tab_sorting, "Sorting Rules")
         self.tabs.addTab(self.tab_advanced, "Advanced Settings")
 
         main_widget = QWidget()
@@ -81,8 +84,17 @@ class MediaDownloaderApp(QMainWindow):
 
         # Connect core events
         self.download_manager.download_added.connect(self.tab_active.add_download_widget)
-        self.download_manager.download_finished.connect(self._on_download_finished)
+        # Force queued delivery so completion emitted from worker/move threads
+        # is always handled on the GUI thread.
+        self.download_manager.download_finished.connect(
+            self._on_download_finished,
+            Qt.ConnectionType.QueuedConnection
+        )
         self.download_manager.download_error.connect(self._on_download_error)
+        self.download_manager.duplicate_download_detected.connect(
+            self._on_duplicate_download_detected,
+            Qt.ConnectionType.QueuedConnection
+        )
         self.download_manager.video_quality_warning.connect(self._on_video_quality_warning)
         # Signal used to request adding downloads from background threads
         try:
@@ -393,8 +405,14 @@ class MediaDownloaderApp(QMainWindow):
                 log.exception("Failed to remove failed playlist placeholder")
 
     def _on_download_finished(self, url, success):
-        log.info(f"Download finished: {url}, success={success}")
-        if not success:
+        # Retrieve final path from DownloadManager
+        final_path = self.download_manager.get_final_path(url) or ""
+        log.info(f"Download finished: {url}, success={success}, path={final_path}")
+        
+        if success:
+            # Pass None for title so ActiveDownloadsTab extracts it from the widget
+            self.tab_active.mark_completed(url, title=None, final_path=final_path)
+        else:
             self._downloads_failed.append(url)
 
         if self._all_downloads_complete():
@@ -517,6 +535,30 @@ class MediaDownloaderApp(QMainWindow):
         msg_box.exec()
         
         self._downloads_failed.append(url)
+
+    def _on_duplicate_download_detected(self, url, opts):
+        """Prompt user whether to re-download archived media."""
+        msg_box = QMessageBox(self)
+        msg_box.setIcon(QMessageBox.Icon.Question)
+        msg_box.setWindowTitle("Already Downloaded")
+        msg_box.setTextFormat(Qt.TextFormat.RichText)
+        msg_box.setText(
+            f"This URL is already in your download archive:<br>"
+            f"<a href='{html.escape(url)}'>{html.escape(url)}</a><br><br>"
+            "Do you want to download it again?"
+        )
+        yes_btn = msg_box.addButton("Download Again", QMessageBox.ButtonRole.YesRole)
+        msg_box.addButton("Cancel", QMessageBox.ButtonRole.NoRole)
+        msg_box.exec()
+
+        if msg_box.clickedButton() is yes_btn:
+            retry_opts = dict(opts or {})
+            retry_opts["allow_redownload"] = True
+            log.info(f"User chose to re-download archived URL: {url}")
+            try:
+                self.download_manager.add_download(url, retry_opts)
+            except Exception:
+                log.exception(f"Failed to force re-download for {url}")
 
     def _all_downloads_complete(self):
         """Returns True if all downloads have finished."""

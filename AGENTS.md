@@ -55,12 +55,14 @@ The project follows a **modular, separation-of-concerns design**.
 
 ### Entry Point
 - `main.pyw` - Initializes the PyQt application, configures logging, launches the main window.
+- `pyproject.toml` - Project metadata and Python dependency definitions (PEP 621).
 
 ### UI Layer (`ui/`)
 - `ui/main_window.py` - Application shell and signal orchestrator; initializes tabs, connects global signals (like log updates), handles window state.
 - `ui/tab_start.py` - Input and configuration; URL field, Download Type dropdown (Video/Audio/Formats), "Add to Queue" logic.
 - `ui/tab_active.py` - Monitoring; renders active/completed downloads, handles progress updates, cancel buttons, and "Open Folder" actions.
 - `ui/tab_advanced.py` - Global settings; UI for max concurrency, file paths, format selection, and binary updates.
+- `ui/tab_sorting.py` - Sorting rules; UI for managing file sorting rules based on uploader metadata.
 - `ui/widgets.py` - Component library; custom styled widgets, tooltips, and reusable UI elements.
 
 ### Core Logic (`core/`)
@@ -72,6 +74,7 @@ The project follows a **modular, separation-of-concerns design**.
 - `core/playlist_expander.py` - Pre-processing; takes a playlist URL and yields individual video URLs.
 - `core/logger_config.py` - Diagnostics; configures Python `logging`, handles `sys.stderr` redirection to GUI console.
 - `core/file_ops_monitor.py` - File system monitoring logic.
+- `core/sorting_manager.py` - Sorting logic; manages rules and determines target paths based on metadata.
 
 ### Utilities (`utils/`)
 - `utils/` - Helper modules such as cookie handling.
@@ -88,6 +91,7 @@ The project follows a **modular, separation-of-concerns design**.
 - External Downloader: `ui/tab_advanced.py`, `core/yt_dlp_worker.py` (`aria2` integration).
 - File Moving: `core/download_manager.py` (moves files from `temp_downloads` to final output).
 - Logging Setup: `core/logger_config.py` (configures logging and captures stderr).
+- Sorting Rules: `core/sorting_manager.py` (logic) and `ui/tab_sorting.py` (UI).
 
 ---
 
@@ -117,7 +121,7 @@ Agents MUST NOT:
 - Standard library: `json`, `subprocess`, `threading`
 - PyInstaller (build configuration in `main.spec`)
 
-Dependencies are defined in `requirements.txt`.
+Dependencies are defined in `pyproject.toml`.
 
 ---
 
