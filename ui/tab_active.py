@@ -72,7 +72,7 @@ class DownloadItemWidget(QWidget):
         # adjusted on status changes.
         self.progress.setFixedHeight(18)
         self.progress.setStyleSheet(
-            "QProgressBar { border: 1px solid #bbb; border-radius: 6px; background: #eeeeee; }"
+            "QProgressBar { border: 1px solid #bbb; border-radius: 6px; background: #eeeeee; color: #000000; }"
             "QProgressBar::chunk { background-color: #3498db; border-radius: 6px; }"
         )
         # Track last numeric percent shown so transient postprocessing
@@ -207,7 +207,7 @@ class DownloadItemWidget(QWidget):
             post_keys = post_keys + ("extract", "fixup",)
             if any(k in low for k in post_keys):
                 self.progress.setStyleSheet(
-                    "QProgressBar { border: 1px solid #bbb; border-radius: 6px; background: #eeeeee; }"
+                    "QProgressBar { border: 1px solid #bbb; border-radius: 6px; background: #eeeeee; color: #000000; }"
                     "QProgressBar::chunk { background-color: #3498db; border-radius: 6px; }"
                 )
         except Exception:
@@ -222,7 +222,7 @@ class DownloadItemWidget(QWidget):
             self.title_label.setText(str(title))
         self.progress.setValue(100)
         self.progress.setStyleSheet(
-            "QProgressBar { border: 1px solid #bbb; border-radius: 6px; background: #eeeeee; }"
+            "QProgressBar { border: 1px solid #bbb; border-radius: 6px; background: #eeeeee; color: #000000; }"
             "QProgressBar::chunk { background-color: #2ecc71; border-radius: 6px; }"
         )
         # Use friendly 'Done' label instead of numeric 100%
@@ -246,7 +246,7 @@ class DownloadItemWidget(QWidget):
         self.progress.setFormat("Cancelled")
         if started:
             self.progress.setStyleSheet(
-                "QProgressBar { border: 1px solid #bbb; border-radius: 6px; background: #eeeeee; }"
+                "QProgressBar { border: 1px solid #bbb; border-radius: 6px; background: #eeeeee; color: #000000; }"
                 "QProgressBar::chunk { background-color: #c0392b; border-radius: 6px; }"
             )
             try:
@@ -261,7 +261,7 @@ class DownloadItemWidget(QWidget):
         else:
             # If it never started, treat as a retryable failure
             self.progress.setStyleSheet(
-                "QProgressBar { border: 1px solid #bbb; border-radius: 6px; background: #eeeeee; }"
+                "QProgressBar { border: 1px solid #bbb; border-radius: 6px; background: #eeeeee; color: #000000; }"
                 "QProgressBar::chunk { background-color: #c0392b; border-radius: 6px; }"
             )
             try:
@@ -282,7 +282,7 @@ class DownloadItemWidget(QWidget):
         except Exception:
             self.title_label.setText(str(title))
         self.progress.setStyleSheet(
-            "QProgressBar { border: 1px solid #bbb; border-radius: 6px; background: #eeeeee; }"
+            "QProgressBar { border: 1px solid #bbb; border-radius: 6px; background: #eeeeee; color: #000000; }"
             "QProgressBar::chunk { background-color: #c0392b; border-radius: 6px; }"
         )
         self.progress.setFormat("Error")
@@ -318,7 +318,7 @@ class DownloadItemWidget(QWidget):
         """Set widget to active/downloading state (blue chunk, Cancel button)."""
         try:
             self.progress.setStyleSheet(
-                "QProgressBar { border: 1px solid #bbb; border-radius: 6px; background: #eeeeee; }"
+                "QProgressBar { border: 1px solid #bbb; border-radius: 6px; background: #eeeeee; color: #000000; }"
                 "QProgressBar::chunk { background-color: #3498db; border-radius: 6px; }"
             )
         except Exception:
@@ -351,8 +351,94 @@ class ActiveDownloadsTab(QWidget):
         super().__init__()
         self.main = main_window
         self.config = main_window.config_manager
-        self.active_items = {}  # url → DownloadItemWidget
+        self.active_items = {}  # item_id -> DownloadItemWidget
+        self._url_to_item_ids = {}  # url -> [item_id, ...]
+        self._item_id_counter = 0
         self._build_tab_active()
+
+    def _new_item_id(self) -> str:
+        self._item_id_counter += 1
+        return f"item-{self._item_id_counter}"
+
+    def _register_widget(self, item_id: str, url: str, widget: DownloadItemWidget):
+        self.active_items[item_id] = widget
+        self._url_to_item_ids.setdefault(url, []).append(item_id)
+
+    def _unregister_item_id(self, item_id: str):
+        widget = self.active_items.get(item_id)
+        if not widget:
+            return
+
+        url = getattr(widget, "url", None)
+        if url:
+            ids = self._url_to_item_ids.get(url, [])
+            if item_id in ids:
+                ids.remove(item_id)
+            if not ids and url in self._url_to_item_ids:
+                del self._url_to_item_ids[url]
+
+        if item_id in self.active_items:
+            del self.active_items[item_id]
+
+    def _iter_widgets_for_url(self, url: str):
+        for item_id in self._url_to_item_ids.get(url, []):
+            w = self.active_items.get(item_id)
+            if w:
+                yield w
+
+    def _is_terminal_widget(self, widget: DownloadItemWidget) -> bool:
+        return ((widget.progress.format() or "").strip() in ("Done", "Cancelled", "Error"))
+
+    def _remove_widget_instance(self, widget: DownloadItemWidget):
+        """Remove a widget instance from list + internal maps."""
+        if not widget:
+            return
+        for idx in range(self.list_widget.count()):
+            it = self.list_widget.item(idx)
+            w = self.list_widget.itemWidget(it)
+            if w is widget:
+                self.list_widget.takeItem(idx)
+                break
+
+        item_id = getattr(widget, "_item_id", None)
+        if item_id:
+            self._unregister_item_id(item_id)
+
+    def cleanup_playlist_status_items(self, playlist_url: str):
+        """Remove stale playlist status rows for a specific playlist URL."""
+        try:
+            victims = []
+            for w in list(self._iter_widgets_for_url(playlist_url)):
+                txt = (w.title_label.text() or "").strip().lower()
+                if txt.startswith("preparing playlist") or txt.startswith("calculating playlist"):
+                    victims.append(w)
+            for w in victims:
+                self._remove_widget_instance(w)
+        except Exception:
+            log.exception("Failed to cleanup playlist status items")
+
+    def _pick_widget_for_url(self, url: str, prefer_unbound=False):
+        widgets = list(self._iter_widgets_for_url(url))
+        if not widgets:
+            return None
+
+        if prefer_unbound:
+            for w in widgets:
+                if not hasattr(w, "worker") and not self._is_terminal_widget(w):
+                    return w
+
+        for w in widgets:
+            if not self._is_terminal_widget(w):
+                return w
+
+        return widgets[0]
+
+    def ensure_placeholder_for_url(self, url: str):
+        """Return a live placeholder for URL, creating one if needed."""
+        w = self._pick_widget_for_url(url, prefer_unbound=True)
+        if w and not self._is_terminal_widget(w):
+            return w
+        return self.add_placeholder(url)
 
     def _build_tab_active(self):
         layout = QVBoxLayout()
@@ -397,11 +483,9 @@ class ActiveDownloadsTab(QWidget):
         if not url:
             url = str(worker_or_url)
 
-        if url in self.active_items:
-            widget = self.active_items[url]
-        else:
+        widget = self._pick_widget_for_url(url, prefer_unbound=True)
+        if widget is None:
             widget = self.add_placeholder(url)
-            self.active_items[url] = widget
 
         if worker is not None:
             try:
@@ -563,7 +647,7 @@ class ActiveDownloadsTab(QWidget):
         try:
             if is_postprocessing:
                 widget.progress.setStyleSheet(
-                    "QProgressBar { border: 1px solid #bbb; border-radius: 6px; background: #eeeeee; }"
+                    "QProgressBar { border: 1px solid #bbb; border-radius: 6px; background: #eeeeee; color: #000000; }"
                     "QProgressBar::chunk { background-color: #3498db; border-radius: 6px; }"
                 )
         except Exception:
@@ -714,6 +798,7 @@ class ActiveDownloadsTab(QWidget):
     # --- item management ---
     def add_placeholder(self, url):
         """Add a placeholder entry while fetching title."""
+        item_id = self._new_item_id()
         item_widget = DownloadItemWidget(url)
         item_widget.cancel_requested.connect(self._cancel_download)
         item_widget.retry_requested.connect(self._retry_download)
@@ -722,7 +807,8 @@ class ActiveDownloadsTab(QWidget):
         lw_item.setSizeHint(item_widget.sizeHint())
         self.list_widget.addItem(lw_item)
         self.list_widget.setItemWidget(lw_item, item_widget)
-        self.active_items[url] = item_widget
+        item_widget._item_id = item_id
+        self._register_widget(item_id, url, item_widget)
         return item_widget
 
     def replace_placeholder_with_entries(self, old_url, new_urls):
@@ -752,9 +838,11 @@ class ActiveDownloadsTab(QWidget):
                         pass
                 except Exception:
                     pass
-            if old_url in self.active_items:
+            if old_widget is not None:
                 try:
-                    del self.active_items[old_url]
+                    old_item_id = getattr(old_widget, "_item_id", None)
+                    if old_item_id:
+                        self._unregister_item_id(old_item_id)
                 except Exception:
                     pass
 
@@ -762,7 +850,17 @@ class ActiveDownloadsTab(QWidget):
             pos = insert_pos if insert_pos is not None else self.list_widget.count()
             for i, nu in enumerate(new_urls):
                 try:
-                    item_widget = DownloadItemWidget(nu)
+                    if isinstance(nu, dict):
+                        entry_url = str(nu.get("url", "") or "")
+                        entry_title = str(nu.get("title", "") or "").strip()
+                    else:
+                        entry_url = str(nu)
+                        entry_title = ""
+
+                    if not entry_url:
+                        continue
+
+                    item_widget = DownloadItemWidget(entry_url, title=(entry_title or None))
                     item_widget.cancel_requested.connect(self._cancel_download)
                     item_widget.retry_requested.connect(self._retry_download)
                     item_widget.resume_requested.connect(self._resume_download)
@@ -770,7 +868,9 @@ class ActiveDownloadsTab(QWidget):
                     lw_item.setSizeHint(item_widget.sizeHint())
                     self.list_widget.insertItem(pos + i, lw_item)
                     self.list_widget.setItemWidget(lw_item, item_widget)
-                    self.active_items[nu] = item_widget
+                    item_id = self._new_item_id()
+                    item_widget._item_id = item_id
+                    self._register_widget(item_id, entry_url, item_widget)
                 except Exception:
                     log.exception(f"Failed to create placeholder for {nu}")
         except Exception:
@@ -781,7 +881,7 @@ class ActiveDownloadsTab(QWidget):
         No-op if the placeholder does not exist.
         """
         try:
-            w = self.active_items.get(url)
+            w = self._pick_widget_for_url(url)
             if not w:
                 return
             try:
@@ -797,7 +897,7 @@ class ActiveDownloadsTab(QWidget):
     def remove_placeholder(self, url):
         """Find and remove a placeholder widget by its URL."""
         try:
-            widget = self.active_items.get(url)
+            widget = self._pick_widget_for_url(url, prefer_unbound=True) or self._pick_widget_for_url(url)
             if not widget:
                 return
 
@@ -810,36 +910,41 @@ class ActiveDownloadsTab(QWidget):
                     break
             
             # Clean up internal mapping
-            if url in self.active_items:
-                del self.active_items[url]
+            item_id = getattr(widget, "_item_id", None)
+            if item_id:
+                self._unregister_item_id(item_id)
 
         except Exception:
             log.exception(f"Failed to remove placeholder for {url}")
 
     def update_progress(self, url, percent, text):
         """Update the download progress for a given URL."""
-        if url in self.active_items:
-            self.active_items[url].update_progress(percent, text)
+        w = self._pick_widget_for_url(url)
+        if w:
+            w.update_progress(percent, text)
 
     def mark_completed(self, url, title=None, final_path=None):
-        if url in self.active_items:
+        w = self._pick_widget_for_url(url)
+        if w:
             if not title:
                 # If title not provided (e.g. from MainWindow signal), extract from widget
                 # and strip any status prefixes
-                current_text = self.active_items[url].title_label.text()
+                current_text = w.title_label.text()
                 title = self._strip_title_prefix(current_text)
 
-            self.active_items[url].mark_completed(title, final_path)
+            w.mark_completed(title, final_path)
         self._check_if_all_done()
 
     def mark_cancelled(self, url, title):
-        if url in self.active_items:
-            self.active_items[url].mark_cancelled(title)
+        w = self._pick_widget_for_url(url)
+        if w:
+            w.mark_cancelled(title)
         self._check_if_all_done()
 
     def mark_failed(self, url, title):
-        if url in self.active_items:
-            self.active_items[url].mark_failed(title)
+        w = self._pick_widget_for_url(url)
+        if w:
+            w.mark_failed(title)
         self._check_if_all_done()
 
     def _cancel_download(self, url):
@@ -855,9 +960,10 @@ class ActiveDownloadsTab(QWidget):
         # For now, resume == retry (restart download). Main can implement smarter resume.
         # Immediately update UI to active state so user sees feedback
         try:
-            if url in self.active_items:
+            w = self._pick_widget_for_url(url)
+            if w:
                 try:
-                    self.active_items[url].mark_active()
+                    w.mark_active()
                 except Exception:
                     pass
         except Exception:
@@ -867,8 +973,8 @@ class ActiveDownloadsTab(QWidget):
     def _check_if_all_done(self):
         """Emit all_downloads_complete if all active items are finished."""
         if all(
-            ((self.active_items[url].progress.format() or "").strip() in ("Done", "Cancelled", "Error"))
-            for url in self.active_items
+            ((self.active_items[item_id].progress.format() or "").strip() in ("Done", "Cancelled", "Error"))
+            for item_id in self.active_items
         ):
             log.debug("All downloads complete, emitting signal.")
             self.all_downloads_complete.emit()
@@ -887,3 +993,4 @@ class ActiveDownloadsTab(QWidget):
                 )
             except Exception:
                 pass
+

@@ -308,6 +308,12 @@ class StartTab(QWidget):
         self.exit_after_cb.stateChanged.connect(
             lambda s: setattr(self.main, "exit_after", (s != 0)))
 
+        self.redownload_override_cb = QCheckBox("Override duplicate download check")
+        self.redownload_override_cb.setChecked(False)
+        self.redownload_override_cb.setToolTip(
+            "When enabled, downloads will bypass the archive duplicate prompt and re-download automatically."
+        )
+
         bottom.addWidget(playlist_lbl, 0, 0)
         bottom.addWidget(self.playlist_mode, 0, 1)
         bottom.addWidget(max_lbl, 0, 2)
@@ -315,7 +321,8 @@ class StartTab(QWidget):
 
         bottom.addWidget(rate_limit_lbl, 1, 0)
         bottom.addWidget(self.rate_limit_combo, 1, 1)
-        bottom.addWidget(self.exit_after_cb, 1, 3, 1, 2)
+        bottom.addWidget(self.redownload_override_cb, 1, 2)
+        bottom.addWidget(self.exit_after_cb, 1, 3)
 
         layout.addWidget(url_label)
         layout.addLayout(url_row)
@@ -437,6 +444,7 @@ class StartTab(QWidget):
             "acodec": audio_codec,
             "playlist_mode": self.playlist_mode.currentText(),
             "rate_limit": self.rate_limit_combo.itemData(self.rate_limit_combo.currentIndex()),
+            "allow_redownload": self.redownload_override_cb.isChecked(),
         }
         self.main.start_downloads(valid_urls, opts)
 

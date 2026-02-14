@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Advanced Filename Template Insertables**: Added an insertables dropdown next to `Filename Pattern` in Advanced Settings.
   - Users can click to insert common yt-dlp output tokens like `%(title)s`, `%(uploader)s`, `%(upload_date>%m)s`, `%(id)s`, and `%(ext)s`.
   - This mirrors the token-insertion workflow used by sorting subfolder patterns for faster, less error-prone template building.
+- **Archive redownload override checkbox**: Added `Override duplicate download check` to the Start tab so users can bypass the duplicate-archive prompt for that download batch.
 - **Generic Sorting Rules**: Overhauled the sorting rule system to be more flexible.
   - Users can now filter by various metadata fields: **Uploader**, **Title**, **Playlist Title**, **Tags**, **Description**, or **Duration**.
   - Added operators for filtering: **Is one of**, **Contains**, **Equals**, **Greater than**, and **Less than**.
@@ -44,6 +45,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Download archive repeat detection**: Duplicate downloads are now blocked before queueing by checking the archive directly in `DownloadManager`.
 - **Archive key handling**: `ArchiveManager` now uses robust URL key generation (including YouTube `watch`, `shorts`, `live`, `embed`, and `youtu.be` forms), normalizes non-YouTube URLs, and avoids writing duplicate archive entries.
 - **Archive duplicate UX**: When a URL is already archived, users are now prompted to either cancel or "Download Again" instead of being hard-rejected.
+- **Playlist UI row collapsing**: Active Downloads now tracks widgets by unique item IDs instead of URL-only keys, so playlist entries always render as distinct rows even when URLs repeat.
+- **Playlist expansion fallback regression**: Playlist expansion now parses and uses valid JSON output even when yt-dlp exits non-zero, retries YouTube Music `watch+list` links via canonical `youtube.com/playlist` URLs, and normalizes flat-playlist YouTube entries into per-video watch URLs.
+- **Stuck playlist placeholder + sparse expansion fallback**: The "Preparing playlist download..." placeholder is now always replaced once expansion completes, and playlist expansion now includes a line-based `yt-dlp --print` fallback to recover per-item URLs when single-JSON extraction fails.
+- **Playlist expansion auth parity**: Playlist pre-expansion now uses the same cookie and JavaScript runtime settings as normal downloads (`cookies_from_browser` and `--js-runtimes`), improving expansion reliability for protected YouTube/YouTube Music playlists.
+- **Playlist pre-listing reliability**: Added entry-aware expansion and additional full/lazy `--print` fallbacks so playlist rows can be populated with per-item titles/URLs before downloads start on providers where flat JSON expansion fails.
+- **Playlist worker fan-out fallback**: Added a final expansion fallback that runs yt-dlp with worker-equivalent args (`build_yt_dlp_args`) plus `--skip-download --print` so playlists that only work in full download context can still be pre-expanded into one worker per item.
+- **Playlist all-mode enforcement**: When a playlist URL is detected and expansion still returns only one URL, the app now aborts queueing (with a clear error) instead of silently launching one playlist worker that downloads items sequentially under a single UI row.
+- **Playlist status row cleanup**: After replacing the playlist placeholder with expanded item rows, the Active tab now removes any leftover status row like "Calculating playlist (... items)..." or "Preparing playlist download...".
+- **Playlist preparation progress feedback**: Playlist pre-expansion now streams extraction progress to the placeholder row, updating the progress bar text with live status like `Extracting playlist item X/Y` (or a URL-based extracting message when total count is unavailable) so users can see activity during long playlist scans.
 
 ### Security
 -

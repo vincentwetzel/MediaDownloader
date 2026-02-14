@@ -16,12 +16,13 @@ from PyQt6.QtGui import QDesktopServices
 from core.config_manager import ConfigManager
 from core.download_manager import DownloadManager
 from core.version import __version__ as APP_VERSION
-from core.playlist_expander import expand_playlist, is_likely_playlist, PlaylistExpansionError
+from core.playlist_expander import expand_playlist_entries, is_likely_playlist, PlaylistExpansionError
 from ui.tab_start import StartTab
 from ui.tab_active import ActiveDownloadsTab
 from ui.tab_advanced import AdvancedSettingsTab
 from ui.tab_sorting import SortingTab
 import threading
+import time
 from core import extractor_index
 
 log = logging.getLogger(__name__)
@@ -109,6 +110,7 @@ class MediaDownloaderApp(QMainWindow):
         # Window close handling
         self._downloads_in_progress = False
         self._downloads_failed = []
+        self._playlist_extract_seen = {}
 
         # Sync “exit after all downloads complete” flag — always default to False on startup
         self.exit_after = False
@@ -303,8 +305,9 @@ class MediaDownloaderApp(QMainWindow):
                     # Download All
                     url_opts["playlist_mode"] = "all"
                     # Add a placeholder while the playlist is expanded
-                    self.tab_active.add_download_widget(url)
+                    self.tab_active.ensure_placeholder_for_url(url)
                     self.tab_active.set_placeholder_message(url, "Preparing playlist download...")
+                    self.tab_active.update_progress(url, 0, "Preparing playlist download...")
                     self._start_background_download_processing([url], url_opts, expand_playlists=True)
                 elif clicked_button == btn_one:
                     # Download Single
@@ -327,8 +330,9 @@ class MediaDownloaderApp(QMainWindow):
                 if is_playlist:
                      url_opts["playlist_mode"] = "all"
                      # Add placeholder while playlist is prepared
-                     self.tab_active.add_download_widget(url)
+                     self.tab_active.ensure_placeholder_for_url(url)
                      self.tab_active.set_placeholder_message(url, "Preparing playlist download...")
+                     self.tab_active.update_progress(url, 0, "Preparing playlist download...")
                 
                 # Only expand if it is a playlist.
                 self._start_background_download_processing([url], url_opts, expand_playlists=is_playlist)
@@ -341,18 +345,76 @@ class MediaDownloaderApp(QMainWindow):
                 urls_to_download = []
                 if expand_playlists:
                     try:
-                        expanded = expand_playlist(url)
-                        # If playlist, update UI
-                        if len(expanded) > 1:
-                            self.add_download_request.emit('__playlist_detected__', (url, len(expanded)))
-                            self.add_download_request.emit('__playlist_expanded__', (url, expanded))
-                        urls_to_download.extend(expanded)
+                        self._playlist_extract_seen[url] = False
+                        stop_progress_pulse = threading.Event()
+                        def _progress_pulse():
+                            started = time.monotonic()
+                            while not stop_progress_pulse.is_set():
+                                elapsed = int(max(0, time.monotonic() - started))
+                                self.add_download_request.emit(
+                                    '__playlist_extract_progress__',
+                                    (url, {"status_text": f"Gathering playlist URLs... {elapsed}s"})
+                                )
+                                stop_progress_pulse.wait(1.0)
+
+                        pulse_thread = threading.Thread(target=_progress_pulse, daemon=True)
+                        pulse_thread.start()
+
+                        def _on_playlist_progress(payload):
+                            self.add_download_request.emit('__playlist_extract_progress__', (url, payload or {}))
+
+                        expanded_entries = expand_playlist_entries(
+                            url,
+                            config_manager=self.config_manager,
+                            opts=opts,
+                            progress_callback=_on_playlist_progress
+                        )
+                        stop_progress_pulse.set()
+                        if not expanded_entries:
+                            expanded_entries = [{"url": url, "title": ""}]
+                        expanded_urls = [e.get("url", url) for e in expanded_entries if isinstance(e, dict)]
+                        if not expanded_urls:
+                            expanded_urls = [url]
+
+                        log.info(
+                            "Playlist expansion result for %s: %d entries",
+                            url,
+                            len(expanded_urls)
+                        )
+                        if expanded_urls:
+                            log.debug("First expanded URL for %s: %s", url, expanded_urls[0])
+
+                        # If user explicitly chose playlist expansion but we still
+                        # have only a single URL, refuse to fall back to a single
+                        # playlist worker (which causes one-row UI behavior).
+                        if is_likely_playlist(url) and len(expanded_urls) <= 1:
+                            raise PlaylistExpansionError(
+                                "Could not expand playlist into individual items. "
+                                "No downloads were queued."
+                            )
+
+                        # If playlist has multiple entries, update calculating text/count.
+                        if len(expanded_urls) > 1:
+                            self.add_download_request.emit('__playlist_detected__', (url, len(expanded_urls)))
+
+                        # Always replace the "Preparing playlist..." placeholder
+                        # once expansion completes to avoid stale placeholder rows.
+                        self.add_download_request.emit('__playlist_expanded__', (url, expanded_entries))
+                        urls_to_download.extend(expanded_urls)
                     except PlaylistExpansionError as e:
+                        try:
+                            stop_progress_pulse.set()
+                        except Exception:
+                            pass
                         # Handle specific playlist errors (e.g., premiere)
                         self.download_manager.download_error.emit(url, str(e))
                         self.add_download_request.emit('__playlist_failed__', url)
                         continue  # Skip to the next URL
                     except Exception as e:
+                        try:
+                            stop_progress_pulse.set()
+                        except Exception:
+                            pass
                         log.error(f"Generic error expanding playlist {url}: {e}")
                         # Fallback to trying to download the original URL
                         urls_to_download.append(url)
@@ -388,7 +450,10 @@ class MediaDownloaderApp(QMainWindow):
         elif command == '__playlist_expanded__':
             try:
                 orig, expanded = data
+                self._playlist_extract_seen.pop(orig, None)
                 self.tab_active.replace_placeholder_with_entries(orig, expanded)
+                # Defensive cleanup in case a status placeholder survived replacement.
+                self.tab_active.cleanup_playlist_status_items(orig)
             except Exception:
                 log.exception("Failed to replace playlist placeholder with entries")
         elif command == '__playlist_detected__':
@@ -397,9 +462,62 @@ class MediaDownloaderApp(QMainWindow):
                 self.tab_active.set_placeholder_message(orig, f"Calculating playlist ({count} items)...")
             except Exception:
                 log.exception("Failed to set playlist calculating message")
+        elif command == '__playlist_extract_progress__':
+            try:
+                orig, payload = data
+                log.debug("Playlist extract progress event for %s: %s", orig, payload)
+                self.tab_active.ensure_placeholder_for_url(orig)
+                payload = payload or {}
+                current = payload.get("current") or 0
+                total = payload.get("total") or payload.get("playlist_count") or 0
+                entry_url = (payload.get("url") or "").strip()
+                entry_title = (payload.get("title") or "").strip()
+                phase = (payload.get("phase") or "").strip().lower()
+                status_text = (payload.get("status_text") or "").strip()
+                seen_extract = bool(self._playlist_extract_seen.get(orig, False))
+
+                percent = None
+                if total and current:
+                    percent = max(0.0, min(100.0, (float(current) / float(total)) * 100.0))
+
+                if phase == "extracting" and current and entry_title:
+                    self._playlist_extract_seen[orig] = True
+                    if total:
+                        bar_text = f"Extracting playlist item {current}/{total}: {entry_title}"
+                    else:
+                        bar_text = f"Extracting playlist item {current}: {entry_title}"
+                    title_text = "Preparing playlist download..."
+                elif phase == "extracting" and current and entry_url:
+                    self._playlist_extract_seen[orig] = True
+                    if total:
+                        bar_text = f"Extracting playlist entry {current}/{total}: {entry_url}"
+                    else:
+                        bar_text = f"Extracting playlist entry {current}: {entry_url}"
+                    title_text = "Preparing playlist download..."
+                elif total and current:
+                    bar_text = f"Extracting playlist item {current}/{total}"
+                    title_text = "Preparing playlist download..."
+                elif current:
+                    bar_text = f"Gathering playlist URLs... found {current}"
+                    title_text = "Preparing playlist download..."
+                elif entry_url:
+                    bar_text = "Extracting playlist entries..."
+                    short_url = entry_url if len(entry_url) <= 90 else f"{entry_url[:87]}..."
+                    title_text = f"Extracting URL: {short_url}"
+                elif status_text and not seen_extract:
+                    bar_text = "Extracting playlist entries..."
+                    title_text = status_text if len(status_text) <= 90 else f"{status_text[:87]}..."
+                else:
+                    return
+
+                self.tab_active.set_placeholder_message(orig, title_text)
+                self.tab_active.update_progress(orig, percent, bar_text)
+            except Exception:
+                log.exception("Failed to update playlist extraction progress")
         elif command == '__playlist_failed__':
             try:
                 failed_url = data
+                self._playlist_extract_seen.pop(failed_url, None)
                 self.tab_active.remove_placeholder(failed_url)
             except Exception:
                 log.exception("Failed to remove failed playlist placeholder")
