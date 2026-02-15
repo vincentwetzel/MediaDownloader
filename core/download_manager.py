@@ -625,20 +625,26 @@ class DownloadManager(QObject):
 
         # Start next queued download if any
         self._maybe_start_next()
-        # Debug: list completed directory contents after processing to help diagnose
+        # Debug: summarize completed directory contents after processing.
+        # Avoid dumping huge system-folder listings (e.g. $RECYCLE.BIN on drive roots).
         try:
             completed_dir = self.config.get("Paths", "completed_downloads_directory", fallback="")
             if completed_dir and os.path.exists(completed_dir):
                 try:
-                    listing = []
-                    for root, _, files_in_dir in os.walk(completed_dir):
+                    ignored_dirs = {"$RECYCLE.BIN", "System Volume Information"}
+                    file_count = 0
+                    sample = []
+                    for root, dirnames, files_in_dir in os.walk(completed_dir):
+                        # Skip Windows system directories when output points to a drive root.
+                        dirnames[:] = [d for d in dirnames if d not in ignored_dirs]
                         for fn in files_in_dir:
                             p = os.path.join(root, fn)
-                            try:
-                                listing.append((os.path.relpath(p, completed_dir), os.path.getsize(p), os.path.getmtime(p)))
-                            except Exception:
-                                listing.append((os.path.relpath(p, completed_dir), None, None))
-                    log.debug(f"Completed dir full listing ({completed_dir}): {listing[:200]}")
+                            file_count += 1
+                            if len(sample) < 10:
+                                sample.append(os.path.relpath(p, completed_dir))
+                    log.debug(
+                        f"Completed dir summary ({completed_dir}): files={file_count}, sample={sample}"
+                    )
                 except Exception:
                     log.debug("Could not list completed_dir for debug")
         except Exception:
