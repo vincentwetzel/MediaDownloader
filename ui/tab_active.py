@@ -515,6 +515,8 @@ class ActiveDownloadsTab(QWidget):
         """
         pct = None
         text = ""
+        frag_idx = None
+        frag_total = None
 
         # dict-like (common)
         if isinstance(data, dict):
@@ -564,6 +566,22 @@ class ActiveDownloadsTab(QWidget):
                     pct = None
             else:
                 pct = None
+
+        # For fragment-based downloads (e.g. HLS), yt-dlp can emit transient
+        # lines like "100.0% ... (frag 0/48)" before real transfer starts.
+        # If we accept that 100%, monotonic UI logic will pin the bar at 100.
+        try:
+            import re
+            frag_match = re.search(r"\(frag\s+(\d+)\s*/\s*(\d+)\)", text or "", re.IGNORECASE)
+            if frag_match:
+                frag_idx = int(frag_match.group(1))
+                frag_total = int(frag_match.group(2))
+                if frag_total > 0 and pct is None:
+                    pct = (float(frag_idx) / float(frag_total)) * 100.0
+                elif frag_total > 0 and pct is not None and pct >= 99.9 and frag_idx < frag_total:
+                    pct = (float(frag_idx) / float(frag_total)) * 100.0
+        except Exception:
+            pass
 
         # Clamp and keep percent monotonic for this widget so transient
         # parser noise cannot make display text move backward.

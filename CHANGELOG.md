@@ -47,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 -
 
 ### Fixed
+- **HLS fragment progress no longer locks at 100% early**: Active download progress parsing now detects `frag X/Y` lines and prevents transient `100.0% ... (frag 0/N)` outputs from pinning the UI bar at 100% for the rest of the transfer.
 - **Fixed Sorting Rule Album Detection**: Added fallback logic to use playlist title as the album name when the `album` metadata field is missing. This ensures `{album}` subfolder patterns work correctly for playlists (e.g., YouTube Music albums) that don't explicitly provide album metadata.
 - **Enhanced Album Detection**: Added fallback to extract album metadata directly from downloaded files using `ffprobe` (checking both container and stream tags) if `yt-dlp` metadata is missing the album field. This improves sorting reliability for playlists where album info is embedded in the file but not in the JSON metadata.
 - **Playlist Sorting Recognition**: Fixed an issue where downloads from expanded playlists were not recognized as playlist items by the sorting system. The application now internally tracks playlist context, ensuring that "Audio Playlist Downloads" and "Video Playlist Downloads" sorting rules are correctly applied without modifying metadata.
