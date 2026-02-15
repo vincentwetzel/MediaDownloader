@@ -102,7 +102,7 @@ class SortingManager:
             self.rules.insert(index + 1, self.rules.pop(index))
             self.save_rules()
 
-    def get_target_path(self, metadata, current_download_type="Video"):
+    def get_target_path(self, metadata, current_download_type="Video", is_playlist_context=False):
         if not metadata:
             return None
 
@@ -112,7 +112,7 @@ class SortingManager:
             if rule.get('audio_only', False) and rule_type == 'All':
                 rule_type = 'Audio'
 
-            if not self._download_type_matches(rule_type, current_download_type, metadata):
+            if not self._download_type_matches(rule_type, current_download_type, metadata, is_playlist_context):
                 continue
 
             # --- Backwards compatibility for single-filter rules ---
@@ -155,7 +155,7 @@ class SortingManager:
                 return True
         return False
 
-    def _download_type_matches(self, rule_type, current_download_type, metadata):
+    def _download_type_matches(self, rule_type, current_download_type, metadata, is_playlist_context=False):
         """Check if a rule type applies to the current download and metadata context."""
         normalized_rule_type = str(rule_type or 'All').strip()
 
@@ -163,10 +163,10 @@ class SortingManager:
             return True
 
         if normalized_rule_type == 'Video Playlist':
-            return current_download_type == 'Video' and self._is_playlist_item(metadata)
+            return current_download_type == 'Video' and (is_playlist_context or self._is_playlist_item(metadata))
 
         if normalized_rule_type == 'Audio Playlist':
-            return current_download_type == 'Audio' and self._is_playlist_item(metadata)
+            return current_download_type == 'Audio' and (is_playlist_context or self._is_playlist_item(metadata))
 
         return normalized_rule_type == current_download_type
 

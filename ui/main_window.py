@@ -434,8 +434,13 @@ class MediaDownloaderApp(QMainWindow):
                 else:
                     urls_to_download.append(url)
 
+                # Prepare opts for these downloads
+                current_opts = opts.copy()
+                if expand_playlists:
+                    current_opts['is_playlist_download'] = True
+
                 for sub_url in urls_to_download:
-                    self.add_download_request.emit(sub_url, opts)
+                    self.add_download_request.emit(sub_url, current_opts)
 
             self.add_download_request.emit('__mark_in_progress__', None)
 

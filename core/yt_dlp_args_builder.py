@@ -162,6 +162,15 @@ def build_yt_dlp_args(opts, config_manager):
     args.extend(["--replace-in-metadata", "title", r"\?", ""])
     args.extend(["--replace-in-metadata", "title", r":", " -"])
     
+    # Explicitly replace all forms of quotes with a simple apostrophe to avoid filename issues
+    # Apply to title, album, artist, playlist_title, chapter, chapter_title
+    for field in ["title", "album", "artist", "playlist_title", "chapter", "chapter_title"]:
+        args.extend(["--replace-in-metadata", field, r'"', "'"])
+        args.extend(["--replace-in-metadata", field, r"“", "'"])
+        args.extend(["--replace-in-metadata", field, r"”", "'"])
+        args.extend(["--replace-in-metadata", field, r"‘", "'"])
+        args.extend(["--replace-in-metadata", field, r"’", "'"])
+    
     # Force writing metadata to a JSON file so we can read it reliably
     args.append("--write-info-json")
 

@@ -4,6 +4,7 @@ import sys
 import shutil
 import time
 import json
+import subprocess
 from core.yt_dlp_worker import DownloadWorker, check_yt_dlp_available, fetch_metadata, is_url_valid, is_gallery_url_valid
 from core.playlist_expander import expand_playlist
 import threading
@@ -11,6 +12,7 @@ from core.config_manager import ConfigManager
 from PyQt6.QtCore import QObject, pyqtSignal
 from core.archive_manager import ArchiveManager
 from core.sorting_manager import SortingManager
+from core.binary_manager import get_binary_path
 from urllib.parse import urlparse
 import re
 
@@ -245,6 +247,58 @@ class DownloadManager(QObject):
                 log.exception(f"Failed to start queued download: {next_worker.url}")
             running += 1
 
+    def _extract_metadata_from_file(self, file_path):
+        """Extract metadata from a media file using ffprobe."""
+        try:
+            ffprobe_path = get_binary_path("ffprobe")
+            if not ffprobe_path:
+                return {}
+
+            cmd = [
+                ffprobe_path,
+                "-v", "quiet",
+                "-print_format", "json",
+                "-show_format",
+                "-show_streams",
+                file_path
+            ]
+            
+            # On Windows, suppress console window
+            creation_flags = 0
+            if sys.platform == "win32" and getattr(sys, "frozen", False):
+                creation_flags = subprocess.CREATE_NO_WINDOW
+
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                creationflags=creation_flags,
+                encoding='utf-8',
+                errors='replace'
+            )
+
+            if result.returncode == 0:
+                data = json.loads(result.stdout)
+                # Check format tags
+                tags = data.get('format', {}).get('tags', {})
+                
+                # If not found, check stream tags (common for some containers like opus/mkv)
+                if not tags:
+                    for stream in data.get('streams', []):
+                        stream_tags = stream.get('tags', {})
+                        if stream_tags:
+                            tags = stream_tags
+                            break
+                
+                if tags:
+                    log.debug(f"Extracted tags from {file_path}: {tags}")
+                else:
+                    log.debug(f"No tags found in {file_path}")
+
+                return tags
+        except Exception:
+            log.exception(f"Failed to extract metadata from file: {file_path}")
+        return {}
 
     def _move_files_job(self, worker, url, files):
         """This job runs in a background thread to move files without blocking the GUI."""
@@ -309,22 +363,43 @@ class DownloadManager(QObject):
                         log.debug(f"Sorting metadata uploader: '{info.get('uploader')}'")
                     if 'channel' in info:
                         log.debug(f"Sorting metadata channel: '{info.get('channel')}'")
+                    
+                    # Log album value for debugging
+                    log.debug(f"Metadata album value: '{info.get('album')}'")
+
+                # If album is missing, try to extract it from the downloaded file(s)
+                if not info.get('album'):
+                    for f in files:
+                        if os.path.exists(f):
+                            file_tags = self._extract_metadata_from_file(f)
+                            if file_tags:
+                                # Merge tags into info, prioritizing existing info but filling gaps
+                                # specifically looking for album
+                                album = file_tags.get('album') or file_tags.get('ALBUM')
+                                if album:
+                                    info['album'] = album
+                                    log.info(f"Extracted album from file metadata: {album}")
+                                    break
 
                 # Reload rules to ensure we have the latest
                 self.sorting_manager.load_rules()
                 
                 # Determine current download type
                 current_download_type = "Video" # Default
+                is_playlist_context = False # Default
                 try:
                     opts = self._original_opts.get(url, {})
                     if opts.get("audio_only", False):
                         current_download_type = "Audio"
                     elif opts.get("use_gallery_dl", False):
                         current_download_type = "Gallery"
+                    
+                    if opts.get("is_playlist_download", False):
+                        is_playlist_context = True
                 except Exception:
                     pass
                 
-                sorted_path = self.sorting_manager.get_target_path(info, current_download_type=current_download_type)
+                sorted_path = self.sorting_manager.get_target_path(info, current_download_type=current_download_type, is_playlist_context=is_playlist_context)
                 if sorted_path:
                     # Ensure the sorted path exists
                     sorted_path = os.path.abspath(os.path.normpath(os.path.expanduser(sorted_path)))

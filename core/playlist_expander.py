@@ -70,7 +70,7 @@ def _dedupe_entries_keep_order(entries):
         if not u or u in seen:
             continue
         seen.add(u)
-        out.append({"url": u, "title": (entry.get("title") or "").strip()})
+        out.append(entry)
     return out
 
 

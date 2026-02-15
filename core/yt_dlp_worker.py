@@ -41,7 +41,7 @@ def check_yt_dlp_available():
         log.debug(f"Attempting to verify yt-dlp at: {yt_dlp_path}")
         result = subprocess.run(
             [yt_dlp_path, "--version"],
-            capture_output=True, text=True, timeout=5, shell=False,
+            capture_output=True, text=True, encoding='utf-8', timeout=5, shell=False,
             errors='replace', stdin=subprocess.DEVNULL, creationflags=creation_flags
         )
 
@@ -133,6 +133,7 @@ def get_yt_dlp_version(force_check=False):
                     [_YT_DLP_PATH, "--version"],
                     capture_output=True,
                     text=True,
+                    encoding='utf-8',
                     timeout=5,
                     shell=False,
                     errors='replace',
@@ -191,7 +192,7 @@ def fetch_metadata(url: str, timeout: int = 15, noplaylist: bool = False):
         meta_cmd.append(url)
         
         log.debug(f"fetch_metadata running: {meta_cmd}")
-        proc = subprocess.run(meta_cmd, capture_output=True, text=True, timeout=timeout, shell=False, stdin=subprocess.DEVNULL, creationflags=creation_flags)
+        proc = subprocess.run(meta_cmd, capture_output=True, text=True, encoding='utf-8', timeout=timeout, shell=False, stdin=subprocess.DEVNULL, creationflags=creation_flags)
         if proc.returncode == 0 and proc.stdout:
             try:
                 info = json.loads(proc.stdout)
@@ -219,7 +220,7 @@ def is_url_valid(url: str, timeout: int = 15, noplaylist: bool = False):
             cmd.append("--no-playlist")
         cmd.append(url)
         
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, shell=False, stdin=subprocess.DEVNULL, creationflags=creation_flags)
+        proc = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', timeout=timeout, shell=False, stdin=subprocess.DEVNULL, creationflags=creation_flags)
         return proc.returncode == 0
     except Exception:
         return False
@@ -415,6 +416,7 @@ class DownloadWorker(QThread):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 universal_newlines=True,
+                encoding='utf-8',
                 bufsize=1,
                 errors='replace',
                 shell=False,
