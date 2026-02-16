@@ -28,7 +28,7 @@ class SortingTab(QWidget):
 
         description = QLabel(
             "Create rules to automatically move downloaded files to specific folders based on metadata like uploader, title, or tags.\n"
-            "You can also define dynamic subfolder patterns using metadata tokens like {uploader}, {upload_year}, or {album}."
+            "You can also define dynamic subfolder patterns using metadata tokens like {uploader}, {upload_year}, {album_year}, or {album}."
         )
         description.setWordWrap(True)
         layout.addWidget(description)
@@ -402,9 +402,9 @@ class RuleDialog(QDialog):
         # --- Populate and Connect ---
         browse_btn.clicked.connect(self.browse_path)
         
-        self.subfolder_pattern_edit.setPlaceholderText("e.g., {upload_year}/{uploader} or {album}")
+        self.subfolder_pattern_edit.setPlaceholderText("e.g., {upload_year}/{uploader} or {album_year}/{album}")
         self.subfolder_pattern_edit.setToolTip(
-            "Create dynamic subfolders using tokens like {upload_year}, {upload_month}, {uploader}, or {album}."
+            "Create dynamic subfolders using tokens like {upload_year}, {upload_month}, {album_year}, {uploader}, or {album}."
         )
         
         self.tokens_combo.addItem("Insert...")
@@ -414,6 +414,7 @@ class RuleDialog(QDialog):
         self.tokens_combo.addItem("Uploader {uploader}", "{uploader}")
         self.tokens_combo.addItem("Title {title}", "{title}")
         self.tokens_combo.addItem("ID {id}", "{id}")
+        self.tokens_combo.addItem("Album Year {album_year}", "{album_year}")
         self.tokens_combo.addItem("Album {album}", "{album}")
         self.tokens_combo.activated.connect(self.insert_token)
         

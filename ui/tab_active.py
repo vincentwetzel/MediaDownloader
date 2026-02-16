@@ -1,5 +1,6 @@
 import logging
 import os
+import time
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QProgressBar, QPushButton, QListWidget,
     QListWidgetItem, QMessageBox, QSizePolicy
@@ -24,7 +25,31 @@ class DownloadItemWidget(QWidget):
         # Track whether the download has actually started (received progress/starting)
         self._started = False
         self._final_path = None # Store final path for "Open Folder"
+        self._style_state = None
+        self._last_render_value = None
+        self._last_render_text = None
         self._build()
+
+    def _set_progress_style(self, state: str):
+        """Apply progress style only when state changes to avoid expensive repaints."""
+        if getattr(self, "_style_state", None) == state:
+            return
+        styles = {
+            "active": (
+                "QProgressBar { border: 1px solid #bbb; border-radius: 6px; background: #eeeeee; color: #000000; }"
+                "QProgressBar::chunk { background-color: #3498db; border-radius: 6px; }"
+            ),
+            "completed": (
+                "QProgressBar { border: 1px solid #bbb; border-radius: 6px; background: #eeeeee; color: #000000; }"
+                "QProgressBar::chunk { background-color: #2ecc71; border-radius: 6px; }"
+            ),
+            "error": (
+                "QProgressBar { border: 1px solid #bbb; border-radius: 6px; background: #eeeeee; color: #000000; }"
+                "QProgressBar::chunk { background-color: #c0392b; border-radius: 6px; }"
+            ),
+        }
+        self.progress.setStyleSheet(styles.get(state, styles["active"]))
+        self._style_state = state
 
     def _build(self):
         layout = QVBoxLayout()
@@ -71,10 +96,7 @@ class DownloadItemWidget(QWidget):
         # defines the bar and chunk appearance; color of the chunk will be
         # adjusted on status changes.
         self.progress.setFixedHeight(18)
-        self.progress.setStyleSheet(
-            "QProgressBar { border: 1px solid #bbb; border-radius: 6px; background: #eeeeee; color: #000000; }"
-            "QProgressBar::chunk { background-color: #3498db; border-radius: 6px; }"
-        )
+        self._set_progress_style("active")
         # Track last numeric percent shown so transient postprocessing
         # messages (which often arrive with no percent) don't cause the
         # bar to drop back to 0 after reaching 100%.
@@ -154,6 +176,10 @@ class DownloadItemWidget(QWidget):
             else:
                 display_val = int(round(self._last_percent))
             
+            render_text = str(text)
+            if self._last_render_value == display_val and self._last_render_text == render_text:
+                return
+
             self.progress.setValue(display_val)
 
             # Ensure the text also reflects the monotonic percent if it contains "Downloading: XX.X%"
@@ -179,7 +205,10 @@ class DownloadItemWidget(QWidget):
         # appears centered inside the bar. If not provided, show percent
         # with two decimals.
         try:
-            self.progress.setFormat(str(text))
+            render_text = str(text)
+            self.progress.setFormat(render_text)
+            self._last_render_value = self.progress.value()
+            self._last_render_text = render_text
         except Exception:
             try:
                 self.progress.setFormat(f"{val:.1f}%")
@@ -206,10 +235,7 @@ class DownloadItemWidget(QWidget):
             # so the progress chunk remains active/blue until finished().
             post_keys = post_keys + ("extract", "fixup",)
             if any(k in low for k in post_keys):
-                self.progress.setStyleSheet(
-                    "QProgressBar { border: 1px solid #bbb; border-radius: 6px; background: #eeeeee; color: #000000; }"
-                    "QProgressBar::chunk { background-color: #3498db; border-radius: 6px; }"
-                )
+                self._set_progress_style("active")
         except Exception:
             pass
 
@@ -221,12 +247,11 @@ class DownloadItemWidget(QWidget):
         except Exception:
             self.title_label.setText(str(title))
         self.progress.setValue(100)
-        self.progress.setStyleSheet(
-            "QProgressBar { border: 1px solid #bbb; border-radius: 6px; background: #eeeeee; color: #000000; }"
-            "QProgressBar::chunk { background-color: #2ecc71; border-radius: 6px; }"
-        )
+        self._set_progress_style("completed")
         # Use friendly 'Done' label instead of numeric 100%
         self.progress.setFormat("Done")
+        self._last_render_value = 100
+        self._last_render_text = "Done"
         self.cancel_btn.setVisible(False)
         
         # Show Open Folder button if path is available
@@ -245,10 +270,7 @@ class DownloadItemWidget(QWidget):
         started = getattr(self, "_started", False)
         self.progress.setFormat("Cancelled")
         if started:
-            self.progress.setStyleSheet(
-                "QProgressBar { border: 1px solid #bbb; border-radius: 6px; background: #eeeeee; color: #000000; }"
-                "QProgressBar::chunk { background-color: #c0392b; border-radius: 6px; }"
-            )
+            self._set_progress_style("error")
             try:
                 self.cancel_btn.setText("Resume")
                 try:
@@ -260,10 +282,7 @@ class DownloadItemWidget(QWidget):
                 pass
         else:
             # If it never started, treat as a retryable failure
-            self.progress.setStyleSheet(
-                "QProgressBar { border: 1px solid #bbb; border-radius: 6px; background: #eeeeee; color: #000000; }"
-                "QProgressBar::chunk { background-color: #c0392b; border-radius: 6px; }"
-            )
+            self._set_progress_style("error")
             try:
                 self.cancel_btn.setText("Retry")
                 try:
@@ -274,18 +293,26 @@ class DownloadItemWidget(QWidget):
             except Exception:
                 pass
 
-    def mark_failed(self, title):
+    def mark_failed(self, title, error_message=None):
         """Mark as failed, allows retry."""
         # Preserve just the video title; show error state on the bar
         try:
             self.title_label.setText(title)
         except Exception:
             self.title_label.setText(str(title))
-        self.progress.setStyleSheet(
-            "QProgressBar { border: 1px solid #bbb; border-radius: 6px; background: #eeeeee; color: #000000; }"
-            "QProgressBar::chunk { background-color: #c0392b; border-radius: 6px; }"
-        )
-        self.progress.setFormat("Error")
+        self._set_progress_style("error")
+        
+        # Use specific error message if provided, otherwise generic "Error"
+        if error_message:
+            # Truncate if too long to fit in progress bar
+            display_msg = error_message
+            if len(display_msg) > 40:
+                display_msg = display_msg[:37] + "..."
+            self.progress.setFormat(display_msg)
+            self.progress.setToolTip(error_message)
+        else:
+            self.progress.setFormat("Error")
+            
         self.cancel_btn.setText("Retry")
         self.cancel_btn.clicked.disconnect()
         self.cancel_btn.clicked.connect(lambda: self.retry_requested.emit(self.url))
@@ -317,10 +344,7 @@ class DownloadItemWidget(QWidget):
     def mark_active(self):
         """Set widget to active/downloading state (blue chunk, Cancel button)."""
         try:
-            self.progress.setStyleSheet(
-                "QProgressBar { border: 1px solid #bbb; border-radius: 6px; background: #eeeeee; color: #000000; }"
-                "QProgressBar::chunk { background-color: #3498db; border-radius: 6px; }"
-            )
+            self._set_progress_style("active")
         except Exception:
             pass
         try:
@@ -330,6 +354,7 @@ class DownloadItemWidget(QWidget):
             except Exception:
                 pass
             self.cancel_btn.clicked.connect(self._on_cancel_clicked)
+            self.cancel_btn.setVisible(True) # Ensure cancel button is visible
         except Exception:
             pass
         # Reset started flag until progress arrives
@@ -339,6 +364,8 @@ class DownloadItemWidget(QWidget):
             pass
         # Reset last percent so new attempts start fresh
         self._last_percent = 0.0
+        self._last_render_value = None
+        self._last_render_text = None
         self.open_folder_btn.setVisible(False)
 
 
@@ -346,6 +373,8 @@ class ActiveDownloadsTab(QWidget):
     """Manages list of active, queued, and completed downloads."""
 
     all_downloads_complete = pyqtSignal()
+    _PROGRESS_UPDATE_MIN_INTERVAL_SEC = 0.1
+    _PROGRESS_DUPLICATE_INTERVAL_SEC = 0.35
 
     def __init__(self, main_window):
         super().__init__()
@@ -657,19 +686,29 @@ class ActiveDownloadsTab(QWidget):
                 except Exception:
                     pass
 
+        # Throttle redundant GUI updates. During concurrent postprocessing
+        # yt-dlp can emit many near-identical lines, which can saturate the
+        # main thread with paint/layout work.
+        now = time.monotonic()
+        try:
+            pct_bucket = percent_int if pct is not None else -1
+        except Exception:
+            pct_bucket = -1
+        render_text = str(right_text or "")
+        last_ts = float(getattr(widget, "_last_ui_update_ts", 0.0) or 0.0)
+        last_pct = int(getattr(widget, "_last_ui_pct_bucket", -2))
+        last_text = str(getattr(widget, "_last_ui_text", "") or "")
+        if pct_bucket == last_pct and render_text == last_text:
+            if now - last_ts < self._PROGRESS_DUPLICATE_INTERVAL_SEC:
+                return
+        elif pct_bucket == last_pct and now - last_ts < self._PROGRESS_UPDATE_MIN_INTERVAL_SEC:
+            return
+        widget._last_ui_update_ts = now
+        widget._last_ui_pct_bucket = pct_bucket
+        widget._last_ui_text = render_text
+
         # Pass the float percent so the progress display can show decimals
         widget.update_progress(pct, right_text)
-        # If we detected postprocessing activity, explicitly ensure the
-        # progress chunk remains the active/blue color so it doesn't go
-        # colorless while yt-dlp is merging/removing files.
-        try:
-            if is_postprocessing:
-                widget.progress.setStyleSheet(
-                    "QProgressBar { border: 1px solid #bbb; border-radius: 6px; background: #eeeeee; color: #000000; }"
-                    "QProgressBar::chunk { background-color: #3498db; border-radius: 6px; }"
-                )
-        except Exception:
-            pass
         # Mark widget as started if we have meaningful progress or status
         try:
             if percent_int > 0 or "downloading" in (right_text or "").lower() or "starting" in (right_text or "").lower():
@@ -801,7 +840,7 @@ class ActiveDownloadsTab(QWidget):
         """Explicit error path (if worker emits error_occurred)."""
         title = self._strip_title_prefix(widget.title_label.text())
         # show error on widget and allow retry
-        widget.mark_failed(title)
+        widget.mark_failed(title, err_text)
         # Reset speed on failure
         if hasattr(widget, 'worker'):
             widget.worker.current_speed = 0.0

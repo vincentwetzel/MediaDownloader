@@ -1,8 +1,29 @@
 import os
 import logging
+import re
 from core.binary_manager import get_binary_path
 
 log = logging.getLogger(__name__)
+
+
+def _normalize_rate_limit(value):
+    """Return a yt-dlp compatible rate-limit string, or empty string for unlimited/invalid."""
+    if value is None:
+        return ""
+
+    normalized = str(value).strip()
+    if not normalized:
+        return ""
+
+    if normalized.lower() in ("0", "none", "no limit", "unlimited"):
+        return ""
+
+    # Accept values like "250K", "2M", "10M", "1G".
+    if re.fullmatch(r"[1-9]\d*[KMGkmg]?", normalized):
+        return normalized.upper()
+
+    log.warning("Ignoring invalid rate_limit setting: %r", value)
+    return ""
 
 def build_yt_dlp_args(opts, config_manager):
     """Convert options dict to list of command-line arguments for yt-dlp."""
@@ -174,8 +195,9 @@ def build_yt_dlp_args(opts, config_manager):
     # Force writing metadata to a JSON file so we can read it reliably
     args.append("--write-info-json")
 
-    rate_limit = config_manager.get("General", "rate_limit", fallback="0")
-    if rate_limit and rate_limit not in ("0", "", "no limit", "No limit"):
+    raw_rate_limit = opts.get("rate_limit", config_manager.get("General", "rate_limit", fallback=""))
+    rate_limit = _normalize_rate_limit(raw_rate_limit)
+    if rate_limit:
         args.extend(["--limit-rate", rate_limit])
         
     # --- Cookies ---

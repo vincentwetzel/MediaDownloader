@@ -267,14 +267,19 @@ class StartTab(QWidget):
         def _on_max_changed(t):
             try:
                 threads_val = int(t)
-                if threads_val > 4:
-                    threads_val = 4
-                self.config.set("General", "max_threads", str(threads_val))
+                if threads_val < 1:
+                    threads_val = 1
+                if threads_val > 8:
+                    threads_val = 8
+                # Persist only up to 4 so app restart defaults stay bounded.
+                self.config.set("General", "max_threads", str(min(threads_val, 4)))
             except Exception:
                 pass
             try:
                 dm = getattr(self.main, 'download_manager', None)
                 if dm:
+                    # Allow up to 8 during the current app session.
+                    dm.set_runtime_max_threads(threads_val)
                     dm._maybe_start_next()
             except Exception:
                 pass
@@ -292,14 +297,21 @@ class StartTab(QWidget):
         self.rate_limit_combo.addItem("500 KB/s", "500K")
         self.rate_limit_combo.addItem("250 KB/s", "250K")
         
-        saved_rate_limit = self.config.get("General", "rate_limit")
-        if saved_rate_limit:
+        saved_rate_limit = (self.config.get("General", "rate_limit") or "").strip()
+        if saved_rate_limit.lower() in ("none", "no limit", "unlimited"):
+            self.rate_limit_combo.setCurrentIndex(0)
+            self.config.set("General", "rate_limit", None)
+        elif saved_rate_limit:
             index = self.rate_limit_combo.findData(saved_rate_limit)
             if index != -1:
                 self.rate_limit_combo.setCurrentIndex(index)
         
         self.rate_limit_combo.currentIndexChanged.connect(
-            lambda idx: self.config.set("General", "rate_limit", self.rate_limit_combo.itemData(idx))
+            lambda idx: self.config.set(
+                "General",
+                "rate_limit",
+                self.rate_limit_combo.itemData(idx)
+            )
         )
 
         self.exit_after_cb = QCheckBox("Exit after all downloads complete")
@@ -493,8 +505,11 @@ class StartTab(QWidget):
             if item and item.isEnabled():
                 self.audio_ext_combo.setCurrentText(default_aext)
 
-        saved_rate_limit = self.config.get("General", "rate_limit")
-        if saved_rate_limit:
+        saved_rate_limit = (self.config.get("General", "rate_limit") or "").strip()
+        if saved_rate_limit.lower() in ("none", "no limit", "unlimited"):
+            self.rate_limit_combo.setCurrentIndex(0)
+            self.config.set("General", "rate_limit", None)
+        elif saved_rate_limit:
             index = self.rate_limit_combo.findData(saved_rate_limit)
             if index != -1:
                 self.rate_limit_combo.setCurrentIndex(index)

@@ -35,6 +35,9 @@ class DownloadManager(QObject):
         self._original_opts = {}
         # Map url -> final destination path
         self._completed_paths = {}
+        # Runtime-only override for max concurrent downloads.
+        # This is not persisted and resets when the app restarts.
+        self._runtime_max_threads = None
         self.config = config_manager
         self.archive_manager = ArchiveManager(self.config)
         self.sorting_manager = SortingManager(self.config)
@@ -47,6 +50,27 @@ class DownloadManager(QObject):
     def get_final_path(self, url):
         """Retrieve the final destination path for a completed download."""
         return self._completed_paths.get(url)
+
+    def set_runtime_max_threads(self, value):
+        """Set runtime-only concurrency override (1-8)."""
+        try:
+            parsed = int(value)
+            if parsed < 1:
+                parsed = 1
+            if parsed > 8:
+                parsed = 8
+            self._runtime_max_threads = parsed
+        except Exception:
+            self._runtime_max_threads = None
+
+    def _get_effective_max_threads(self):
+        """Return runtime override if set; otherwise read persisted config."""
+        if isinstance(self._runtime_max_threads, int):
+            return self._runtime_max_threads
+        try:
+            return int(self.config.get("General", "max_threads", fallback="2"))
+        except Exception:
+            return 2
 
     def _enqueue_single_download(self, url, opts, parent_url=None):
         """Create and queue a single DownloadWorker for the given URL.
@@ -75,10 +99,7 @@ class DownloadManager(QObject):
         worker.completed_dir = self.config.get("Paths", "completed_downloads_directory", fallback="")
 
         # Decide whether to start immediately or queue based on current concurrency
-        try:
-            max_threads = int(self.config.get("General", "max_threads", fallback="2"))
-        except Exception:
-            max_threads = 2
+        max_threads = self._get_effective_max_threads()
 
         running = sum(1 for w in self.active_downloads if w.isRunning())
         if running < max_threads:
@@ -229,10 +250,7 @@ class DownloadManager(QObject):
 
     def _maybe_start_next(self):
         """Start downloads from the pending queue up to configured concurrency."""
-        try:
-            max_threads = int(self.config.get("General", "max_threads", fallback="2"))
-        except Exception:
-            max_threads = 2
+        max_threads = self._get_effective_max_threads()
 
         # Count currently running workers and log current state for debugging
         running = sum(1 for w in self.active_downloads if w.isRunning())
@@ -304,10 +322,15 @@ class DownloadManager(QObject):
         """This job runs in a background thread to move files without blocking the GUI."""
         final_destination_dir = None
         final_file_path = None
+        moved_file_stems = set()
         try:
             # Prefer configured paths, but fall back to worker attributes if config is empty.
             default_completed_dir = self.config.get("Paths", "completed_downloads_directory", fallback="") or getattr(worker, "completed_dir", "")
             temp_dir = self.config.get("Paths", "temporary_downloads_directory", fallback="") or getattr(worker, "temp_dir", "")
+            keep_subtitle_sidecars = (
+                self.config.get("General", "subtitles_write", fallback="False") == "True"
+                or self.config.get("General", "subtitles_write_auto", fallback="False") == "True"
+            )
             
             if not files or not default_completed_dir:
                 log.debug("No files to move or no completed_dir configured; skipping move job")
@@ -367,6 +390,11 @@ class DownloadManager(QObject):
                     # Log album value for debugging
                     log.debug(f"Metadata album value: '{info.get('album')}'")
 
+                # Ensure playlist_title is in info if available in opts
+                opts = self._original_opts.get(url, {})
+                if opts.get("playlist_title") and not info.get("playlist_title"):
+                    info["playlist_title"] = opts.get("playlist_title")
+
                 # If album is missing, try to extract it from the downloaded file(s)
                 if not info.get('album'):
                     for f in files:
@@ -380,6 +408,18 @@ class DownloadManager(QObject):
                                     info['album'] = album
                                     log.info(f"Extracted album from file metadata: {album}")
                                     break
+                
+                # If album is still missing, try to use playlist_title as fallback
+                if not info.get('album'):
+                    # Check if playlist_title was passed in opts
+                    playlist_title = opts.get("playlist_title")
+                    if playlist_title:
+                        info['album'] = playlist_title
+                        log.info(f"Using playlist_title as album fallback: {playlist_title}")
+                    elif info.get('playlist_title'):
+                         # It might be in info already if yt-dlp put it there
+                         info['album'] = info.get('playlist_title')
+                         log.info(f"Using info['playlist_title'] as album fallback: {info.get('playlist_title')}")
 
                 # Reload rules to ensure we have the latest
                 self.sorting_manager.load_rules()
@@ -512,6 +552,7 @@ class DownloadManager(QObject):
                                             log.debug(f"Could not remove existing destination {dst}, will attempt move anyway")
                                     shutil.move(abs_path, dst)
                                     log.info(f"Moved file {abs_path} -> {dst}")
+                                    moved_file_stems.add(os.path.splitext(os.path.basename(abs_path))[0])
                                     if final_file_path is None:
                                         final_file_path = dst
                                     break
@@ -554,6 +595,36 @@ class DownloadManager(QObject):
                             log.info(f"Removed leftover part file: {p}")
                     except Exception as e:
                         log.debug(f"Could not remove leftover part file {f}: {e}")
+
+            # When sidecar subtitles are not requested, remove any subtitle artifacts
+            # that may have been downloaded for embedding and left in temp.
+            if temp_dir and os.path.isdir(temp_dir) and not keep_subtitle_sidecars and moved_file_stems:
+                subtitle_exts = {
+                    ".srt", ".vtt", ".ass", ".ssa", ".lrc", ".ttml", ".json3", ".srv1", ".srv2", ".srv3"
+                }
+                temp_dir_abs = os.path.abspath(temp_dir)
+                try:
+                    for root, _, temp_files in os.walk(temp_dir_abs):
+                        for name in temp_files:
+                            lower_name = name.lower()
+                            stem, ext = os.path.splitext(lower_name)
+                            if ext not in subtitle_exts:
+                                continue
+                            for moved_stem in moved_file_stems:
+                                moved_stem_lower = moved_stem.lower()
+                                # Supports subtitle names like:
+                                # "<stem>.srt" and "<stem>.en.srt"
+                                if stem == moved_stem_lower or stem.startswith(moved_stem_lower + "."):
+                                    candidate = os.path.abspath(os.path.join(root, name))
+                                    if os.path.commonpath([candidate, temp_dir_abs]) == temp_dir_abs:
+                                        try:
+                                            os.remove(candidate)
+                                            log.info(f"Removed leftover subtitle temp file: {candidate}")
+                                        except Exception as remove_err:
+                                            log.debug(f"Could not remove leftover subtitle temp file {candidate}: {remove_err}")
+                                    break
+                except Exception:
+                    log.debug("Subtitle temp cleanup encountered an error", exc_info=True)
 
         except Exception:
             log.exception("Error in file moving job")

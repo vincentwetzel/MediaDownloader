@@ -24,6 +24,11 @@ class PlaylistExpansionError(Exception):
     pass
 
 
+class PlaylistExpansionCancelledError(PlaylistExpansionError):
+    """Raised when playlist expansion is cancelled by the user."""
+    pass
+
+
 def _append_auth_runtime_args(cmd, config_manager):
     """Append auth/runtime flags used by normal yt-dlp downloads."""
     if not config_manager:
@@ -242,7 +247,48 @@ def _parse_playlist_status_line(line: str):
     return None
 
 
-def _expand_playlist_via_print(url, yt_dlp_cmd, config_manager=None, progress_callback=None):
+def _run_with_cancellation(cmd, timeout=60, cancel_event=None):
+    """Helper to run a subprocess with cancellation support."""
+    if cancel_event and cancel_event.is_set():
+        raise PlaylistExpansionCancelledError("Playlist expansion cancelled by user.")
+
+    proc = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        shell=False,
+        stdin=subprocess.DEVNULL,
+        errors='replace',
+        creationflags=creation_flags
+    )
+
+    try:
+        start_time = time.monotonic()
+        while proc.poll() is None:
+            if cancel_event and cancel_event.is_set():
+                proc.kill()
+                raise PlaylistExpansionCancelledError("Playlist expansion cancelled by user.")
+            
+            if timeout and (time.monotonic() - start_time > timeout):
+                proc.kill()
+                raise subprocess.TimeoutExpired(cmd, timeout)
+            
+            time.sleep(0.1)
+        
+        stdout, stderr = proc.communicate()
+        return subprocess.CompletedProcess(cmd, proc.returncode, stdout, stderr)
+        
+    except Exception:
+        if proc.poll() is None:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+        raise
+
+
+def _expand_playlist_via_print(url, yt_dlp_cmd, config_manager=None, progress_callback=None, cancel_event=None):
     """Expansion that parses line-based --print output and streams progress."""
     cmd = [
         yt_dlp_cmd,
@@ -251,9 +297,8 @@ def _expand_playlist_via_print(url, yt_dlp_cmd, config_manager=None, progress_ca
         "--ignore-errors",
         "--no-cache-dir",
         "--no-write-playlist-metafiles",
-        "--no-input",
         "--print",
-        "%(playlist_index)s\t%(playlist_count)s\t%(title)s\t%(webpage_url)s\t%(url)s\t%(id)s",
+        "%(playlist_index)s\t%(playlist_count)s\t%(title)s\t%(webpage_url)s\t%(url)s\t%(id)s\t%(playlist_title)s",
         url,
     ]
     _append_auth_runtime_args(cmd, config_manager)
@@ -274,6 +319,7 @@ def _expand_playlist_via_print(url, yt_dlp_cmd, config_manager=None, progress_ca
     entries = []
     total_seen = 0
     status_state = {"current": 0, "total": 0}
+    playlist_title_found = None
 
     def _stderr_reader():
         try:
@@ -297,6 +343,13 @@ def _expand_playlist_via_print(url, yt_dlp_cmd, config_manager=None, progress_ca
     stderr_thread.start()
 
     while True:
+        if cancel_event and cancel_event.is_set():
+            try:
+                proc.kill()
+            except Exception:
+                pass
+            raise PlaylistExpansionCancelledError("Playlist expansion cancelled by user.")
+
         if time.monotonic() > deadline:
             try:
                 proc.kill()
@@ -306,12 +359,52 @@ def _expand_playlist_via_print(url, yt_dlp_cmd, config_manager=None, progress_ca
 
         raw = proc.stdout.readline() if proc.stdout else ""
         if raw:
-            entry, idx, total = _parse_stream_print_line(raw)
-            if total > 0:
-                total_seen = total
-            if entry:
+            # Modified _parse_stream_print_line logic inline to handle extra field
+            line = (raw or "").strip()
+            if not line:
+                continue
+            
+            parts = line.split("\t")
+            # Expecting at least 6 parts, 7th is playlist_title
+            if len(parts) < 6:
+                continue
+
+            idx_raw = (parts[0] or "").strip()
+            count_raw = (parts[1] or "").strip()
+            title = (parts[2] or "").strip()
+            webpage_url = (parts[3] or "").strip()
+            url_val = (parts[4] or "").strip()
+            vid = (parts[5] or "").strip()
+            
+            pl_title = ""
+            if len(parts) >= 7:
+                pl_title = (parts[6] or "").strip()
+                if pl_title and not playlist_title_found:
+                    playlist_title_found = pl_title
+
+            index = int(idx_raw) if idx_raw.isdigit() else 0
+            total = int(count_raw) if count_raw.isdigit() else 0
+
+            chosen = None
+            for cand in (webpage_url, url_val):
+                if isinstance(cand, str) and cand.startswith(("http://", "https://")) and cand.upper() != "NA":
+                    chosen = cand
+                    break
+
+            if not chosen and vid and re.match(r"^[A-Za-z0-9_-]{11}$", vid):
+                chosen = f"https://www.youtube.com/watch?v={vid}"
+
+            if chosen:
+                entry = {"url": chosen, "title": title}
+                if pl_title:
+                    entry["playlist_title"] = pl_title
+                
                 entries.append(entry)
-                current_num = idx or len(entries)
+                
+                if total > 0:
+                    total_seen = total
+                
+                current_num = index or len(entries)
                 known_total = total_seen or status_state.get("total") or 0
                 _emit_progress(progress_callback, {
                     "phase": "extracting",
@@ -327,6 +420,13 @@ def _expand_playlist_via_print(url, yt_dlp_cmd, config_manager=None, progress_ca
         time.sleep(0.05)
 
     entries = _dedupe_entries_keep_order(entries)
+    
+    # Propagate playlist title to all entries if found
+    if playlist_title_found:
+        for e in entries:
+            if not e.get("playlist_title"):
+                e["playlist_title"] = playlist_title_found
+
     stderr_text = ""
     try:
         stderr_text = proc.stderr.read() if proc.stderr else ""
@@ -344,36 +444,33 @@ def _expand_playlist_via_print(url, yt_dlp_cmd, config_manager=None, progress_ca
     return entries
 
 
-def _expand_playlist_via_full_print(url, yt_dlp_cmd, config_manager=None, progress_callback=None):
-    """Fallback expansion using full extractor path (no --flat-playlist)."""
+def _expand_playlist_via_full_print(url, yt_dlp_cmd, config_manager=None, progress_callback=None, cancel_event=None):
+    """Fallback expansion using print mode while keeping flat extraction."""
     cmd = [
         yt_dlp_cmd,
+        "--flat-playlist",
+        "--lazy-playlist",
         "--ignore-errors",
         "--no-cache-dir",
         "--no-write-playlist-metafiles",
-        "--no-input",
         "--quiet",
         "--no-download",
-        "--yes-playlist",
         "--print",
-        "%(title)s\t%(webpage_url)s\t%(id)s",
+        "%(title)s\t%(webpage_url)s\t%(id)s\t%(playlist_title)s",
         url,
     ]
     _append_auth_runtime_args(cmd, config_manager)
     log.debug(f"Expanding playlist via full --print fallback: {cmd}")
 
-    proc = subprocess.run(
+    proc = _run_with_cancellation(
         cmd,
-        capture_output=True,
-        text=True,
         timeout=120,
-        shell=False,
-        stdin=subprocess.DEVNULL,
-        errors='replace',
-        creationflags=creation_flags
+        cancel_event=cancel_event
     )
 
     entries = []
+    playlist_title_found = None
+    
     for raw in (proc.stdout or "").splitlines():
         line = (raw or "").strip()
         if not line:
@@ -382,6 +479,10 @@ def _expand_playlist_via_full_print(url, yt_dlp_cmd, config_manager=None, progre
         title = parts[0].strip() if len(parts) > 0 else ""
         webpage_url = parts[1].strip() if len(parts) > 1 else ""
         vid = parts[2].strip() if len(parts) > 2 else ""
+        pl_title = parts[3].strip() if len(parts) > 3 else ""
+        
+        if pl_title and not playlist_title_found:
+            playlist_title_found = pl_title
 
         chosen = None
         if webpage_url.startswith(("http://", "https://")) and webpage_url.upper() != "NA":
@@ -390,44 +491,49 @@ def _expand_playlist_via_full_print(url, yt_dlp_cmd, config_manager=None, progre
             chosen = f"https://www.youtube.com/watch?v={vid}"
 
         if chosen:
-            entries.append({"url": chosen, "title": title})
+            entry = {"url": chosen, "title": title}
+            if pl_title:
+                entry["playlist_title"] = pl_title
+            entries.append(entry)
 
     entries = _dedupe_entries_keep_order(entries)
+    
+    if playlist_title_found:
+        for e in entries:
+            if not e.get("playlist_title"):
+                e["playlist_title"] = playlist_title_found
+                
     if entries:
         log.info(f"Expanded playlist {url} via full fallback -> {len(entries)} items")
     return entries
 
 
-def _expand_playlist_via_lazy_print(url, yt_dlp_cmd, config_manager=None, progress_callback=None):
+def _expand_playlist_via_lazy_print(url, yt_dlp_cmd, config_manager=None, progress_callback=None, cancel_event=None):
     """Fallback expansion using lazy playlist traversal."""
     cmd = [
         yt_dlp_cmd,
+        "--flat-playlist",
         "--ignore-errors",
         "--no-cache-dir",
         "--no-write-playlist-metafiles",
-        "--no-input",
         "--quiet",
-        "--yes-playlist",
         "--lazy-playlist",
         "--print",
-        "%(title)s\t%(webpage_url)s\t%(id)s",
+        "%(title)s\t%(webpage_url)s\t%(id)s\t%(playlist_title)s",
         url,
     ]
     _append_auth_runtime_args(cmd, config_manager)
     log.debug(f"Expanding playlist via lazy --print fallback: {cmd}")
 
-    proc = subprocess.run(
+    proc = _run_with_cancellation(
         cmd,
-        capture_output=True,
-        text=True,
         timeout=120,
-        shell=False,
-        stdin=subprocess.DEVNULL,
-        errors='replace',
-        creationflags=creation_flags
+        cancel_event=cancel_event
     )
 
     entries = []
+    playlist_title_found = None
+    
     for raw in (proc.stdout or "").splitlines():
         line = (raw or "").strip()
         if not line:
@@ -438,6 +544,10 @@ def _expand_playlist_via_lazy_print(url, yt_dlp_cmd, config_manager=None, progre
         title = parts[0].strip()
         webpage_url = parts[1].strip()
         vid = parts[2].strip()
+        pl_title = parts[3].strip() if len(parts) > 3 else ""
+        
+        if pl_title and not playlist_title_found:
+            playlist_title_found = pl_title
 
         chosen = None
         if webpage_url.startswith(("http://", "https://")) and webpage_url.upper() != "NA":
@@ -446,15 +556,24 @@ def _expand_playlist_via_lazy_print(url, yt_dlp_cmd, config_manager=None, progre
             chosen = f"https://www.youtube.com/watch?v={vid}"
 
         if chosen:
-            entries.append({"url": chosen, "title": title})
+            entry = {"url": chosen, "title": title}
+            if pl_title:
+                entry["playlist_title"] = pl_title
+            entries.append(entry)
 
     entries = _dedupe_entries_keep_order(entries)
+    
+    if playlist_title_found:
+        for e in entries:
+            if not e.get("playlist_title"):
+                e["playlist_title"] = playlist_title_found
+                
     if entries:
         log.info(f"Expanded playlist {url} via lazy fallback -> {len(entries)} items")
     return entries
 
 
-def _expand_playlist_via_runtime_args(url, yt_dlp_cmd, config_manager=None, opts=None, progress_callback=None):
+def _expand_playlist_via_runtime_args(url, yt_dlp_cmd, config_manager=None, opts=None, progress_callback=None, cancel_event=None):
     """Final fallback: run yt-dlp with worker-like args and print playlist entries."""
     cmd = [yt_dlp_cmd]
     try:
@@ -473,17 +592,21 @@ def _expand_playlist_via_runtime_args(url, yt_dlp_cmd, config_manager=None, opts
         if arg in ("-o", "-P", "--paths"):
             i += 2
             continue
+        if arg in ("--yes-playlist", "--no-playlist"):
+            i += 1
+            continue
         filtered_args.append(arg)
         i += 1
 
     # Ensure this command only enumerates entries.
     cmd.extend(filtered_args)
     cmd.extend([
+        "--flat-playlist",
+        "--lazy-playlist",
         "--ignore-errors",
         "--skip-download",
-        "--yes-playlist",
         "--print",
-        "%(title)s\t%(webpage_url)s\t%(id)s",
+        "%(title)s\t%(webpage_url)s\t%(id)s\t%(playlist_title)s",
         url,
     ])
 
@@ -501,7 +624,16 @@ def _expand_playlist_via_runtime_args(url, yt_dlp_cmd, config_manager=None, opts
 
     deadline = time.monotonic() + 180
     entries = []
+    playlist_title_found = None
+
     while True:
+        if cancel_event and cancel_event.is_set():
+            try:
+                proc.kill()
+            except Exception:
+                pass
+            raise PlaylistExpansionCancelledError("Playlist expansion cancelled by user.")
+
         if time.monotonic() > deadline:
             try:
                 proc.kill()
@@ -517,7 +649,15 @@ def _expand_playlist_via_runtime_args(url, yt_dlp_cmd, config_manager=None, opts
             if line.startswith("WARNING:") or line.startswith("ERROR:"):
                 continue
 
-            title, webpage_url, vid = _parse_print_line(line)
+            # Modified to handle playlist_title
+            parts = line.split("\t")
+            title = parts[0].strip() if len(parts) > 0 else ""
+            webpage_url = parts[1].strip() if len(parts) > 1 else ""
+            vid = parts[2].strip() if len(parts) > 2 else ""
+            pl_title = parts[3].strip() if len(parts) > 3 else ""
+            
+            if pl_title and not playlist_title_found:
+                playlist_title_found = pl_title
 
             chosen = None
             if webpage_url.startswith(("http://", "https://")) and webpage_url.upper() != "NA":
@@ -526,7 +666,10 @@ def _expand_playlist_via_runtime_args(url, yt_dlp_cmd, config_manager=None, opts
                 chosen = f"https://www.youtube.com/watch?v={vid}"
 
             if chosen:
-                entries.append({"url": chosen, "title": title})
+                entry = {"url": chosen, "title": title}
+                if pl_title:
+                    entry["playlist_title"] = pl_title
+                entries.append(entry)
                 _emit_progress(progress_callback, {
                     "phase": "extracting",
                     "url": chosen,
@@ -542,6 +685,12 @@ def _expand_playlist_via_runtime_args(url, yt_dlp_cmd, config_manager=None, opts
         time.sleep(0.05)
 
     entries = _dedupe_entries_keep_order(entries)
+    
+    if playlist_title_found:
+        for e in entries:
+            if not e.get("playlist_title"):
+                e["playlist_title"] = playlist_title_found
+
     stderr_text = ""
     try:
         stderr_text = proc.stderr.read() if proc.stderr else ""
@@ -561,7 +710,7 @@ def _expand_playlist_via_runtime_args(url, yt_dlp_cmd, config_manager=None, opts
     return entries
 
 
-def expand_playlist_entries(url, config_manager=None, opts=None, progress_callback=None):
+def expand_playlist_entries(url, config_manager=None, opts=None, progress_callback=None, cancel_event=None):
     """Return list of playlist entries as {'url': str, 'title': str}.
 
     If input cannot be expanded as a playlist, returns a single entry for the URL.
@@ -578,18 +727,27 @@ def expand_playlist_entries(url, config_manager=None, opts=None, progress_callba
             log.error("yt-dlp binary not found for playlist expansion.")
             raise PlaylistExpansionError("yt-dlp binary not found.")
 
+        if cancel_event and cancel_event.is_set():
+            raise PlaylistExpansionCancelledError("Playlist expansion cancelled by user.")
+
         # Use line-based extraction first so the UI can show per-item progress.
         try:
             streamed_entries = _expand_playlist_via_print(
                 url,
                 yt_dlp_cmd,
                 config_manager=config_manager,
-                progress_callback=progress_callback
+                progress_callback=progress_callback,
+                cancel_event=cancel_event
             )
             if streamed_entries:
                 return streamed_entries
+        except PlaylistExpansionCancelledError:
+            raise
         except Exception:
             log.debug("Streamed playlist expansion failed", exc_info=True)
+
+        if cancel_event and cancel_event.is_set():
+            raise PlaylistExpansionCancelledError("Playlist expansion cancelled by user.")
 
         # JSON fallback for providers where print mode does not yield entries.
         cmd = [
@@ -599,22 +757,16 @@ def expand_playlist_entries(url, config_manager=None, opts=None, progress_callba
             "--ignore-errors",
             "--no-cache-dir",
             "--no-write-playlist-metafiles",
-            "--no-input",
             "--quiet",
             url
         ]
         _append_auth_runtime_args(cmd, config_manager)
 
         log.debug(f"Expanding playlist with command: {cmd}")
-        proc = subprocess.run(
+        proc = _run_with_cancellation(
             cmd,
-            capture_output=True,
-            text=True,
             timeout=60,
-            shell=False,
-            stdin=subprocess.DEVNULL,
-            errors='replace',
-            creationflags=creation_flags
+            cancel_event=cancel_event
         )
 
         parsed_json_ok = False
@@ -625,6 +777,8 @@ def expand_playlist_entries(url, config_manager=None, opts=None, progress_callba
 
                 if info.get('_type') == 'playlist' or 'entries' in info:
                     entries = info.get("entries")
+                    playlist_title = info.get("title")
+                    
                     if entries:
                         out_entries = []
                         total_entries = len(entries)
@@ -632,7 +786,10 @@ def expand_playlist_entries(url, config_manager=None, opts=None, progress_callba
                             u = _entry_to_url(e)
                             if u:
                                 title = _entry_to_title(e)
-                                out_entries.append({"url": u, "title": title})
+                                entry_obj = {"url": u, "title": title}
+                                if playlist_title:
+                                    entry_obj["playlist_title"] = playlist_title
+                                out_entries.append(entry_obj)
                                 _emit_progress(progress_callback, {
                                     "phase": "extracting",
                                     "url": u,
@@ -649,29 +806,44 @@ def expand_playlist_entries(url, config_manager=None, opts=None, progress_callba
             except json.JSONDecodeError:
                 log.error(f"Failed to parse JSON from yt-dlp for playlist: {url}")
 
+        if cancel_event and cancel_event.is_set():
+            raise PlaylistExpansionCancelledError("Playlist expansion cancelled by user.")
+
         try:
             full_entries = _expand_playlist_via_full_print(
                 url,
                 yt_dlp_cmd,
                 config_manager=config_manager,
-                progress_callback=progress_callback
+                progress_callback=progress_callback,
+                cancel_event=cancel_event
             )
             if full_entries:
                 return full_entries
+        except PlaylistExpansionCancelledError:
+            raise
         except Exception:
             log.debug("Full fallback playlist expansion failed", exc_info=True)
+
+        if cancel_event and cancel_event.is_set():
+            raise PlaylistExpansionCancelledError("Playlist expansion cancelled by user.")
 
         try:
             lazy_entries = _expand_playlist_via_lazy_print(
                 url,
                 yt_dlp_cmd,
                 config_manager=config_manager,
-                progress_callback=progress_callback
+                progress_callback=progress_callback,
+                cancel_event=cancel_event
             )
             if lazy_entries:
                 return lazy_entries
+        except PlaylistExpansionCancelledError:
+            raise
         except Exception:
             log.debug("Lazy fallback playlist expansion failed", exc_info=True)
+
+        if cancel_event and cancel_event.is_set():
+            raise PlaylistExpansionCancelledError("Playlist expansion cancelled by user.")
 
         try:
             runtime_entries = _expand_playlist_via_runtime_args(
@@ -679,10 +851,13 @@ def expand_playlist_entries(url, config_manager=None, opts=None, progress_callba
                 yt_dlp_cmd,
                 config_manager=config_manager,
                 opts=opts,
-                progress_callback=progress_callback
+                progress_callback=progress_callback,
+                cancel_event=cancel_event
             )
             if runtime_entries:
                 return runtime_entries
+        except PlaylistExpansionCancelledError:
+            raise
         except Exception:
             log.debug("Runtime-args fallback playlist expansion failed", exc_info=True)
 
@@ -703,7 +878,8 @@ def expand_playlist_entries(url, config_manager=None, opts=None, progress_callba
                             retry_url,
                             config_manager=config_manager,
                             opts=opts,
-                            progress_callback=progress_callback
+                            progress_callback=progress_callback,
+                            cancel_event=cancel_event
                         )
             except Exception:
                 pass
@@ -713,6 +889,8 @@ def expand_playlist_entries(url, config_manager=None, opts=None, progress_callba
 
         return [{"url": url, "title": ""}]
 
+    except PlaylistExpansionCancelledError:
+        raise
     except subprocess.TimeoutExpired:
         log.error(f"yt-dlp timed out while expanding playlist: {url}")
         raise PlaylistExpansionError("Playlist expansion timed out. The playlist might be very large or the service is slow.")
@@ -722,10 +900,10 @@ def expand_playlist_entries(url, config_manager=None, opts=None, progress_callba
         return [{"url": url, "title": ""}]
 
 
-def expand_playlist(url, config_manager=None, opts=None):
+def expand_playlist(url, config_manager=None, opts=None, cancel_event=None):
     """Backward-compatible URL-only expansion API."""
     try:
-        entries = expand_playlist_entries(url, config_manager=config_manager, opts=opts)
+        entries = expand_playlist_entries(url, config_manager=config_manager, opts=opts, cancel_event=cancel_event)
         urls = _dedupe_keep_order([e.get("url") for e in entries if isinstance(e, dict)])
         return urls or [url]
     except Exception:

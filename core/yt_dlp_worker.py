@@ -25,48 +25,105 @@ log = logging.getLogger(__name__)
 _YT_DLP_PATH = None
 _GALLERY_DL_PATH = None
 _YT_DLP_VERSION_CACHE = None
+_YT_DLP_CHECK_LOCK = threading.Lock()
+_YT_DLP_CHECK_TTL_SECONDS = 60
+_YT_DLP_VERIFY_TIMEOUT_SECONDS = 10
+_YT_DLP_LAST_CHECK_TS = 0.0
+_YT_DLP_LAST_SUCCESS_TS = 0.0
+_YT_DLP_LAST_STATUS_MSG = ""
+_YT_DLP_LAST_CHECK_OK = False
 
 
-def check_yt_dlp_available():
+def check_yt_dlp_available(force_refresh=False):
     """Check if yt-dlp is available by consulting the binary manager and verifying the executable."""
-    global _YT_DLP_PATH
+    global _YT_DLP_PATH, _YT_DLP_LAST_CHECK_TS, _YT_DLP_LAST_SUCCESS_TS
+    global _YT_DLP_LAST_STATUS_MSG, _YT_DLP_LAST_CHECK_OK
 
     yt_dlp_path = get_binary_path("yt-dlp")
 
     if not yt_dlp_path:
         _YT_DLP_PATH = None
+        _YT_DLP_LAST_CHECK_OK = False
+        _YT_DLP_LAST_STATUS_MSG = "yt-dlp executable not found in bundled binaries."
         return False, "yt-dlp executable not found in bundled binaries."
 
-    try:
-        log.debug(f"Attempting to verify yt-dlp at: {yt_dlp_path}")
-        result = subprocess.run(
-            [yt_dlp_path, "--version"],
-            capture_output=True, text=True, encoding='utf-8', timeout=5, shell=False,
-            errors='replace', stdin=subprocess.DEVNULL, creationflags=creation_flags
-        )
+    now = time.monotonic()
+    if (
+        not force_refresh
+        and _YT_DLP_LAST_CHECK_OK
+        and _YT_DLP_PATH == yt_dlp_path
+        and (now - _YT_DLP_LAST_CHECK_TS) < _YT_DLP_CHECK_TTL_SECONDS
+    ):
+        return True, _YT_DLP_LAST_STATUS_MSG
 
-        if result.returncode == 0:
-            version = result.stdout.strip()
-            _YT_DLP_PATH = yt_dlp_path
-            log.info(f"Working yt-dlp found at: {_YT_DLP_PATH}, version: {version}")
-            return True, f"yt-dlp found at: {_YT_DLP_PATH}, version: {version}"
-        else:
-            stderr = (result.stderr or "").strip()
-            stdout = (result.stdout or "").strip()
-            log.warning(f"yt-dlp at {yt_dlp_path} --version failed. RC: {result.returncode}, Stderr: {stderr}")
+    with _YT_DLP_CHECK_LOCK:
+        now = time.monotonic()
+        if (
+            not force_refresh
+            and _YT_DLP_LAST_CHECK_OK
+            and _YT_DLP_PATH == yt_dlp_path
+            and (now - _YT_DLP_LAST_CHECK_TS) < _YT_DLP_CHECK_TTL_SECONDS
+        ):
+            return True, _YT_DLP_LAST_STATUS_MSG
+
+        try:
+            log.debug(f"Attempting to verify yt-dlp at: {yt_dlp_path}")
+            result = subprocess.run(
+                [yt_dlp_path, "--version"],
+                capture_output=True, text=True, encoding='utf-8', timeout=_YT_DLP_VERIFY_TIMEOUT_SECONDS, shell=False,
+                errors='replace', stdin=subprocess.DEVNULL, creationflags=creation_flags
+            )
+
+            if result.returncode == 0:
+                version = result.stdout.strip()
+                _YT_DLP_PATH = yt_dlp_path
+                _YT_DLP_LAST_CHECK_TS = time.monotonic()
+                _YT_DLP_LAST_SUCCESS_TS = _YT_DLP_LAST_CHECK_TS
+                _YT_DLP_LAST_CHECK_OK = True
+                _YT_DLP_LAST_STATUS_MSG = f"yt-dlp found at: {_YT_DLP_PATH}, version: {version}"
+                log.info(f"Working yt-dlp found at: {_YT_DLP_PATH}, version: {version}")
+                return True, _YT_DLP_LAST_STATUS_MSG
+            else:
+                stderr = (result.stderr or "").strip()
+                stdout = (result.stdout or "").strip()
+                log.warning(f"yt-dlp at {yt_dlp_path} --version failed. RC: {result.returncode}, Stderr: {stderr}")
+                _YT_DLP_PATH = None
+                _YT_DLP_LAST_CHECK_TS = time.monotonic()
+                _YT_DLP_LAST_CHECK_OK = False
+                extra = []
+                if stdout:
+                    extra.append(f"stdout: {stdout}")
+                if stderr:
+                    extra.append(f"stderr: {stderr}")
+                extra_msg = f" ({'; '.join(extra)})" if extra else ""
+                _YT_DLP_LAST_STATUS_MSG = f"yt-dlp at {yt_dlp_path} failed verification (rc={result.returncode}).{extra_msg}"
+                return False, _YT_DLP_LAST_STATUS_MSG
+
+        except subprocess.TimeoutExpired as e:
+            log.error(f"Error verifying yt-dlp at {yt_dlp_path}: {str(e)}")
+            _YT_DLP_LAST_CHECK_TS = time.monotonic()
+            if (
+                _YT_DLP_LAST_CHECK_OK
+                and _YT_DLP_PATH == yt_dlp_path
+                and (time.monotonic() - _YT_DLP_LAST_SUCCESS_TS) < 300
+            ):
+                fallback_msg = (
+                    f"yt-dlp verification timed out for {yt_dlp_path}; "
+                    "using last known good verification."
+                )
+                log.warning(fallback_msg)
+                return True, fallback_msg
             _YT_DLP_PATH = None
-            extra = []
-            if stdout:
-                extra.append(f"stdout: {stdout}")
-            if stderr:
-                extra.append(f"stderr: {stderr}")
-            extra_msg = f" ({'; '.join(extra)})" if extra else ""
-            return False, f"yt-dlp at {yt_dlp_path} failed verification (rc={result.returncode}).{extra_msg}"
-
-    except Exception as e:
-        log.error(f"Error verifying yt-dlp at {yt_dlp_path}: {str(e)}")
-        _YT_DLP_PATH = None
-        return False, f"Error verifying yt-dlp at {yt_dlp_path}."
+            _YT_DLP_LAST_CHECK_OK = False
+            _YT_DLP_LAST_STATUS_MSG = f"Error verifying yt-dlp at {yt_dlp_path}."
+            return False, _YT_DLP_LAST_STATUS_MSG
+        except Exception as e:
+            log.error(f"Error verifying yt-dlp at {yt_dlp_path}: {str(e)}")
+            _YT_DLP_PATH = None
+            _YT_DLP_LAST_CHECK_TS = time.monotonic()
+            _YT_DLP_LAST_CHECK_OK = False
+            _YT_DLP_LAST_STATUS_MSG = f"Error verifying yt-dlp at {yt_dlp_path}."
+            return False, _YT_DLP_LAST_STATUS_MSG
 
 
 def check_gallery_dl_available():
@@ -124,7 +181,7 @@ def get_yt_dlp_version(force_check=False):
     try:
         if not _YT_DLP_PATH or force_check:
             log.debug("get_yt_dlp_version: _YT_DLP_PATH not set or check is forced, checking availability...")
-            check_yt_dlp_available()
+            check_yt_dlp_available(force_refresh=force_check)
         
         if _YT_DLP_PATH:
             try:
@@ -179,10 +236,9 @@ def fetch_metadata(url: str, timeout: int = 15, noplaylist: bool = False):
             log.error("fetch_metadata: yt-dlp binary not found.")
             return None
         
-        # Added --no-input to prevent interactive prompts
         # Added --no-cache-dir to prevent locking issues
         # Added --no-write-playlist-metafiles to avoid clutter
-        meta_cmd = [yt_dlp_cmd, "--dump-single-json", "--no-cache-dir", "--no-write-playlist-metafiles", "--no-input"]
+        meta_cmd = [yt_dlp_cmd, "--dump-single-json", "--no-cache-dir", "--no-write-playlist-metafiles"]
         if noplaylist:
             meta_cmd.append("--no-playlist")
         else:
@@ -215,7 +271,7 @@ def is_url_valid(url: str, timeout: int = 15, noplaylist: bool = False):
             log.error("is_url_valid: yt-dlp binary not found.")
             return False
         # --simulate: do not download the video and do not write anything to disk
-        cmd = [yt_dlp_cmd, "--simulate", "--no-cache-dir", "--no-input"]
+        cmd = [yt_dlp_cmd, "--simulate", "--no-cache-dir"]
         if noplaylist:
             cmd.append("--no-playlist")
         cmd.append(url)

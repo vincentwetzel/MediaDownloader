@@ -248,6 +248,18 @@ class SortingManager:
                     playlist_fallback = metadata.get('playlist') or metadata.get('playlist_title')
                     if playlist_fallback is not None:
                         safe_metadata['playlist'] = str(playlist_fallback)
+                
+                # Fallback for album_title using playlist_title if album_title is missing
+                if safe_metadata.get('album_title', "NA") == "NA":
+                    playlist_title = metadata.get('playlist_title')
+                    if playlist_title:
+                        safe_metadata['album_title'] = str(playlist_title)
+                
+                # Fallback for album using playlist_title if album is missing
+                if safe_metadata.get('album', "NA") == "NA":
+                    playlist_title = metadata.get('playlist_title')
+                    if playlist_title:
+                        safe_metadata['album'] = str(playlist_title)
                  
                 # Add some helper keys for dates if upload_date exists
                 upload_date = str(metadata.get('upload_date', ''))

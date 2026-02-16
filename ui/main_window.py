@@ -16,7 +16,7 @@ from PyQt6.QtGui import QDesktopServices
 from core.config_manager import ConfigManager
 from core.download_manager import DownloadManager
 from core.version import __version__ as APP_VERSION
-from core.playlist_expander import expand_playlist_entries, is_likely_playlist, PlaylistExpansionError
+from core.playlist_expander import expand_playlist_entries, is_likely_playlist, PlaylistExpansionError, PlaylistExpansionCancelledError
 from ui.tab_start import StartTab
 from ui.tab_active import ActiveDownloadsTab
 from ui.tab_advanced import AdvancedSettingsTab
@@ -111,6 +111,7 @@ class MediaDownloaderApp(QMainWindow):
         self._downloads_in_progress = False
         self._downloads_failed = []
         self._playlist_extract_seen = {}
+        self._playlist_cancel_events = {} # Map url -> threading.Event
 
         # Sync “exit after all downloads complete” flag — always default to False on startup
         self.exit_after = False
@@ -359,6 +360,11 @@ class MediaDownloaderApp(QMainWindow):
                 if expand_playlists:
                     try:
                         self._playlist_extract_seen[url] = False
+                        
+                        # Create a cancellation event for this URL
+                        cancel_event = threading.Event()
+                        self._playlist_cancel_events[url] = cancel_event
+
                         stop_progress_pulse = threading.Event()
                         def _progress_pulse():
                             started = time.monotonic()
@@ -380,7 +386,8 @@ class MediaDownloaderApp(QMainWindow):
                             url,
                             config_manager=self.config_manager,
                             opts=opts,
-                            progress_callback=_on_playlist_progress
+                            progress_callback=_on_playlist_progress,
+                            cancel_event=cancel_event
                         )
                         stop_progress_pulse.set()
                         if not expanded_entries:
@@ -413,7 +420,15 @@ class MediaDownloaderApp(QMainWindow):
                         # Always replace the "Preparing playlist..." placeholder
                         # once expansion completes to avoid stale placeholder rows.
                         self.add_download_request.emit('__playlist_expanded__', (url, expanded_entries))
-                        urls_to_download.extend(expanded_urls)
+                        urls_to_download.extend(expanded_entries)
+                    except PlaylistExpansionCancelledError:
+                        try:
+                            stop_progress_pulse.set()
+                        except Exception:
+                            pass
+                        log.info(f"Playlist expansion cancelled for {url}")
+                        self.add_download_request.emit('__playlist_cancelled__', url)
+                        continue
                     except PlaylistExpansionError as e:
                         try:
                             stop_progress_pulse.set()
@@ -430,17 +445,29 @@ class MediaDownloaderApp(QMainWindow):
                             pass
                         log.error(f"Generic error expanding playlist {url}: {e}")
                         # Fallback to trying to download the original URL
-                        urls_to_download.append(url)
+                        urls_to_download.append({"url": url, "title": ""})
+                    finally:
+                        # Clean up the cancel event
+                        self._playlist_cancel_events.pop(url, None)
                 else:
-                    urls_to_download.append(url)
+                    urls_to_download.append({"url": url, "title": ""})
 
                 # Prepare opts for these downloads
                 current_opts = opts.copy()
                 if expand_playlists:
                     current_opts['is_playlist_download'] = True
 
-                for sub_url in urls_to_download:
-                    self.add_download_request.emit(sub_url, current_opts)
+                for entry in urls_to_download:
+                    sub_url = entry.get("url")
+                    if not sub_url:
+                        continue
+                    
+                    # Pass playlist_title if available
+                    entry_opts = current_opts.copy()
+                    if entry.get("playlist_title"):
+                        entry_opts["playlist_title"] = entry.get("playlist_title")
+                        
+                    self.add_download_request.emit(sub_url, entry_opts)
 
             self.add_download_request.emit('__mark_in_progress__', None)
 
@@ -539,6 +566,13 @@ class MediaDownloaderApp(QMainWindow):
                 self.tab_active.remove_placeholder(failed_url)
             except Exception:
                 log.exception("Failed to remove failed playlist placeholder")
+        elif command == '__playlist_cancelled__':
+            try:
+                cancelled_url = data
+                self._playlist_extract_seen.pop(cancelled_url, None)
+                self.tab_active.mark_cancelled(cancelled_url, "Playlist extraction cancelled")
+            except Exception:
+                log.exception("Failed to mark playlist as cancelled")
 
     def _on_download_finished(self, url, success):
         # Retrieve final path from DownloadManager
@@ -705,6 +739,13 @@ class MediaDownloaderApp(QMainWindow):
     def cancel_download(self, url):
         """Cancel a download by URL."""
         log.info(f"Cancelling download: {url}")
+        
+        # Check if it's a playlist expansion in progress
+        if url in self._playlist_cancel_events:
+            log.info(f"Cancelling playlist expansion for {url}")
+            self._playlist_cancel_events[url].set()
+            return
+
         for worker in self.download_manager.active_downloads:
             if hasattr(worker, 'url') and worker.url == url:
                 if worker.isRunning():

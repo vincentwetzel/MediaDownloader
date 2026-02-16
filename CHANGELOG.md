@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added browser cookie support for `gallery-dl` in Advanced Settings.
 
 ### Changed
+- **Faster playlist pre-expansion path**: Playlist expansion fallbacks no longer force `--yes-playlist` full extraction and now keep `--flat-playlist --lazy-playlist` to gather entry URLs/titles faster before worker enqueue.
 - **Sorting token insert dropdown**: Replaced the sorting editor insert option `%(playlist)s` with `Album {album}` for subfolder pattern building.
 - **Improved Gallery Validation**: Relaxed validation for gallery downloads to allow common gallery sites (Instagram, Twitter, etc.) even if simulation fails, as `gallery-dl` simulation can be unreliable due to auth requirements.
 - **Gallery Download Parsing**: Enhanced file detection for `gallery-dl` downloads by parsing stdout for file paths and falling back to directory snapshots if needed.
@@ -47,6 +48,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 -
 
 ### Fixed
+- **GUI stutter during concurrent postprocessing**: Reduced main-thread repaint pressure by throttling duplicate progress updates and avoiding repeated progress-bar stylesheet resets during high-frequency yt-dlp/ffmpeg status output.
+- **Playlist burst false `yt-dlp not available` failures**: Hardened `yt-dlp` availability checks to avoid transient failures under heavy concurrent playlist starts.
+  - Added a lock-protected verification cache so many workers do not all run `yt-dlp --version` at once.
+  - Increased verification timeout and reused the last-known-good check for brief timeout spikes.
+  - Prevented temporary verification timeouts from immediately invalidating an otherwise working bundled `yt-dlp`.
+- **Rate limit "None" handling**: Treat unlimited (`None`) as no throttle and prevent emitting invalid `--limit-rate None` in yt-dlp command args.
+- **yt-dlp nightly option compatibility**: Removed unsupported `--no-input` usage from yt-dlp metadata/playlist pre-expansion commands to prevent immediate expansion/validation failures on newer yt-dlp builds.
+- **Runtime concurrency above startup cap**: The Start tab now allows selecting up to 8 concurrent downloads for the current session while still persisting a maximum of 4 in config for the next app launch.
+- **Temp subtitle file cleanup**: Added post-move cleanup for leftover subtitle sidecars (for example `.en.srt`) in `temp_downloads` when separate subtitle files are not enabled, preventing embedded-subtitle temp artifacts from being left behind.
 - **HLS fragment progress no longer locks at 100% early**: Active download progress parsing now detects `frag X/Y` lines and prevents transient `100.0% ... (frag 0/N)` outputs from pinning the UI bar at 100% for the rest of the transfer.
 - **Fixed Sorting Rule Album Detection**: Added fallback logic to use playlist title as the album name when the `album` metadata field is missing. This ensures `{album}` subfolder patterns work correctly for playlists (e.g., YouTube Music albums) that don't explicitly provide album metadata.
 - **Enhanced Album Detection**: Added fallback to extract album metadata directly from downloaded files using `ffprobe` (checking both container and stream tags) if `yt-dlp` metadata is missing the album field. This improves sorting reliability for playlists where album info is embedded in the file but not in the JSON metadata.
