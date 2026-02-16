@@ -2,7 +2,6 @@ import json
 import os
 import logging
 import uuid
-import datetime
 import re
 
 log = logging.getLogger(__name__)
@@ -74,13 +73,6 @@ class SortingManager:
                 rule["subfolder_pattern"] = subfolder_pattern
                 rule["download_type"] = download_type
                 rule["conditions"] = conditions
-                # Remove legacy fields
-                rule.pop('uploaders', None)
-                rule.pop('audio_only', None)
-                rule.pop('date_subfolders', None)
-                rule.pop('filter_field', None)
-                rule.pop('filter_operator', None)
-                rule.pop('filter_values', None)
                 break
         self.save_rules()
 
@@ -108,28 +100,11 @@ class SortingManager:
 
         for rule in self.rules:
             rule_type = rule.get('download_type', 'All')
-            # Backwards compatibility for legacy audio_only flag
-            if rule.get('audio_only', False) and rule_type == 'All':
-                rule_type = 'Audio'
 
             if not self._download_type_matches(rule_type, current_download_type, metadata, is_playlist_context):
                 continue
 
-            # --- Backwards compatibility for single-filter rules ---
-            if 'filter_field' in rule:
-                conditions = [{
-                    "field": rule.get('filter_field', 'uploader'),
-                    "operator": rule.get('filter_operator', 'is_one_of'),
-                    "values": rule.get('filter_values', [])
-                }]
-            elif 'uploaders' in rule:
-                conditions = [{
-                    "field": 'uploader',
-                    "operator": 'is_one_of',
-                    "values": rule.get('uploaders', [])
-                }]
-            else:
-                conditions = rule.get('conditions', [])
+            conditions = rule.get('conditions', [])
 
             if not conditions:
                 return self._get_final_path(rule, metadata)
@@ -217,23 +192,14 @@ class SortingManager:
         
         return False
 
+    @staticmethod
+    def _get_release_date(metadata):
+        """Return release date metadata as YYYYMMDD when available."""
+        return str(metadata.get('release_date') or '').strip()
+
     def _get_final_path(self, rule, metadata):
         """Helper to construct the final path, including dynamic subfolders."""
         base_path = rule.get('target_path')
-        
-        # Handle legacy date_subfolders flag
-        if rule.get('date_subfolders', False):
-            upload_date = metadata.get('upload_date')  # YYYYMMDD
-            if upload_date and len(str(upload_date)) == 8:
-                try:
-                    upload_date_str = str(upload_date)
-                    year = upload_date_str[:4]
-                    month = upload_date_str[4:6]
-                    subfolder = f"{year} - {month}"
-                    return os.path.join(base_path, subfolder)
-                except Exception:
-                    log.warning(f"Could not parse upload date '{upload_date}' for legacy subfolder creation")
-            return base_path
 
         # Handle new generic subfolder pattern
         pattern = rule.get('subfolder_pattern')
@@ -243,6 +209,7 @@ class SortingManager:
                 safe_metadata = {}
                 for k, v in metadata.items():
                     safe_metadata[k] = str(v) if v is not None else "NA"
+                safe_metadata.pop('album_year', None)
 
                 if safe_metadata.get('playlist', "NA") == "NA":
                     playlist_fallback = metadata.get('playlist') or metadata.get('playlist_title')
@@ -261,18 +228,21 @@ class SortingManager:
                     if playlist_title:
                         safe_metadata['album'] = str(playlist_title)
                  
-                # Add some helper keys for dates if upload_date exists
-                upload_date = str(metadata.get('upload_date', ''))
-                if len(upload_date) == 8:
-                    safe_metadata['upload_year'] = upload_date[:4]
-                    safe_metadata['upload_month'] = upload_date[4:6]
-                    safe_metadata['upload_day'] = upload_date[6:8]
+                # Add helper date keys from distinct metadata sources.
+                release_date = self._get_release_date(metadata)
+                if release_date and len(release_date) == 8:
+                    safe_metadata['release_year'] = release_date[:4]
+                    safe_metadata['release_month'] = release_date[4:6]
+                    safe_metadata['release_day'] = release_date[6:8]
                 else:
-                    safe_metadata['upload_year'] = "NA"
-                    safe_metadata['upload_month'] = "NA"
-                    safe_metadata['upload_day'] = "NA"
+                    safe_metadata['release_year'] = "NA"
+                    safe_metadata['release_month'] = "NA"
+                    safe_metadata['release_day'] = "NA"
 
-                # Replace tokens like {uploader} or {upload_year}
+                if safe_metadata.get('release_date', "NA") == "NA" and release_date:
+                    safe_metadata['release_date'] = release_date
+
+                # Replace tokens like {uploader} or {release_year}
                 def replace_token(match):
                     key = match.group(1)
                     return safe_metadata.get(key, "NA")

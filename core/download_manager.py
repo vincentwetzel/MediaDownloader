@@ -41,6 +41,7 @@ class DownloadManager(QObject):
         self.config = config_manager
         self.archive_manager = ArchiveManager(self.config)
         self.sorting_manager = SortingManager(self.config)
+        self.lock = threading.Lock()
         # Check yt-dlp availability on initialization
         is_available, status_msg = check_yt_dlp_available()
         log.info(f"DownloadManager initialized. yt-dlp check: {status_msg}")
@@ -101,19 +102,20 @@ class DownloadManager(QObject):
         # Decide whether to start immediately or queue based on current concurrency
         max_threads = self._get_effective_max_threads()
 
-        running = sum(1 for w in self.active_downloads if w.isRunning())
-        if running < max_threads:
-            # Start immediately
-            self.active_downloads.append(worker)
-            try:
-                worker.start()
-                log.debug(f"Started download immediately: {worker.url}")
-            except Exception:
-                log.exception(f"Failed to start download immediately: {worker.url}")
-        else:
-            # Add to pending queue and notify UI
-            self._pending_queue.append(worker)
-            log.debug(f"Download queued: {url}")
+        with self.lock:
+            running = sum(1 for w in self.active_downloads if w.isRunning())
+            if running < max_threads:
+                # Start immediately
+                self.active_downloads.append(worker)
+                try:
+                    worker.start()
+                    log.debug(f"Started download immediately: {worker.url}")
+                except Exception:
+                    log.exception(f"Failed to start download immediately: {worker.url}")
+            else:
+                # Add to pending queue and notify UI
+                self._pending_queue.append(worker)
+                log.debug(f"Download queued: {url}")
 
         # Emit for UI to create per-download UI element
         self.download_added.emit(worker)
@@ -250,20 +252,25 @@ class DownloadManager(QObject):
 
     def _maybe_start_next(self):
         """Start downloads from the pending queue up to configured concurrency."""
-        max_threads = self._get_effective_max_threads()
+        workers_to_start = []
+        with self.lock:
+            max_threads = self._get_effective_max_threads()
 
-        # Count currently running workers and log current state for debugging
-        running = sum(1 for w in self.active_downloads if w.isRunning())
-        log.debug(f"_maybe_start_next: running={running}, max_threads={max_threads}, pending={len(self._pending_queue)}")
-        while running < max_threads and self._pending_queue:
-            next_worker = self._pending_queue.pop(0)
-            self.active_downloads.append(next_worker)
+            # Count currently running workers and log current state for debugging
+            running = sum(1 for w in self.active_downloads if w.isRunning())
+            log.debug(f"_maybe_start_next: running={running}, max_threads={max_threads}, pending={len(self._pending_queue)}")
+            while running < max_threads and self._pending_queue:
+                next_worker = self._pending_queue.pop(0)
+                self.active_downloads.append(next_worker)
+                workers_to_start.append(next_worker)
+                running += 1
+        
+        for next_worker in workers_to_start:
             try:
                 next_worker.start()
                 log.debug(f"Started queued download: {next_worker.url}")
             except Exception:
                 log.exception(f"Failed to start queued download: {next_worker.url}")
-            running += 1
 
     def _extract_metadata_from_file(self, file_path):
         """Extract metadata from a media file using ffprobe."""
@@ -429,7 +436,9 @@ class DownloadManager(QObject):
                 is_playlist_context = False # Default
                 try:
                     opts = self._original_opts.get(url, {})
-                    if opts.get("audio_only", False):
+                    if opts.get("metadata_only", False):
+                        current_download_type = "Metadata"
+                    elif opts.get("audio_only", False):
                         current_download_type = "Audio"
                     elif opts.get("use_gallery_dl", False):
                         current_download_type = "Gallery"
@@ -685,11 +694,12 @@ class DownloadManager(QObject):
                  self.download_finished.emit(url, True)
 
         # Clean up active downloads list (remove this worker if present)
-        try:
-            if worker in self.active_downloads:
-                self.active_downloads.remove(worker)
-        except Exception:
-            pass
+        with self.lock:
+            try:
+                if worker in self.active_downloads:
+                    self.active_downloads.remove(worker)
+            except Exception:
+                pass
 
         if not success:
              self.download_finished.emit(url, False)
@@ -727,7 +737,15 @@ class DownloadManager(QObject):
             worker = self.sender()
         except Exception:
             worker = None
-        self._on_worker_finished(worker, url, success, files)
+        
+        # Run the handler in a background thread to avoid blocking the UI with
+        # archive I/O or other synchronous post-processing.
+        finish_thread = threading.Thread(
+            target=self._on_worker_finished,
+            args=(worker, url, success, files),
+            daemon=True
+        )
+        finish_thread.start()
 
     def _on_error_signal(self, url, message):
         """Wrapper slot for worker.error signal. Uses sender() to obtain the worker."""
@@ -766,11 +784,12 @@ class DownloadManager(QObject):
     def _on_error(self, worker, url, message):
         log.error(f"Error on {url}: {message}")
         # Remove from active list if present
-        try:
-            if worker in self.active_downloads:
-                self.active_downloads.remove(worker)
-        except Exception:
-            pass
+        with self.lock:
+            try:
+                if worker in self.active_downloads:
+                    self.active_downloads.remove(worker)
+            except Exception:
+                pass
         # Map common yt-dlp error messages to concise, user-friendly text
         user_message = None
         try:

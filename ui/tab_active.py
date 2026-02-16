@@ -106,6 +106,10 @@ class DownloadItemWidget(QWidget):
         # True, keep the progress chunk visually 'active' (blue) until
         # the worker signals finished().
         self._postprocessing_active = False
+        # Track what yt-dlp is currently downloading so subtitle/auxiliary
+        # transfers cannot drive the main media progress bar.
+        self._last_destination_kind = None  # "media" | "subtitle" | "aux"
+        self._saw_primary_destination = False
         layout.addWidget(self.progress)
         # Hide the right-hand percent label now that the progress bar shows
         # the percentage centered inside the bar. Keep the widget present so
@@ -150,9 +154,7 @@ class DownloadItemWidget(QWidget):
                 "chap", "chapter", "chapters", "modify", "modifychap",
                 "sponsor", "sponsorblock", "embed", "thumbnail", "tag", "fixup"
             )
-            # Also treat audio extraction as postprocessing (e.g. "Extracting audio")
-            post_keys = post_keys + ("extract",)
-            is_postprocessing = any(k in low_text for k in post_keys)
+            is_postprocessing = any(k in low_text for k in post_keys) or ("extracting audio" in low_text)
             # Remember that we're in postprocessing until finished().
             if is_postprocessing:
                 self._postprocessing_active = True
@@ -231,10 +233,7 @@ class DownloadItemWidget(QWidget):
                 "merg", "merge", "merging", "delet", "remov", "ffmpeg",
                 "postproc", "post-process", "merger"
             )
-            # Treat audio extraction as postprocessing (yt-dlp reports "Extracting audio")
-            # so the progress chunk remains active/blue until finished().
-            post_keys = post_keys + ("extract", "fixup",)
-            if any(k in low for k in post_keys):
+            if any(k in low for k in post_keys) or "extracting audio" in low:
                 self._set_progress_style("active")
         except Exception:
             pass
@@ -596,6 +595,31 @@ class ActiveDownloadsTab(QWidget):
             else:
                 pct = None
 
+        raw_text = (text or "").strip()
+        low_raw = raw_text.lower()
+
+        # Track whether this progress stream refers to media, subtitles, or aux files.
+        try:
+            import re
+            dest_match = re.search(r"destination:\s*(.+)$", raw_text, re.IGNORECASE)
+            if dest_match:
+                dest_path = dest_match.group(1).strip().strip('"')
+                dest_low = dest_path.lower()
+                _, ext = os.path.splitext(dest_low)
+                subtitle_exts = {".vtt", ".srt", ".ass", ".ssa", ".ttml", ".lrc", ".sbv", ".json3"}
+                aux_exts = {".webp", ".jpg", ".jpeg", ".png", ".gif", ".description", ".part", ".ytdl"}
+                if ext in subtitle_exts:
+                    widget._last_destination_kind = "subtitle"
+                elif dest_low.endswith(".info.json") or ext == ".json" or ext in aux_exts:
+                    widget._last_destination_kind = "aux"
+                else:
+                    widget._last_destination_kind = "media"
+                    widget._saw_primary_destination = True
+            elif "downloading subtitles" in low_raw or "[subtitlesconvertor]" in low_raw:
+                widget._last_destination_kind = "subtitle"
+        except Exception:
+            pass
+
         # For fragment-based downloads (e.g. HLS), yt-dlp can emit transient
         # lines like "100.0% ... (frag 0/48)" before real transfer starts.
         # If we accept that 100%, monotonic UI logic will pin the bar at 100.
@@ -609,6 +633,20 @@ class ActiveDownloadsTab(QWidget):
                     pct = (float(frag_idx) / float(frag_total)) * 100.0
                 elif frag_total > 0 and pct is not None and pct >= 99.9 and frag_idx < frag_total:
                     pct = (float(frag_idx) / float(frag_total)) * 100.0
+        except Exception:
+            pass
+
+        # Ignore percent lines from subtitle/auxiliary phases and suppress
+        # pre-media 100% spikes (common before the main media destination appears).
+        try:
+            if pct is not None:
+                destination_kind = getattr(widget, "_last_destination_kind", None)
+                saw_primary = bool(getattr(widget, "_saw_primary_destination", False))
+                is_sub_or_aux = destination_kind in ("subtitle", "aux") or ("subtitle" in low_raw)
+                if is_sub_or_aux:
+                    pct = None
+                elif not saw_primary and pct >= 99.9 and "(frag" not in low_raw:
+                    pct = None
         except Exception:
             pass
 
@@ -647,9 +685,9 @@ class ActiveDownloadsTab(QWidget):
         # percent is available (e.g. yt-dlp reports 100% then begins merging).
         post_keys = (
             "merg", "merge", "merging", "delet", "remov", "ffmpeg",
-            "postproc", "post-process", "merger", "extract", "fixup"
+            "postproc", "post-process", "merger", "fixup"
         )
-        is_postprocessing = any(k in low for k in post_keys)
+        is_postprocessing = any(k in low for k in post_keys) or ("extracting audio" in low)
 
         # Map certain yt-dlp lines to friendly short statuses. If we're in a
         # postprocessing state prefer that message over a numeric percent so

@@ -28,7 +28,7 @@ class SortingTab(QWidget):
 
         description = QLabel(
             "Create rules to automatically move downloaded files to specific folders based on metadata like uploader, title, or tags.\n"
-            "You can also define dynamic subfolder patterns using metadata tokens like {uploader}, {upload_year}, {album_year}, or {album}."
+            "You can also define dynamic subfolder patterns using metadata tokens like {uploader}, {release_year}, or {album}."
         )
         description.setWordWrap(True)
         layout.addWidget(description)
@@ -95,25 +95,9 @@ class SortingTab(QWidget):
                 
                 # Type
                 dtype = str(rule.get('download_type') or 'All')
-                if rule.get('audio_only', False) and dtype == 'All':
-                    dtype = 'Audio'
                 
                 # Condition
-                conditions = []
-                if 'conditions' in rule:
-                    conditions = rule.get('conditions', [])
-                elif 'uploaders' in rule:
-                    conditions = [{
-                        "field": 'uploader',
-                        "operator": 'is_one_of',
-                        "values": rule.get('uploaders', [])
-                    }]
-                else:
-                    conditions = [{
-                        "field": rule.get('filter_field', 'uploader'),
-                        "operator": rule.get('filter_operator', 'is_one_of'),
-                        "values": rule.get('filter_values', [])
-                    }]
+                conditions = rule.get('conditions', [])
 
                 cond_strs = []
                 for cond in conditions:
@@ -134,8 +118,6 @@ class SortingTab(QWidget):
                 subfolder = ""
                 if rule.get('subfolder_pattern'):
                     subfolder = str(rule['subfolder_pattern'])
-                elif rule.get('date_subfolders'):
-                    subfolder = "YYYY - MM"
 
                 # Set items
                 self.rules_table.setItem(row, 0, QTableWidgetItem(name))
@@ -402,20 +384,19 @@ class RuleDialog(QDialog):
         # --- Populate and Connect ---
         browse_btn.clicked.connect(self.browse_path)
         
-        self.subfolder_pattern_edit.setPlaceholderText("e.g., {upload_year}/{uploader} or {album_year}/{album}")
+        self.subfolder_pattern_edit.setPlaceholderText("e.g., {release_year}/{uploader} or {album}/{uploader}")
         self.subfolder_pattern_edit.setToolTip(
-            "Create dynamic subfolders using tokens like {upload_year}, {upload_month}, {album_year}, {uploader}, or {album}."
+            "Create dynamic subfolders using tokens like {release_year}, {release_month}, {release_day}, {uploader}, or {album}."
         )
         
         self.tokens_combo.addItem("Insert...")
-        self.tokens_combo.addItem("Year {upload_year}", "{upload_year}")
-        self.tokens_combo.addItem("Month {upload_month}", "{upload_month}")
-        self.tokens_combo.addItem("Day {upload_day}", "{upload_day}")
-        self.tokens_combo.addItem("Uploader {uploader}", "{uploader}")
         self.tokens_combo.addItem("Title {title}", "{title}")
+        self.tokens_combo.addItem("Uploader {uploader}", "{uploader}")
         self.tokens_combo.addItem("ID {id}", "{id}")
-        self.tokens_combo.addItem("Album Year {album_year}", "{album_year}")
         self.tokens_combo.addItem("Album {album}", "{album}")
+        self.tokens_combo.addItem("Release Year {release_year}", "{release_year}")
+        self.tokens_combo.addItem("Release Month {release_month}", "{release_month}")
+        self.tokens_combo.addItem("Release Day {release_day}", "{release_day}")
         self.tokens_combo.activated.connect(self.insert_token)
         
         self.type_combo.addItems([
@@ -434,14 +415,9 @@ class RuleDialog(QDialog):
         if rule:
             self.name_edit.setText(rule.get('name') or '')
             self.path_edit.setText(rule.get('target_path') or '')
-            
-            if rule.get('date_subfolders', False):
-                self.subfolder_pattern_edit.setText("{upload_year} - {upload_month}")
-            else:
-                self.subfolder_pattern_edit.setText(rule.get('subfolder_pattern') or '')
+            self.subfolder_pattern_edit.setText(rule.get('subfolder_pattern') or '')
 
             saved_type = rule.get('download_type') or 'All'
-            if rule.get('audio_only', False) and saved_type == 'All': saved_type = 'Audio'
             type_map = {
                 "Video": 1,
                 "Audio": 2,
@@ -452,21 +428,7 @@ class RuleDialog(QDialog):
             self.type_combo.setCurrentIndex(type_map.get(saved_type, 0))
 
             # Populate conditions
-            conditions = []
-            if 'conditions' in rule:
-                conditions = rule.get('conditions', [])
-            elif 'uploaders' in rule: # Legacy
-                conditions = [{
-                    "field": 'uploader',
-                    "operator": 'is_one_of',
-                    "values": rule.get('uploaders', [])
-                }]
-            else: # Legacy single filter
-                conditions = [{
-                    "field": rule.get('filter_field', 'uploader'),
-                    "operator": rule.get('filter_operator', 'is_one_of'),
-                    "values": rule.get('filter_values', [])
-                }]
+            conditions = rule.get('conditions', [])
             
             for cond in conditions:
                 self.add_condition(cond)

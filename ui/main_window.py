@@ -39,7 +39,7 @@ class MediaDownloaderApp(QMainWindow):
         super().__init__()
         log.info("Initializing MediaDownloaderApp")
 
-        self.setWindowTitle("Media Downloader")
+        self.setWindowTitle(f"Media Downloader v{APP_VERSION}")
         self.resize(900, 700)
 
         # Core components

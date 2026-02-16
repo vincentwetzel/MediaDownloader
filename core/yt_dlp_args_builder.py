@@ -54,7 +54,7 @@ def build_yt_dlp_args(opts, config_manager):
                         pass
             
             # Removed length restrictions from title and uploader
-            default_template = "%(title)s [%(uploader)s][%(upload_date>%m-%d-%Y)s][%(id)s].%(ext)s"
+            default_template = "%(title)s [%(uploader)s][%(release_date>%m-%d-%Y)s][%(id)s].%(ext)s"
             configured_template = config_manager.get("General", "output_template", fallback=default_template)
             output_template = os.path.join(output_dir, configured_template)
             # Normalize path separators for yt-dlp
@@ -87,8 +87,17 @@ def build_yt_dlp_args(opts, config_manager):
 
     # --- Audio/Video Format Selection ---
     audio_only = opts.get("audio_only")
+    metadata_only = opts.get("metadata_only")
 
-    if audio_only:
+    if metadata_only:
+        # Skip downloading the video/audio content
+        args.append("--skip-download")
+        # Ensure metadata is written
+        args.append("--write-info-json")
+        # We don't need format selection for metadata only, but yt-dlp might complain if none is set?
+        # Actually, --skip-download usually ignores format selection, but let's be safe.
+        
+    elif audio_only:
         audio_codec = opts.get("acodec") or config_manager.get("General", "acodec", fallback="")
         format_string = "bestaudio/best"
         if audio_codec:
@@ -193,7 +202,16 @@ def build_yt_dlp_args(opts, config_manager):
         args.extend(["--replace-in-metadata", field, r"’", "'"])
     
     # Force writing metadata to a JSON file so we can read it reliably
-    args.append("--write-info-json")
+    # This is already added if metadata_only is True, but harmless to add again or ensure it's there
+    if "--write-info-json" not in args:
+        args.append("--write-info-json")
+
+    # Enforce media date metadata precedence for embedded tags:
+    # 1) release_date (YYYYMMDD), 2) release_year (YYYY), 3) upload_date (YYYYMMDD).
+    # Use strict regex parses so malformed values do not overwrite valid ones.
+    args.extend(["--parse-metadata", r"%(upload_date|)s:(?P<meta_date>\d{8})"])
+    args.extend(["--parse-metadata", r"%(release_year|)s:(?P<meta_date>\d{4})"])
+    args.extend(["--parse-metadata", r"%(release_date|)s:(?P<meta_date>\d{8})"])
 
     raw_rate_limit = opts.get("rate_limit", config_manager.get("General", "rate_limit", fallback=""))
     rate_limit = _normalize_rate_limit(raw_rate_limit)
