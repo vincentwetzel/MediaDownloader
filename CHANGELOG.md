@@ -8,7 +8,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased] - YYYY-MM-DD
 
 ### Added
-- **Version in Title Bar**: The application window title now includes the version number (e.g., "Media Downloader v0.0.7").
+-
+
+### Changed
+-
+
+### Deprecated
+-
+
+### Removed
+-
+
+### Fixed
+-
+
+### Security
+-
+
+## [0.0.8] - 02-16-2026
+
+### Added
+- **Version in Title Bar**: The application window title now includes the version number (e.g., "Media Downloader v0.0.8").
 - **Advanced Filename Template Insertables**: Added an insertables dropdown next to `Filename Pattern` in Advanced Settings.
   - Users can click to insert common yt-dlp output tokens like `%(title)s`, `%(uploader)s`, `%(upload_date>%m)s`, `%(id)s`, and `%(ext)s`.
   - This mirrors the token-insertion workflow used by sorting subfolder patterns for faster, less error-prone template building.
@@ -242,3 +262,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [ ] Cross-platform support (native builds for macOS/Linux)
 - [ ] Download statistics and analytics dashboard
 - [ ] Cross-platform support (native builds for macOS/Linux)
+

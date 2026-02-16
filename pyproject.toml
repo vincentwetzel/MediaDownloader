@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "MediaDownloader"
-version = "0.0.3"
+version = "0.0.8"
 description = "PyQt6 desktop media downloader using yt-dlp"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -65,3 +65,4 @@ dependencies = [
 
 [tool.setuptools]
 include-package-data = true
+
