@@ -5,8 +5,8 @@ import subprocess
 import threading
 import time
 
-from core.version import __version__ as APP_VERSION
-from core.update_manager import get_gallery_dl_version, download_gallery_dl_update, get_latest_release, _compare_versions
+from core.update_manager import get_gallery_dl_version, download_gallery_dl_update, get_latest_release, \
+    _compare_versions
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox, QCheckBox, QFileDialog, QMessageBox, QLineEdit,
@@ -27,7 +27,6 @@ class AdvancedSettingsTab(QWidget):
     version_fetched = pyqtSignal(str)
     gallery_dl_update_finished = pyqtSignal(str, str)
     gallery_dl_version_fetched = pyqtSignal(str)
-    app_update_finished = pyqtSignal(str, object)
 
     def __init__(self, main_window, initial_yt_dlp_version: str = "Unknown"):
         super().__init__()
@@ -39,7 +38,6 @@ class AdvancedSettingsTab(QWidget):
         self.version_fetched.connect(self._on_version_fetched)
         self.gallery_dl_update_finished.connect(self._on_gallery_dl_update_finished)
         self.gallery_dl_version_fetched.connect(self._on_gallery_dl_version_fetched)
-        self.app_update_finished.connect(self._on_app_update_finished)
 
         self._build_tab_advanced()
 
@@ -212,22 +210,6 @@ class AdvancedSettingsTab(QWidget):
         gallery_cookies_row.addWidget(self.gallery_cookies_combo, stretch=1)
         auth_group.addLayout(gallery_cookies_row)
 
-        # JavaScript Runtime Path
-        js_runtime_row = QHBoxLayout()
-        js_runtime_lbl = QLabel("JS Runtime (Deno/Node.js):")
-        js_runtime_lbl.setToolTip("Path to a JavaScript runtime for handling anti-bot challenges on some websites.")
-        js_runtime_path = self.config.get("General", "js_runtime_path", fallback="")
-        self.js_runtime_display = QLabel(js_runtime_path)
-        self.js_runtime_display.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        btn_js_runtime = QPushButton("\U0001F4C1")
-        btn_js_runtime.setFixedWidth(40)
-        btn_js_runtime.clicked.connect(self.browse_js_runtime)
-        btn_js_runtime.setToolTip("Browse and select a JavaScript runtime executable (e.g., deno.exe or node.exe).")
-        js_runtime_row.addWidget(js_runtime_lbl)
-        js_runtime_row.addWidget(self.js_runtime_display, stretch=1)
-        js_runtime_row.addWidget(btn_js_runtime)
-        auth_group.addLayout(js_runtime_row)
-
         template_group = add_group("Output Template")
 
         # Output Filename Pattern
@@ -342,6 +324,16 @@ class AdvancedSettingsTab(QWidget):
         )
         options_group.addWidget(self.restrict_cb)
 
+        # Chapter embedding
+        self.embed_chapters_cb = QCheckBox("Embed video chapters")
+        self.embed_chapters_cb.setToolTip("Embed chapter markers into the media file when available.")
+        embed_chapters_val = self.config.get("General", "embed_chapters", fallback="True")
+        self.embed_chapters_cb.setChecked(str(embed_chapters_val) == "True")
+        self.embed_chapters_cb.stateChanged.connect(
+            lambda s: self._save_general("embed_chapters", str(bool(s)))
+        )
+        options_group.addWidget(self.embed_chapters_cb)
+
         layout.addWidget(build_media_group(self))
 
         updates_group = add_group("Updates")
@@ -366,7 +358,7 @@ class AdvancedSettingsTab(QWidget):
 
         self.version_lbl = QLabel("Current version: Unknown")
 
-        update_group.addWidget(QLabel("Update Channel:"))
+        update_group.addWidget(QLabel("yt-dlp Update Channel:"))
         update_group.addWidget(self.update_channel_combo)
         update_group.addWidget(self.update_btn)
         update_group.addWidget(self.version_lbl)
@@ -376,33 +368,16 @@ class AdvancedSettingsTab(QWidget):
         # --- gallery-dl Update Section ---
         gallery_update_group = QHBoxLayout()
         self.gallery_update_btn = QPushButton("Update gallery-dl")
-        self.gallery_update_btn.setToolTip("Check for and install the latest version of gallery-dl.")
+        self.gallery_update_btn.setToolTip(
+            "Check for and install the latest version of gallery-dl. This is used for gallery downloads for sites like Instagram and TikTok.")
         self.gallery_update_btn.clicked.connect(self._update_gallery_dl)
-        
+
         self.gallery_version_lbl = QLabel("Current version: Unknown")
-        
+
         gallery_update_group.addWidget(self.gallery_update_btn)
         gallery_update_group.addWidget(self.gallery_version_lbl)
         gallery_update_group.addStretch()
         updates_group.addLayout(gallery_update_group)
-
-        # Application update controls
-        app_update_group = QHBoxLayout()
-        self.app_version_lbl = QLabel(f"App version: {APP_VERSION}")
-        self.check_app_update_btn = QPushButton("Check for App Update")
-        self.check_app_update_btn.setToolTip("Check GitHub for a newer version of MediaDownloader.")
-        self.check_app_update_btn.clicked.connect(self._check_app_update)
-
-        self.auto_check_cb = QCheckBox("Check for app updates on startup")
-        auto_val = self.config.get("General", "auto_check_updates", fallback="True")
-        self.auto_check_cb.setChecked(str(auto_val) == "True")
-        self.auto_check_cb.stateChanged.connect(lambda s: self._save_general("auto_check_updates", str(bool(s))))
-
-        app_update_group.addWidget(self.app_version_lbl)
-        app_update_group.addWidget(self.check_app_update_btn)
-        app_update_group.addWidget(self.auto_check_cb)
-        app_update_group.addStretch()
-        updates_group.addLayout(app_update_group)
 
         maintenance_group = add_group("Maintenance")
 
@@ -452,16 +427,6 @@ class AdvancedSettingsTab(QWidget):
             self.config.set("Paths", "temporary_downloads_directory", folder)
             self.temp_display.setText(folder)
             log.debug(f"Updated temporary directory: {folder}")
-
-    def browse_js_runtime(self):
-        """Prompt user to choose the JavaScript runtime executable (e.g., deno.exe or node.exe)."""
-        filter_str = "Executable Files (*.exe);;All Files (*)" if sys.platform == "win32" else "All Files (*)"
-        file_path, _ = QFileDialog.getOpenFileName(self, "Select JavaScript Runtime Executable", "", filter_str)
-        if file_path:
-            file_path = os.path.normpath(file_path)
-            self.config.set("General", "js_runtime_path", file_path)
-            self.js_runtime_display.setText(file_path)
-            log.debug(f"Updated JavaScript runtime path: {file_path}")
 
     def on_cookies_browser_changed(self, val):
         """Handle cookies-from-browser dropdown changes."""
@@ -548,89 +513,6 @@ class AdvancedSettingsTab(QWidget):
         fmt = self.subs_format_combo.itemData(index)
         self._save_general("subtitles_format", fmt)
 
-    def _check_app_update(self):
-        """Check GitHub for a newer app release and prompt the user to update."""
-        self.check_app_update_btn.setEnabled(False)
-        self.check_app_update_btn.setText("Checking...")
-
-        owner = 'vincentwetzel'
-        repo = 'MediaDownloader'
-
-        def bg():
-            try:
-                import core.update_manager as updater
-                rel = updater.get_latest_release(owner, repo)
-                if not rel:
-                    self.app_update_finished.emit("error", "Could not fetch release information from GitHub.")
-                    return
-                tag = rel.get('tag_name') or rel.get('name') or ''
-                cmp = updater._compare_versions(APP_VERSION, tag)
-                if cmp == -1:
-                    self.app_update_finished.emit("update_available", rel)
-                else:
-                    self.app_update_finished.emit("up_to_date", None)
-            except Exception as e:
-                log.exception('App update check failed')
-                self.app_update_finished.emit("error", str(e))
-
-        t = threading.Thread(target=bg, daemon=True)
-        t.start()
-
-    def _on_app_update_finished(self, status, data):
-        self.check_app_update_btn.setEnabled(True)
-        self.check_app_update_btn.setText("Check for App Update")
-
-        if status == "error":
-            QMessageBox.warning(self, 'Update Check Failed', str(data))
-        elif status == "up_to_date":
-            QMessageBox.information(self, 'Up To Date', f'No update available. Current version: {APP_VERSION}')
-        elif status == "update_available":
-            self._prompt_update(data)
-
-    def _prompt_update(self, release_info: dict):
-        tag = release_info.get('tag_name') or release_info.get('name') or 'unknown'
-        body = release_info.get('body') or ''
-        short_body = (body[:2000] + '...') if len(body) > 2000 else body
-        text = f"<b>A new version is available: {tag}</b><br><br>{short_body.replace('\\n', '<br>')}"
-
-        msg = QMessageBox(self)
-        msg.setWindowTitle('Update Available')
-        msg.setTextFormat(Qt.TextFormat.RichText)
-        msg.setText(text)
-
-        update_btn = msg.addButton('Update and Restart', QMessageBox.ButtonRole.YesRole)
-        later_btn = msg.addButton('Later', QMessageBox.ButtonRole.NoRole)
-        msg.exec()
-
-        if msg.clickedButton() == update_btn:
-            # Show a "downloading" message
-            self.main.show_status_message("Downloading update...", 5000)
-
-            def bg_download_and_apply():
-                try:
-                    import core.update_manager as updater
-                    temp_dir = self.config.get("Paths", "temporary_downloads_directory", fallback="")
-                    ok, path = updater.check_and_download_update(
-                        'vincentwetzel',
-                        'MediaDownloader',
-                        target_dir=temp_dir or None
-                    )
-                    if not ok or not path:
-                        QTimer.singleShot(0, lambda: QMessageBox.warning(self, 'Update Failed',
-                                                                         'Failed to download the update. Please try again later.'))
-                        return
-
-                    # This will trigger the update and the application will exit.
-                    updater.perform_self_update(path)
-
-                except Exception as e:
-                    log.exception('Failed to apply update')
-                    QTimer.singleShot(0, lambda: QMessageBox.warning(self, 'Update Error',
-                                                                     f"An unexpected error occurred during the update process: {e}"))
-
-            t = threading.Thread(target=bg_download_and_apply, daemon=True)
-            t.start()
-
     def _on_version_fetched(self, ver):
         # A nightly build can be identified by 'nightly', '.dev', or a version string with more than two dots (e.g., YYYY.MM.DD.HHMMSS)
         is_nightly = "nightly" in ver.lower() or ".dev" in ver.lower() or ver.count('.') > 2
@@ -674,7 +556,7 @@ class AdvancedSettingsTab(QWidget):
             if not release_info:
                 self.update_finished.emit(False, "Could not fetch latest release info from GitHub.")
                 return
-            
+
             remote_version = release_info.get('tag_name') or release_info.get('name') or ''
             if not remote_version:
                 self.update_finished.emit(False, "Could not determine remote version from GitHub release.")
@@ -688,7 +570,7 @@ class AdvancedSettingsTab(QWidget):
 
             # 4. If we get here, an update is needed. Proceed with the update process.
             self.update_btn.setText("Updating...")
-            
+
             target_exe = core.yt_dlp_worker._YT_DLP_PATH
             if not target_exe:
                 self.update_finished.emit(False, "Could not locate yt-dlp executable to update.")
@@ -701,13 +583,14 @@ class AdvancedSettingsTab(QWidget):
             if sys.platform == "win32":
                 creation_flags = subprocess.CREATE_NO_WINDOW
                 subprocess.Popen(
-                    cmd_list, 
-                    creationflags=creation_flags, 
-                    stdout=subprocess.DEVNULL, 
-                    stderr=subprocess.DEVNULL, 
+                    cmd_list,
+                    creationflags=creation_flags,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
                     close_fds=True
                 )
-                monitor_thread = threading.Thread(target=self._monitor_update_completion, args=(local_version,), daemon=True)
+                monitor_thread = threading.Thread(target=self._monitor_update_completion, args=(local_version,),
+                                                  daemon=True)
                 monitor_thread.start()
             else:
                 # On other platforms, run synchronously and get result.
@@ -737,9 +620,9 @@ class AdvancedSettingsTab(QWidget):
 
         while time.time() - start_time < timeout:
             time.sleep(2)  # Check every 2 seconds
-            
+
             new_version = core.yt_dlp_worker.get_yt_dlp_version(force_check=True)
-            
+
             if new_version and new_version != original_version:
                 log.info(f"yt-dlp update detected: {original_version} -> {new_version}")
                 self.update_finished.emit(True, f"Successfully updated to version {new_version}")
@@ -747,7 +630,8 @@ class AdvancedSettingsTab(QWidget):
 
         # If the loop finishes, it timed out
         log.warning("yt-dlp update check timed out.")
-        self.update_finished.emit(False, "Update check timed out after 2 minutes. Please check your connection or try again.")
+        self.update_finished.emit(False,
+                                  "Update check timed out after 2 minutes. Please check your connection or try again.")
 
     def _on_update_finished(self, success, message):
         self.update_btn.setEnabled(True)
@@ -856,11 +740,9 @@ class AdvancedSettingsTab(QWidget):
             if idx >= 0:
                 self.downloader_combo.setCurrentIndex(idx)
 
-            self.js_runtime_display.setText(self.config.get("General", "js_runtime_path", fallback=""))
-
             default_template = "%(title)s [%(uploader)s][%(release_date>%m-%d-%Y)s][%(id)s].%(ext)s"
             self.pattern_input.setText(default_template)
-            
+
             # Download archive remains enforced globally in config.
 
             start_tab = getattr(self.main, "tab_start", None)
@@ -986,10 +868,11 @@ class AdvancedSettingsTab(QWidget):
     def _fetch_gallery_dl_version(self):
         """Fetch gallery-dl version in background."""
         self.gallery_version_lbl.setText("Current version: (checking...)")
+
         def bg():
             version = get_gallery_dl_version()
             self.gallery_dl_version_fetched.emit(version or "Not Found")
-        
+
         t = threading.Thread(target=bg, daemon=True)
         t.start()
 
@@ -1015,20 +898,21 @@ class AdvancedSettingsTab(QWidget):
     def _on_gallery_dl_update_finished(self, status, message):
         self.gallery_update_btn.setEnabled(True)
         self.gallery_update_btn.setText("Update gallery-dl")
-        
+
         if status == "success":
             QMessageBox.information(self, "Update Successful", message)
-            self._fetch_gallery_dl_version() # Refresh version label
+            self._fetch_gallery_dl_version()  # Refresh version label
         elif status == "up_to_date":
             QMessageBox.information(self, "Up to Date", message)
         else:
             QMessageBox.warning(self, "Update Failed", message)
-    
+
     def _refresh_version_label(self):
         """Refreshes the yt-dlp version label by re-running the version check."""
         import core.yt_dlp_worker
-        
+
         self.version_lbl.setText("Current version: (checking...)")
+
         def do_refresh():
             # This forces a re-check of the yt-dlp version
             new_version = core.yt_dlp_worker.get_yt_dlp_version(force_check=True)

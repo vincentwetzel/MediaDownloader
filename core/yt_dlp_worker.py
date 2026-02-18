@@ -33,6 +33,10 @@ _YT_DLP_LAST_SUCCESS_TS = 0.0
 _YT_DLP_LAST_STATUS_MSG = ""
 _YT_DLP_LAST_CHECK_OK = False
 
+def strip_ansi_codes(text):
+    """Remove ANSI color codes from text."""
+    ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+    return ansi_escape.sub('', text)
 
 def check_yt_dlp_available(force_refresh=False):
     """Check if yt-dlp is available by consulting the binary manager and verifying the executable."""
@@ -322,6 +326,7 @@ class DownloadWorker(QThread):
         self.opts = opts
         self.config_manager = config_manager
         self._is_cancelled = False
+        self._total_bytes = 0
 
     def _parse_error_output(self, error_output):
         """Parse yt-dlp error output for known patterns and generate a user-friendly message."""
@@ -336,6 +341,32 @@ class DownloadWorker(QThread):
         # Add more patterns here in the future...
 
         return None # No specific error found
+
+    def _parse_size_str(self, size_str):
+        """Parse a size string like '18MiB' into bytes."""
+        size_str = size_str.strip()
+        if not size_str: return 0
+        units = {'B': 1, 'KiB': 1024, 'MiB': 1024**2, 'GiB': 1024**3, 'TiB': 1024**4}
+        units.update({'K': 1024, 'M': 1024**2, 'G': 1024**3})
+        
+        m = re.match(r"([0-9.]+)\s*([A-Za-z]*)", size_str)
+        if m:
+            try:
+                val = float(m.group(1))
+                unit = m.group(2)
+                return val * units.get(unit, 1)
+            except ValueError:
+                pass
+        return 0
+
+    def _format_bytes(self, b):
+        """Format bytes into a human-readable string."""
+        if not b: return "0B"
+        for unit in ['B', 'KiB', 'MiB', 'GiB']:
+            if b < 1024:
+                return f"{b:.2f}{unit}"
+            b /= 1024
+        return f"{b:.2f}TiB"
 
     def run(self):
         error_output = []
@@ -401,6 +432,10 @@ class DownloadWorker(QThread):
                         log.warning(f"Metadata fetch failed: {e}")
                 else:
                     log.info("Metadata already available, skipping fetch.")
+
+                # Extract total bytes if available
+                if getattr(self, "_meta_info", None):
+                    self._total_bytes = self._meta_info.get("filesize") or self._meta_info.get("filesize_approx") or 0
 
                 cmd = [cmd_executable] + cmd_args
 
@@ -493,10 +528,51 @@ class DownloadWorker(QThread):
                                 log.warning(f"{self.url} stderr: {line}")
                             else:
                                 stdout_lines.append(line)
-                                if any(keyword in line.lower() for keyword in ["error", "failed", "unable", "cannot", "invalid", "not found", "unavailable"]):
+                                clean_line = strip_ansi_codes(line)
+                                
+                                if any(keyword in clean_line.lower() for keyword in ["error", "failed", "unable", "cannot", "invalid", "not found", "unavailable"]):
                                     error_output.append(line)
-                                if not any(keyword in line.lower() for keyword in ["error", "failed"]):
-                                    self.progress.emit({"url": self.url, "text": line})
+                                
+                                if not any(keyword in clean_line.lower() for keyword in ["error", "failed"]):
+                                    # Handle aria2 raw output
+                                    if clean_line.startswith("[DL:"):
+                                        try:
+                                            # Extract downloaded size
+                                            dl_match = re.search(r"\[DL:\s*([0-9.]+[A-Za-z]*)\]", clean_line)
+                                            downloaded_str = dl_match.group(1) if dl_match else None
+                                            
+                                            percent_str = ""
+                                            # Try to find explicit percent
+                                            p_match = re.search(r"\((\d+(\.\d+)?%)\)", clean_line)
+                                            if p_match:
+                                                percent_str = p_match.group(1)
+                                            elif downloaded_str and self._total_bytes > 0:
+                                                # Calculate percent
+                                                try:
+                                                    dl_bytes = self._parse_size_str(downloaded_str)
+                                                    if dl_bytes > 0:
+                                                        pct = (dl_bytes / self._total_bytes) * 100
+                                                        if pct > 100: pct = 100
+                                                        percent_str = f"{pct:.1f}%"
+                                                except Exception:
+                                                    pass
+                                            
+                                            display_text = ""
+                                            if percent_str:
+                                                display_text = f"{percent_str}"
+                                                
+                                            if display_text:
+                                                self.progress.emit({"url": self.url, "text": f"[aria2] {display_text}"})
+                                            elif downloaded_str:
+                                                self.progress.emit({"url": self.url, "text": f"[aria2] DL: {downloaded_str}"})
+                                            else:
+                                                self.progress.emit({"url": self.url, "text": clean_line})
+
+                                        except Exception:
+                                            self.progress.emit({"url": self.url, "text": clean_line})
+                                    else:
+                                        self.progress.emit({"url": self.url, "text": clean_line})
+
                                 log.debug(f"{self.url} stdout: {line}")
                 except Exception as e:
                     log.warning(f"Error reading stream: {e}")

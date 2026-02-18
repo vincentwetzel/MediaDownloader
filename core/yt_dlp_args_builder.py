@@ -224,15 +224,8 @@ def build_yt_dlp_args(opts, config_manager):
         args.extend(["--cookies-from-browser", cookies_browser])
 
     # --- JavaScript Runtime ---
-    js_runtime_path = config_manager.get("General", "js_runtime_path", fallback="")
-    # First, try user-configured path
-    if js_runtime_path and os.path.exists(js_runtime_path):
-        log.debug(f"Using user-configured JavaScript runtime at {js_runtime_path}")
-    else:
-        if js_runtime_path:  # Path was configured but not found
-            log.warning(f"Configured JavaScript runtime not found at: {js_runtime_path}. Falling back to bundled.")
-        # If not configured or not found, try to use the bundled deno
-        js_runtime_path = get_binary_path("deno")
+    # Always use the bundled deno binary
+    js_runtime_path = get_binary_path("deno")
 
     if js_runtime_path and os.path.exists(js_runtime_path):
         # yt-dlp expects the runtime name (e.g., "deno") followed by its path
@@ -241,5 +234,24 @@ def build_yt_dlp_args(opts, config_manager):
         log.debug(f"Using JavaScript runtime: {runtime_name} at {js_runtime_path}")
     else:
         log.debug("No valid JavaScript runtime found (neither configured nor bundled).")
+
+    # --- External Downloader Args ---
+    # Pass --summary-interval=0 to aria2c to reduce console spam if needed,
+    # but more importantly, we can try to force aria2c to output in a way yt-dlp might relay better?
+    # Actually, yt-dlp has an --external-downloader-args option.
+    # Let's try to make aria2 output more frequent or verbose if that helps, 
+    # but usually the issue is yt-dlp not parsing aria2 output perfectly.
+    # However, the user mentioned it WAS working. 
+    # Maybe we were missing --external-downloader-args "aria2c:--console-log-level=warn"?
+    # Or maybe we should just rely on yt-dlp's standard progress handling which usually works.
+    
+    # If we add --external-downloader-args "aria2c:--summary-interval=1", it might help.
+    # But let's look at what might have changed.
+    
+    # The user said "It would be nice if we were just grabbing output instead of doing math."
+    # This implies yt-dlp usually provides the percentage.
+    
+    # Let's add the argument to make aria2 output more friendly if possible.
+    args.extend(["--external-downloader-args", "aria2c:--summary-interval=1"])
 
     return args

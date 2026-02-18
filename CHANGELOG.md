@@ -20,7 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 -
 
 ### Fixed
--
+- **Download percentage visibility during active transfers**: Fixed progress parsing so `.part` destination lines are treated as primary media transfer context (not auxiliary files), restoring visible download percentages during yt-dlp/aria2 runs.
+- **aria2 progress text stability**: Ignored aria2 noise lines without numeric progress (`[#...]`, `FILE: ...`, separator/summary lines) in active download rendering so they no longer overwrite the last shown percentage.
+- **HLS fragment progress accuracy with aria2**: Added fragment-based fallback progress (`Total fragments` + `.part-FragN`) so long HLS downloads no longer stall around `<1%` when aria2 byte summary percentages are unstable.
+- **Repeat-download row reuse in Active Downloads**: Starting a download for a URL that already has a terminal row (`Done`, `Cancelled`, or `Error`) now creates a new Active Downloads widget instead of reusing the old one.
 
 ### Security
 -

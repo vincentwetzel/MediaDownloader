@@ -110,6 +110,10 @@ class DownloadItemWidget(QWidget):
         # transfers cannot drive the main media progress bar.
         self._last_destination_kind = None  # "media" | "subtitle" | "aux"
         self._saw_primary_destination = False
+        # HLS/aria2 progress tracking fallback:
+        # derive progress from "Total fragments: N" + ".part-FragK" lines.
+        self._hls_total_fragments = None
+        self._hls_max_frag_index = -1
         layout.addWidget(self.progress)
         # Hide the right-hand percent label now that the progress bar shows
         # the percentage centered inside the bar. Keep the widget present so
@@ -365,6 +369,8 @@ class DownloadItemWidget(QWidget):
         self._last_percent = 0.0
         self._last_render_value = None
         self._last_render_text = None
+        self._hls_total_fragments = None
+        self._hls_max_frag_index = -1
         self.open_folder_btn.setVisible(False)
 
 
@@ -497,6 +503,8 @@ class ActiveDownloadsTab(QWidget):
         Adapter expected by main_window.download_added.
         Accepts a worker object from core.yt_dlp_worker.
         Creates (or reuses) a DownloadItemWidget and wires signals.
+        For worker-backed rows, never reuse terminal rows (Done/Cancelled/Error);
+        this ensures re-downloads always get a new UI row.
         """
         url = None
         title = None
@@ -512,7 +520,9 @@ class ActiveDownloadsTab(QWidget):
             url = str(worker_or_url)
 
         widget = self._pick_widget_for_url(url, prefer_unbound=True)
-        if widget is None:
+        # If the only match is a terminal row for this URL, create a fresh row
+        # so repeated downloads are shown as distinct entries.
+        if widget is None or self._is_terminal_widget(widget):
             widget = self.add_placeholder(url)
 
         if worker is not None:
@@ -598,6 +608,51 @@ class ActiveDownloadsTab(QWidget):
         raw_text = (text or "").strip()
         low_raw = raw_text.lower()
 
+        # HLS + aria2 fallback percent source:
+        # - "[hlsnative] Total fragments: N"
+        # - "FILE: ...part-FragK"
+        # This remains accurate even when aria2 byte summaries are noisy.
+        try:
+            import re
+            total_match = re.search(r"total fragments:\s*(\d+)", raw_text, re.IGNORECASE)
+            if total_match:
+                total = int(total_match.group(1))
+                if total > 0:
+                    widget._hls_total_fragments = total
+
+            frag_file_match = re.search(r"\.part-frag(\d+)\b", raw_text, re.IGNORECASE)
+            if frag_file_match:
+                frag_idx = int(frag_file_match.group(1))
+                prev_max = int(getattr(widget, "_hls_max_frag_index", -1))
+                if frag_idx > prev_max:
+                    widget._hls_max_frag_index = frag_idx
+                total = int(getattr(widget, "_hls_total_fragments", 0) or 0)
+                if total > 0:
+                    frag_pct = (float(widget._hls_max_frag_index + 1) / float(total)) * 100.0
+                    if pct is None or frag_pct > float(pct):
+                        pct = frag_pct
+        except Exception:
+            pass
+
+        # aria2 can emit many noisy status lines (per-connection chunks, FILE lines,
+        # separators, summary banners) that do not contain a usable percent. If these
+        # are rendered, they overwrite the last valid percentage text and make the UI
+        # appear to stop showing progress.
+        try:
+            import re
+            is_aria2_noise = (
+                pct is None and bool(raw_text) and (
+                    raw_text.startswith("FILE: ") or
+                    raw_text.startswith("[#") or
+                    raw_text.startswith("*** Download Progress Summary") or
+                    re.fullmatch(r"[-=]{20,}", raw_text) is not None
+                )
+            )
+            if is_aria2_noise:
+                return
+        except Exception:
+            pass
+
         # Track whether this progress stream refers to media, subtitles, or aux files.
         try:
             import re
@@ -607,11 +662,16 @@ class ActiveDownloadsTab(QWidget):
                 dest_low = dest_path.lower()
                 _, ext = os.path.splitext(dest_low)
                 subtitle_exts = {".vtt", ".srt", ".ass", ".ssa", ".ttml", ".lrc", ".sbv", ".json3"}
-                aux_exts = {".webp", ".jpg", ".jpeg", ".png", ".gif", ".description", ".part", ".ytdl"}
+                aux_exts = {".webp", ".jpg", ".jpeg", ".png", ".gif", ".description", ".ytdl"}
                 if ext in subtitle_exts:
                     widget._last_destination_kind = "subtitle"
                 elif dest_low.endswith(".info.json") or ext == ".json" or ext in aux_exts:
                     widget._last_destination_kind = "aux"
+                elif ext == ".part":
+                    # .part is the in-progress media payload for many yt-dlp/aria2 flows.
+                    # Treat it as media so transfer percentages are not suppressed.
+                    widget._last_destination_kind = "media"
+                    widget._saw_primary_destination = True
                 else:
                     widget._last_destination_kind = "media"
                     widget._saw_primary_destination = True

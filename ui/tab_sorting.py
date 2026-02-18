@@ -113,6 +113,8 @@ class SortingTab(QWidget):
                     cond_strs.append(f"{field} {op} {val_str}")
                 
                 condition_text = " AND ".join(cond_strs)
+                if not condition_text:
+                    condition_text = "No conditions"
 
                 # Subfolder
                 subfolder = ""
@@ -432,9 +434,6 @@ class RuleDialog(QDialog):
             
             for cond in conditions:
                 self.add_condition(cond)
-        else:
-            # Add one empty condition by default
-            self.add_condition()
 
     def add_condition(self, condition_data=None):
         widget = ConditionWidget(self, condition_data)
