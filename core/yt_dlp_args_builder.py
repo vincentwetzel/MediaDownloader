@@ -163,6 +163,18 @@ def build_yt_dlp_args(opts, config_manager):
         args.append("--embed-metadata")
         args.append("--embed-thumbnail")
 
+    # --- Thumbnail Conversion ---
+    convert_thumb = config_manager.get("General", "convert_thumbnails", fallback="jpg")
+    if convert_thumb and convert_thumb != "None":
+        args.extend(["--convert-thumbnails", convert_thumb])
+
+    # --- Thumbnail Quality ---
+    if config_manager.get("General", "high_quality_thumbnail", fallback="True") == "True":
+        # Use crop=ih:ih to crop a square from the center of the image.
+        # This assumes landscape input (width >= height), which is standard for YouTube.
+        # This avoids complex syntax like min(iw,ih) that caused parsing errors.
+        args.extend(["--ppa", "ThumbnailsConvertor+ffmpeg_o:-vf crop=ih:ih -vcodec mjpeg -qmin 1 -qscale:v 1"])
+
     # --- Other Options ---
     playlist_mode = opts.get("playlist_mode", "Ask")
     if "ignore" in playlist_mode.lower() or "single" in playlist_mode.lower():

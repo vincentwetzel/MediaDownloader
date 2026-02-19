@@ -702,6 +702,9 @@ class AdvancedSettingsTab(QWidget):
             embed_thumbnail_val = self.config.get("General", "embed_thumbnail", fallback="True")
             self.embed_thumbnail_cb.setChecked(str(embed_thumbnail_val) == "True")
 
+            high_quality_thumbnail_val = self.config.get("General", "high_quality_thumbnail", fallback="True")
+            self.high_quality_thumbnail_cb.setChecked(str(high_quality_thumbnail_val) == "True")
+
             # Reset thumbnail conversion
             idx = self.thumb_conv_combo.findData("jpg")
             if idx >= 0:

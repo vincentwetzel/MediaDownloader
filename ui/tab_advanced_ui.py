@@ -203,6 +203,19 @@ def build_metadata_group(tab):
     )
     layout.addWidget(tab.embed_thumbnail_cb)
 
+    tab.high_quality_thumbnail_cb = QCheckBox("Use high-quality thumbnail converter")
+    tab.high_quality_thumbnail_cb.setToolTip(
+        "Use a higher quality converter for thumbnails (MJPEG format).\n"
+        "This can prevent black bars (letterboxing) on non-square thumbnails\n"
+        "and can result in better quality album art for audio files."
+    )
+    high_quality_thumbnail_val = tab.config.get("General", "high_quality_thumbnail", fallback="True")
+    tab.high_quality_thumbnail_cb.setChecked(str(high_quality_thumbnail_val) == "True")
+    tab.high_quality_thumbnail_cb.stateChanged.connect(
+        lambda s: tab._save_general("high_quality_thumbnail", str(bool(s)))
+    )
+    layout.addWidget(tab.high_quality_thumbnail_cb)
+
     # Convert Thumbnails Dropdown
     thumb_conv_row = QHBoxLayout()
     thumb_conv_lbl = QLabel("Convert thumbnails to:")
