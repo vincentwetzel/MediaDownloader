@@ -59,6 +59,9 @@ class ConfigManager:
             "subtitles_langs": "en",
             "subtitles_format": "None",
             "download_archive": "True",
+            "embed_metadata": "True",
+            "embed_thumbnail": "True",
+            "convert_thumbnails": "jpg",
         }
         self.config["Paths"] = {
             "completed_downloads_directory": "",
@@ -93,6 +96,9 @@ class ConfigManager:
             "subtitles_langs": "en",
             "subtitles_format": "None",
             "download_archive": "True",
+            "embed_metadata": "True",
+            "embed_thumbnail": "True",
+            "convert_thumbnails": "jpg",
         }
         for key, value in general_defaults.items():
             if not self.config.has_option("General", key):

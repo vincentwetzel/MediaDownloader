@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 
-from ui.tab_advanced_ui import build_media_group, SUBTITLE_LANGUAGES, OUTPUT_TEMPLATE_TOKENS
+from ui.tab_advanced_ui import build_metadata_group, build_subtitles_group, SUBTITLE_LANGUAGES, OUTPUT_TEMPLATE_TOKENS
 
 log = logging.getLogger(__name__)
 
@@ -334,7 +334,8 @@ class AdvancedSettingsTab(QWidget):
         )
         options_group.addWidget(self.embed_chapters_cb)
 
-        layout.addWidget(build_media_group(self))
+        layout.addWidget(build_metadata_group(self))
+        layout.addWidget(build_subtitles_group(self))
 
         updates_group = add_group("Updates")
 
@@ -513,6 +514,10 @@ class AdvancedSettingsTab(QWidget):
         fmt = self.subs_format_combo.itemData(index)
         self._save_general("subtitles_format", fmt)
 
+    def _on_thumb_conv_changed(self, index):
+        fmt = self.thumb_conv_combo.itemData(index)
+        self._save_general("convert_thumbnails", fmt)
+
     def _on_version_fetched(self, ver):
         # A nightly build can be identified by 'nightly', '.dev', or a version string with more than two dots (e.g., YYYY.MM.DD.HHMMSS)
         is_nightly = "nightly" in ver.lower() or ".dev" in ver.lower() or ver.count('.') > 2
@@ -689,6 +694,19 @@ class AdvancedSettingsTab(QWidget):
 
             embed_chapters_val = self.config.get("General", "embed_chapters", fallback="True")
             self.embed_chapters_cb.setChecked(str(embed_chapters_val) == "True")
+
+            # Reset metadata and thumbnail options
+            embed_metadata_val = self.config.get("General", "embed_metadata", fallback="True")
+            self.embed_metadata_cb.setChecked(str(embed_metadata_val) == "True")
+
+            embed_thumbnail_val = self.config.get("General", "embed_thumbnail", fallback="True")
+            self.embed_thumbnail_cb.setChecked(str(embed_thumbnail_val) == "True")
+
+            # Reset thumbnail conversion
+            idx = self.thumb_conv_combo.findData("jpg")
+            if idx >= 0:
+                self.thumb_conv_combo.setCurrentIndex(idx)
+            self._save_general("convert_thumbnails", "jpg")
 
             saved_lang = self.config.get("General", "subtitles_langs", fallback="en")
             idx = self.subs_lang_combo.findData(saved_lang)

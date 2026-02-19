@@ -179,11 +179,70 @@ def build_config_group(tab):
 
     return config_group
 
-def build_media_group(tab):
-    media_group = QGroupBox("Media & Subtitles")
+def build_metadata_group(tab):
+    """Builds the Metadata & Thumbnails settings group."""
+    meta_group = QGroupBox("Metadata & Thumbnails")
     layout = QVBoxLayout()
-    media_group.setLayout(layout)
+    meta_group.setLayout(layout)
 
+    # --- Metadata & Thumbnails ---
+    tab.embed_metadata_cb = QCheckBox("Embed metadata")
+    tab.embed_metadata_cb.setToolTip("Embed metadata (title, artist, etc.) into the media file.")
+    embed_metadata_val = tab.config.get("General", "embed_metadata", fallback="True")
+    tab.embed_metadata_cb.setChecked(str(embed_metadata_val) == "True")
+    tab.embed_metadata_cb.stateChanged.connect(
+        lambda s: tab._save_general("embed_metadata", str(bool(s)))
+    )
+    layout.addWidget(tab.embed_metadata_cb)
+
+    tab.embed_thumbnail_cb = QCheckBox("Embed thumbnail")
+    tab.embed_thumbnail_cb.setToolTip("Embed the thumbnail into the media file as album art.")
+    embed_thumbnail_val = tab.config.get("General", "embed_thumbnail", fallback="True")
+    tab.embed_thumbnail_cb.setChecked(str(embed_thumbnail_val) == "True")
+    tab.embed_thumbnail_cb.stateChanged.connect(
+        lambda s: tab._save_general("embed_thumbnail", str(bool(s)))
+    )
+    layout.addWidget(tab.embed_thumbnail_cb)
+
+    # Convert Thumbnails Dropdown
+    thumb_conv_row = QHBoxLayout()
+    thumb_conv_lbl = QLabel("Convert thumbnails to:")
+    thumb_conv_lbl.setToolTip("Convert downloaded thumbnails to a specific format.")
+    tab.thumb_conv_combo = QComboBox()
+    tab.thumb_conv_combo.setToolTip("Select format to convert thumbnails to.")
+    
+    # Add options: jpg (default), png, webp, None (keep original)
+    tab.thumb_conv_combo.addItem("jpg (Default)", "jpg")
+    tab.thumb_conv_combo.addItem("png", "png")
+    tab.thumb_conv_combo.addItem("webp", "webp")
+    tab.thumb_conv_combo.addItem("None (Keep Original)", "None")
+
+    saved_thumb_conv = tab.config.get("General", "convert_thumbnails", fallback="jpg")
+    idx = tab.thumb_conv_combo.findData(saved_thumb_conv)
+    if idx >= 0:
+        tab.thumb_conv_combo.setCurrentIndex(idx)
+    else:
+        # Fallback to jpg if invalid
+        idx_jpg = tab.thumb_conv_combo.findData("jpg")
+        if idx_jpg >= 0:
+            tab.thumb_conv_combo.setCurrentIndex(idx_jpg)
+            tab._save_general("convert_thumbnails", "jpg")
+
+    tab.thumb_conv_combo.currentIndexChanged.connect(tab._on_thumb_conv_changed)
+
+    thumb_conv_row.addWidget(thumb_conv_lbl)
+    thumb_conv_row.addWidget(tab.thumb_conv_combo, stretch=1)
+    layout.addLayout(thumb_conv_row)
+    
+    return meta_group
+
+def build_subtitles_group(tab):
+    """Builds the Subtitles settings group."""
+    subs_group = QGroupBox("Subtitles")
+    layout = QVBoxLayout()
+    subs_group.setLayout(layout)
+
+    # --- Subtitles ---
     subs_lang_row = QHBoxLayout()
     subs_lang_lbl = QLabel("Subtitle language:")
     subs_lang_lbl.setToolTip("Language for subtitles.")
@@ -266,4 +325,4 @@ def build_media_group(tab):
     subs_format_row.addWidget(tab.subs_format_combo, stretch=1)
     layout.addLayout(subs_format_row)
 
-    return media_group
+    return subs_group
