@@ -94,8 +94,9 @@ def build_yt_dlp_args(opts, config_manager):
         args.append("--skip-download")
         # Ensure metadata is written
         args.append("--write-info-json")
-        # We don't need format selection for metadata only, but yt-dlp might complain if none is set?
-        # Actually, --skip-download usually ignores format selection, but let's be safe.
+        # Prevent downloading subtitles which might happen by default
+        args.append("--no-write-auto-subs")
+        args.append("--no-write-subs")
         
     elif audio_only:
         audio_codec = opts.get("acodec") or config_manager.get("General", "acodec", fallback="")

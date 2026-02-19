@@ -109,7 +109,6 @@ OUTPUT_TEMPLATE_TOKENS = [
     ("Extension %(ext)s", "%(ext)s"),
     ("Playlist %(playlist_title)s", "%(playlist_title)s"),
     ("Playlist Index %(playlist_index)s", "%(playlist_index)s"),
-    ("Channel %(channel)s", "%(channel)s"),
     ("Uploader ID %(uploader_id)s", "%(uploader_id)s"),
     ("Duration %(duration)s", "%(duration)s"),
 ]
