@@ -62,6 +62,7 @@ class ConfigManager:
             "embed_metadata": "True",
             "embed_thumbnail": "True",
             "convert_thumbnails": "jpg",
+            "high_quality_thumbnail": "True",
         }
         self.config["Paths"] = {
             "completed_downloads_directory": "",
@@ -99,6 +100,7 @@ class ConfigManager:
             "embed_metadata": "True",
             "embed_thumbnail": "True",
             "convert_thumbnails": "jpg",
+            "high_quality_thumbnail": "True",
         }
         for key, value in general_defaults.items():
             if not self.config.has_option("General", key):
