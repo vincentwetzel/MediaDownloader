@@ -4,7 +4,7 @@
 ; Build Instructions:
 ; 1. Install NSIS from https://nsis.sourceforge.io/Download
 ; 2. Run: makensis /V2 MediaDownloader.nsi
-; 3. Output: MediaDownloader-Setup-0.0.8.exe will be created in the project root
+; 3. Output: MediaDownloader-Setup-0.0.9.exe will be created in the project root
 
 !include "MUI2.nsh"
 !include "x64.nsh"
@@ -14,7 +14,7 @@
 ; ============================================================================
 
 Name "MediaDownloader"
-OutFile "MediaDownloader-Setup-0.0.8.exe"
+OutFile "MediaDownloader-Setup-0.0.9.exe"
 InstallDir "$PROGRAMFILES\MediaDownloader"
 
 ; Request admin privileges to write to Program Files
@@ -71,7 +71,7 @@ Section "Install"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\MediaDownloader" \
     "DisplayIcon" "$INSTDIR\MediaDownloader.exe"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\MediaDownloader" \
-    "DisplayVersion" "0.0.8"
+    "DisplayVersion" "0.0.9"
   
   ; Log completion
   DetailPrint "MediaDownloader installed successfully"
@@ -110,4 +110,3 @@ FunctionEnd
 Function CreateDesktopShortcut
   CreateShortCut "$DESKTOP\MediaDownloader.lnk" "$INSTDIR\MediaDownloader.exe"
 FunctionEnd
-
