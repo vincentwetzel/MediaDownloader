@@ -5,6 +5,7 @@ import threading
 import sys
 import shutil
 import json
+import atexit
 import requests
 import tempfile
 import re
@@ -32,6 +33,34 @@ _YT_DLP_LAST_CHECK_TS = 0.0
 _YT_DLP_LAST_SUCCESS_TS = 0.0
 _YT_DLP_LAST_STATUS_MSG = ""
 _YT_DLP_LAST_CHECK_OK = False
+_THUMBNAIL_CACHE_DIR = None
+_THUMBNAIL_CACHE_LOCK = threading.Lock()
+
+
+def get_thumbnail_cache_dir():
+    """Return a session-scoped temporary directory for UI thumbnails."""
+    global _THUMBNAIL_CACHE_DIR
+    with _THUMBNAIL_CACHE_LOCK:
+        if _THUMBNAIL_CACHE_DIR and os.path.isdir(_THUMBNAIL_CACHE_DIR):
+            return _THUMBNAIL_CACHE_DIR
+        _THUMBNAIL_CACHE_DIR = tempfile.mkdtemp(prefix="md_thumb_cache_")
+        return _THUMBNAIL_CACHE_DIR
+
+
+def cleanup_thumbnail_cache():
+    """Remove session-scoped thumbnail cache. Safe to call multiple times."""
+    global _THUMBNAIL_CACHE_DIR
+    with _THUMBNAIL_CACHE_LOCK:
+        cache_dir = _THUMBNAIL_CACHE_DIR
+        _THUMBNAIL_CACHE_DIR = None
+    if cache_dir and os.path.isdir(cache_dir):
+        try:
+            shutil.rmtree(cache_dir, ignore_errors=True)
+        except Exception:
+            log.debug("Failed to clean thumbnail cache directory", exc_info=True)
+
+
+atexit.register(cleanup_thumbnail_cache)
 
 def strip_ansi_codes(text):
     """Remove ANSI color codes from text."""
@@ -317,6 +346,7 @@ def is_gallery_url_valid(url: str, timeout: int = 15):
 class DownloadWorker(QThread):
     progress = pyqtSignal(dict)
     title_updated = pyqtSignal(str)
+    thumbnail_downloaded = pyqtSignal(str, str)  # url, image_path
     finished = pyqtSignal(str, bool, list)
     error = pyqtSignal(str, str)
 
@@ -327,6 +357,88 @@ class DownloadWorker(QThread):
         self.config_manager = config_manager
         self._is_cancelled = False
         self._total_bytes = 0
+        self._thumbnail_path = None
+        self._thumbnail_state = "idle"
+        self._thumbnail_lock = threading.Lock()
+
+    def _download_and_emit_thumbnail(self):
+        """Downloads the best thumbnail and emits a signal with its path."""
+        try:
+            cached_thumb = None
+            with self._thumbnail_lock:
+                if self._thumbnail_state == "ready" and self._thumbnail_path and os.path.exists(self._thumbnail_path):
+                    cached_thumb = self._thumbnail_path
+                elif self._thumbnail_state == "downloading":
+                    return
+                elif self._thumbnail_state == "failed":
+                    return
+                else:
+                    self._thumbnail_state = "downloading"
+
+            if cached_thumb:
+                self.thumbnail_downloaded.emit(self.url, cached_thumb)
+                return
+
+            info = getattr(self, "_meta_info", None)
+            if not info:
+                with self._thumbnail_lock:
+                    self._thumbnail_state = "failed"
+                return
+
+            # Find the best quality thumbnail URL
+            thumbnails = info.get("thumbnails") or []
+            thumb_url = None
+            if thumbnails:
+                best_thumb = max(
+                    thumbnails,
+                    key=lambda t: (t.get("width") or 0) * (t.get("height") or 0),
+                )
+                thumb_url = best_thumb.get("url")
+            if not thumb_url:
+                thumb_url = info.get("thumbnail")
+            if not thumb_url:
+                with self._thumbnail_lock:
+                    self._thumbnail_state = "failed"
+                return
+
+            # Download the image
+            headers = {"User-Agent": "Mozilla/5.0"}
+            response = requests.get(thumb_url, stream=True, headers=headers, timeout=15)
+            response.raise_for_status()
+
+            # Save preview thumbnails in a session-scoped temp cache. These are
+            # UI artifacts and should not persist in the user's download folders.
+            temp_dir = get_thumbnail_cache_dir()
+            os.makedirs(temp_dir, exist_ok=True)
+            
+            # Create a unique filename
+            video_id = info.get("id", "unknown")
+            ext = os.path.splitext(thumb_url.split('?')[0])[-1] or '.jpg'
+            temp_path = os.path.join(temp_dir, f"thumb_{video_id}{ext}")
+
+            if os.path.exists(temp_path) and os.path.getsize(temp_path) > 0:
+                with self._thumbnail_lock:
+                    self._thumbnail_path = temp_path
+                    self._thumbnail_state = "ready"
+                self.thumbnail_downloaded.emit(self.url, temp_path)
+                return
+
+            with open(temp_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+
+            with self._thumbnail_lock:
+                self._thumbnail_path = temp_path
+                self._thumbnail_state = "ready"
+            # Emit signal with the path
+            self.thumbnail_downloaded.emit(self.url, temp_path)
+            log.info(f"Thumbnail for {self.url} downloaded to {temp_path}")
+
+        except Exception as e:
+            with self._thumbnail_lock:
+                self._thumbnail_state = "failed"
+            log.error(f"Could not download thumbnail for {self.url}: {e}")
+
 
     def _parse_error_output(self, error_output):
         """Parse yt-dlp error output for known patterns and generate a user-friendly message."""
@@ -338,6 +450,10 @@ class DownloadWorker(QThread):
         if premiere_match:
             return f"This video is a premiere and will be available in {premiere_match.group(1).strip()}."
         
+        # Pattern for "Did not get any data blocks"
+        if "did not get any data blocks" in full_error_text.lower():
+            return "Download interrupted: Did not get any data blocks. This might be a temporary network issue or a problem with the video stream."
+
         # Add more patterns here in the future...
 
         return None # No specific error found
@@ -367,6 +483,130 @@ class DownloadWorker(QThread):
                 return f"{b:.2f}{unit}"
             b /= 1024
         return f"{b:.2f}TiB"
+
+    def _discover_created_files(self, stdout_lines, use_gallery_dl, temp_snapshot):
+        created_files = []
+        final_file_from_stdout = None
+        
+        # Clean lines to ensure regex matches work even if ANSI codes are present
+        clean_lines = [strip_ansi_codes(l) for l in stdout_lines]
+        
+        if use_gallery_dl:
+            # gallery-dl output parsing
+            for line in clean_lines:
+                fpath = line.strip()
+                if not fpath or fpath.startswith('[') or fpath.startswith('#'):
+                    continue
+                
+                # Check if it exists as is
+                if os.path.exists(fpath):
+                    created_files.append(os.path.normpath(fpath))
+                    continue
+                
+                # Check relative to temp_dir/output_dir
+                t_dir = getattr(self, "temp_dir", "")
+                c_dir = self.config_manager.get("Paths", "completed_downloads_directory", fallback="")
+                target_dir = t_dir or c_dir
+                
+                if target_dir:
+                    cand = os.path.join(target_dir, fpath)
+                    if os.path.exists(cand):
+                        created_files.append(os.path.normpath(cand))
+        else:
+            try:
+                for line in reversed(clean_lines):
+                    # Check for various success indicators that contain the filename
+                    
+                    # 1. Merging
+                    m = re.search(r"Merging formats into\s*(.+)$", line)
+                    if m:
+                        final_file_from_stdout = m.group(1).strip()
+                        break
+                    
+                    # 2. Destination
+                    if not final_file_from_stdout:
+                        m2 = re.search(r"Destination:\s*(.+)$", line)
+                        if m2:
+                            final_file_from_stdout = m2.group(1).strip()
+                    
+                    # 3. Already downloaded
+                    if not final_file_from_stdout:
+                         m3 = re.search(r"\[download\]\s+(.+)\s+has already been downloaded", line)
+                         if m3:
+                             final_file_from_stdout = m3.group(1).strip()
+
+                    # 4. Post-processing (Thumbnail, Metadata, Fixup) - often at the end
+                    if not final_file_from_stdout:
+                        # [EmbedThumbnail] mutagen: Adding thumbnail to "..."
+                        m_thumb = re.search(r"\[EmbedThumbnail\]\s+.*Adding thumbnail to\s+\"(.+)\"", line)
+                        if m_thumb:
+                            final_file_from_stdout = m_thumb.group(1).strip()
+
+                    if not final_file_from_stdout:
+                        # [Metadata] Adding metadata to "..."
+                        m_meta = re.search(r"\[Metadata\]\s+Adding metadata to\s+\"(.+)\"", line)
+                        if m_meta:
+                            final_file_from_stdout = m_meta.group(1).strip()
+                    
+                    if not final_file_from_stdout:
+                        # [FixupM3u8] Fixing MPEG-TS in MP4 container of "..."
+                        m_fix = re.search(r"\[FixupM3u8\]\s+Fixing .* of\s+\"(.+)\"", line)
+                        if m_fix:
+                            final_file_from_stdout = m_fix.group(1).strip()
+
+                    if final_file_from_stdout:
+                        break
+
+            except Exception:
+                log.exception("Error parsing yt-dlp stdout for filenames.")
+
+        if final_file_from_stdout:
+            if (final_file_from_stdout.startswith('"') and final_file_from_stdout.endswith('"')) or \
+               (final_file_from_stdout.startswith("'") and final_file_from_stdout.endswith("'")):
+                final_file_from_stdout = final_file_from_stdout[1:-1].strip()
+            created_files.append(os.path.normpath(final_file_from_stdout))
+            log.info(f"Discovered final file from stdout: {created_files}")
+        else:
+            if not use_gallery_dl:
+                log.warning(f"Could not determine final file from output for {self.url}. Using directory snapshot fallback.")
+            snapshot_files = []
+            try:
+                temp_dir = getattr(self, "temp_dir", None)
+                if temp_dir and os.path.isdir(temp_dir):
+                    for root, _, files in os.walk(temp_dir):
+                        for f in files:
+                            p = os.path.join(root, f)
+                            try:
+                                mtime = os.path.getmtime(p)
+                            except Exception:
+                                continue
+                            if p not in temp_snapshot or mtime > temp_snapshot.get(p, 0):
+                                snapshot_files.append(p)
+            except Exception:
+                pass
+            
+            seen = set()
+            for p in snapshot_files:
+                try:
+                    sp = str(p).strip().strip('"').strip("'").strip()
+                    if not sp or sp.lower().endswith(('.part', '.ytdl')):
+                        continue
+                    sp = os.path.normpath(sp)
+                    if sp in seen:
+                        continue
+                    seen.add(sp)
+                    created_files.append(sp)
+                except Exception:
+                    continue
+            if not use_gallery_dl:
+                log.info(f"Discovered final files from snapshot: {created_files}")
+            else:
+                if not created_files:
+                    for f in snapshot_files:
+                        if f not in created_files:
+                            created_files.append(f)
+        
+        return created_files
 
     def run(self):
         error_output = []
@@ -432,6 +672,9 @@ class DownloadWorker(QThread):
                         log.warning(f"Metadata fetch failed: {e}")
                 else:
                     log.info("Metadata already available, skipping fetch.")
+
+                # Download thumbnail and emit signal for UI
+                self._download_and_emit_thumbnail()
 
                 # Extract total bytes if available
                 if getattr(self, "_meta_info", None):
@@ -605,96 +848,11 @@ class DownloadWorker(QThread):
                 self.finished.emit(self.url, False, [])
                 return
 
+            # Discover files regardless of return code
+            created_files = self._discover_created_files(stdout_lines, use_gallery_dl, temp_snapshot)
+
             if return_code == 0:
                 time.sleep(1)
-                created_files = []
-                final_file_from_stdout = None
-                
-                if use_gallery_dl:
-                    # gallery-dl output parsing
-                    for line in stdout_lines:
-                        fpath = line.strip()
-                        if not fpath or fpath.startswith('[') or fpath.startswith('#'):
-                            continue
-                        
-                        # Check if it exists as is
-                        if os.path.exists(fpath):
-                            created_files.append(os.path.normpath(fpath))
-                            continue
-                        
-                        # Check relative to temp_dir/output_dir
-                        t_dir = getattr(self, "temp_dir", "")
-                        c_dir = self.config_manager.get("Paths", "completed_downloads_directory", fallback="")
-                        target_dir = t_dir or c_dir
-                        
-                        if target_dir:
-                            cand = os.path.join(target_dir, fpath)
-                            if os.path.exists(cand):
-                                created_files.append(os.path.normpath(cand))
-                else:
-                    try:
-                        for line in reversed(stdout_lines):
-                            m = re.search(r"Merging formats into\s*(.+)$", line)
-                            if m:
-                                final_file_from_stdout = m.group(1).strip()
-                                break
-                            if not final_file_from_stdout:
-                                m2 = re.search(r"Destination:\s*(.+)$", line)
-                                if m2:
-                                    final_file_from_stdout = m2.group(1).strip()
-                    except Exception:
-                        log.exception("Error parsing yt-dlp stdout for filenames.")
-
-                if final_file_from_stdout:
-                    if (final_file_from_stdout.startswith('"') and final_file_from_stdout.endswith('"')) or \
-                       (final_file_from_stdout.startswith("'") and final_file_from_stdout.endswith("'")):
-                        final_file_from_stdout = final_file_from_stdout[1:-1].strip()
-                    created_files.append(os.path.normpath(final_file_from_stdout))
-                    log.info(f"Discovered final file from stdout: {created_files}")
-                else:
-                    if not use_gallery_dl:
-                        log.warning(f"Could not determine final file from output for {self.url}. Using directory snapshot fallback.")
-                    snapshot_files = []
-                    try:
-                        temp_dir = getattr(self, "temp_dir", None)
-                        if temp_dir and os.path.isdir(temp_dir):
-                            for root, _, files in os.walk(temp_dir):
-                                for f in files:
-                                    p = os.path.join(root, f)
-                                    try:
-                                        mtime = os.path.getmtime(p)
-                                    except Exception:
-                                        continue
-                                    if p not in temp_snapshot or mtime > temp_snapshot.get(p, 0):
-                                        snapshot_files.append(p)
-                    except Exception:
-                        pass
-                    
-                    seen = set()
-                    for p in snapshot_files:
-                        try:
-                            sp = str(p).strip().strip('"').strip("'").strip()
-                            if not sp or sp.lower().endswith(('.part', '.ytdl')):
-                                continue
-                            sp = os.path.normpath(sp)
-                            if sp in seen:
-                                continue
-                            seen.add(sp)
-                            created_files.append(sp)
-                        except Exception:
-                            continue
-                    if not use_gallery_dl:
-                        log.info(f"Discovered final files from snapshot: {created_files}")
-                    else:
-                        # For gallery-dl, if we found files via stdout parsing, we append them.
-                        # If we didn't find any via stdout, we might want to use snapshot files too?
-                        # But gallery-dl usually downloads many files.
-                        # If created_files is empty, we can try snapshot.
-                        if not created_files:
-                            for f in snapshot_files:
-                                if f not in created_files:
-                                    created_files.append(f)
-
                 if not use_gallery_dl:
                     try:
                         self._handle_thumbnail_embedding(created_files)
@@ -703,24 +861,42 @@ class DownloadWorker(QThread):
 
                 self.finished.emit(self.url, True, created_files)
             else:
-                error_msg = self._parse_error_output(error_output) or f"Process error (code {return_code})"
-                if "error" in error_msg.lower():
-                    if error_output:
-                        relevant_errors = error_output[-5:]
-                        error_msg += f"\n\n{''.join(relevant_errors)}"
-                    elif stdout_lines:
-                        error_lines = [line for line in stdout_lines if "error" in line.lower()]
-                        if error_lines:
-                            error_msg += f"\n\n{''.join(error_lines[-3:])}"
-                        else:
-                            error_msg += f"\n\nLast output: {''.join(stdout_lines[-3:])}"
+                # Check if we can salvage it
+                success_salvage = False
+                if created_files:
+                    # Check if files exist and are not empty
+                    valid_files = [f for f in created_files if os.path.exists(f) and os.path.getsize(f) > 0]
+                    if valid_files:
+                        log.warning(f"Download finished with return code {return_code} but files were created: {valid_files}. Treating as success.")
+                        success_salvage = True
+                        created_files = valid_files
                 
-                log.error(f"Download failed for {self.url} with code {return_code}")
-                log.error(f"Command: {' '.join(cmd)}")
-                if error_output:
-                    log.error(f"Error output: {''.join(error_output)}")
+                if success_salvage:
+                    if not use_gallery_dl:
+                        try:
+                            self._handle_thumbnail_embedding(created_files)
+                        except Exception:
+                            log.exception("Thumbnail handling failed")
+                    self.finished.emit(self.url, True, created_files)
+                else:
+                    error_msg = self._parse_error_output(error_output) or f"Process error (code {return_code})"
+                    if "error" in error_msg.lower():
+                        if error_output:
+                            relevant_errors = error_output[-5:]
+                            error_msg += f"\n\n{''.join(relevant_errors)}"
+                        elif stdout_lines:
+                            error_lines = [line for line in stdout_lines if "error" in line.lower()]
+                            if error_lines:
+                                error_msg += f"\n\n{''.join(error_lines[-3:])}"
+                            else:
+                                error_msg += f"\n\nLast output: {''.join(stdout_lines[-3:])}"
+                    
+                    log.error(f"Download failed for {self.url} with code {return_code}")
+                    log.error(f"Command: {' '.join(cmd)}")
+                    if error_output:
+                        log.error(f"Error output: {''.join(error_output)}")
 
-                self.error.emit(self.url, error_msg)
+                    self.error.emit(self.url, error_msg)
         except FileNotFoundError:
             error_msg = "Executable not found. Please check your installation."
             log.error(error_msg)

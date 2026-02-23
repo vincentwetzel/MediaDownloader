@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased] - YYYY-MM-DD
 
 ### Added
--
+- **Active download thumbnail previews**: The Active Downloads list now shows per-item thumbnail previews (when available) to the left of each title/progress row.
 
 ### Changed
 -
@@ -20,7 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 -
 
 ### Fixed
--
+- **Thumbnail signal chain for UI rendering**: Wired `DownloadWorker` thumbnail events through `DownloadManager` to `ActiveDownloadsTab`, ensuring downloaded thumbnail images are actually rendered in the GUI.
+- **Queued-item thumbnail timing**: Added early thumbnail prefetch during metadata preloading so queued downloads can show thumbnails before transfer starts.
+- **Thumbnail preview persistence**: Thumbnail images used by the Active Downloads UI are now stored in a session-only temp cache and cleaned up automatically on app exit.
 
 ### Security
 -

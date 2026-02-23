@@ -21,6 +21,7 @@ log = logging.getLogger(__name__)
 
 class DownloadManager(QObject):
     download_added = pyqtSignal(object)
+    thumbnail_ready = pyqtSignal(str, str)  # url, image_path
     download_finished = pyqtSignal(str, bool) # Reverted signal signature
     download_error = pyqtSignal(str, str)
     duplicate_download_detected = pyqtSignal(str, object)
@@ -89,6 +90,7 @@ class DownloadManager(QObject):
         log.info(f"Queueing download for {url} with opts: {opts}")
         worker = DownloadWorker(url, opts, self.config)
         worker.progress.connect(self._on_progress)
+        worker.thumbnail_downloaded.connect(self._on_worker_thumbnail_downloaded)
         # Connect finished/error signals to wrapper slots that use QObject.sender()
         # This avoids potential issues with lambdas and ensures the original worker
         # object is available via sender() when the slot runs.
@@ -141,6 +143,12 @@ class DownloadManager(QObject):
                             wrk.title_updated.emit(str(title))
                         except Exception:
                             pass
+                    # Fetch and emit thumbnail early (queued state) so the UI can
+                    # show artwork before the download actually starts.
+                    try:
+                        wrk._download_and_emit_thumbnail()
+                    except Exception:
+                        log.debug(f"Thumbnail prefetch failed for {wrk.url}", exc_info=True)
             except Exception:
                 pass
 
@@ -249,6 +257,14 @@ class DownloadManager(QObject):
 
     def _on_progress(self, data):
         log.debug(f"Progress: {data}")
+
+    def _on_worker_thumbnail_downloaded(self, url, image_path):
+        """Relay worker thumbnail updates to the UI-facing manager signal."""
+        try:
+            if url and image_path and os.path.exists(image_path):
+                self.thumbnail_ready.emit(str(url), str(image_path))
+        except Exception:
+            log.debug("Failed to relay thumbnail update", exc_info=True)
 
     def _maybe_start_next(self):
         """Start downloads from the pending queue up to configured concurrency."""
@@ -806,6 +822,8 @@ class DownloadManager(QObject):
                 user_message = f"Access forbidden (403). This usually means YouTube is blocking the request. Try updating yt-dlp or using cookies from a browser."
             elif "n challenge solving failed" in low or "javascript runtime" in low:
                 user_message = f"YouTube's anti-bot measures require a JavaScript runtime (like Deno or Node.js). Please install one and configure its path in Advanced Settings."
+            elif "did not get any data blocks" in low:
+                 user_message = f"Download interrupted: Did not get any data blocks. This might be a temporary network issue or a problem with the video stream."
         except Exception:
             user_message = None
 

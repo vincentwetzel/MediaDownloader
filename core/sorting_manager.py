@@ -197,6 +197,11 @@ class SortingManager:
         """Return release date metadata as YYYYMMDD when available."""
         return str(metadata.get('release_date') or '').strip()
 
+    @staticmethod
+    def _get_upload_date(metadata):
+        """Return upload date metadata as YYYYMMDD when available."""
+        return str(metadata.get('upload_date') or '').strip()
+
     def _get_final_path(self, rule, metadata):
         """Helper to construct the final path, including dynamic subfolders."""
         base_path = rule.get('target_path')
@@ -241,6 +246,19 @@ class SortingManager:
 
                 if safe_metadata.get('release_date', "NA") == "NA" and release_date:
                     safe_metadata['release_date'] = release_date
+
+                upload_date = self._get_upload_date(metadata)
+                if upload_date and len(upload_date) == 8:
+                    safe_metadata['upload_year'] = upload_date[:4]
+                    safe_metadata['upload_month'] = upload_date[4:6]
+                    safe_metadata['upload_day'] = upload_date[6:8]
+                else:
+                    safe_metadata['upload_year'] = "NA"
+                    safe_metadata['upload_month'] = "NA"
+                    safe_metadata['upload_day'] = "NA"
+
+                if safe_metadata.get('upload_date', "NA") == "NA" and upload_date:
+                    safe_metadata['upload_date'] = upload_date
 
                 # Replace tokens like {uploader} or {release_year}
                 def replace_token(match):

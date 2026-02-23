@@ -910,28 +910,53 @@ def expand_playlist(url, config_manager=None, opts=None, cancel_event=None):
         return [url]
 
 
-def is_likely_playlist(url: str) -> bool:
+def is_likely_playlist(url: str):
     """Quick heuristic to detect whether a URL is likely a playlist URL.
 
     This is intentionally lightweight and checks common patterns so the UI
     can respond immediately without waiting for full yt-dlp extraction.
+
+    Returns:
+        - "playlist_with_index": If the URL is a playlist with a specific item.
+        - "playlist_only": If the URL is a playlist without a specific item.
+        - False: If the URL is not a playlist.
     """
     try:
         if not url or not isinstance(url, str):
             return False
+
         low = url.lower()
-        # Query param 'list=' is the most common indicator (YouTube, Music, etc.)
-        if "list=" in low:
-            return True
+        parsed_url = urlparse(low)
+        query_params = parse_qs(parsed_url.query)
+
+        # YouTube specific logic
+        is_youtube = "youtube.com" in parsed_url.netloc or "youtu.be" in parsed_url.netloc
+        if is_youtube and 'list' in query_params:
+            is_short_link = "youtu.be" in parsed_url.netloc and parsed_url.path and parsed_url.path != '/'
+
+            # A 'v' param only matters on a watch page or youtu.be shortlink.
+            # URLs like /playlist?list=...&v=... are not single videos.
+            if (('v' in query_params or 'videoid' in query_params) and "/watch" in parsed_url.path) or is_short_link:
+                return "playlist_with_index"
+            return "playlist_only"
+
+        # Generic query param 'list=' is a strong indicator
+        if 'list' in query_params:
+            # Check if a specific video is referenced
+            if 'v' in query_params or 'index' in query_params:
+                return "playlist_with_index"
+            return "playlist_only"
+
         # Common playlist paths
         if "/playlist" in low or "/playlists" in low:
-            return True
+            return "playlist_only"
         # Some sites use 'set=' or 'album=' for grouped resources
         if "set=" in low or "album=" in low:
-            return True
+            return "playlist_only"
         # Vimeo/other providers may include 'channel' or 'series'
         if "series" in low or "channel" in low:
-            return True
+            return "playlist_only"
+
         return False
     except Exception:
         return False

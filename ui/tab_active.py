@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (
     QListWidgetItem, QMessageBox, QSizePolicy
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QObject, QUrl
-from PyQt6.QtGui import QDesktopServices
+from PyQt6.QtGui import QDesktopServices, QPixmap
 
 log = logging.getLogger(__name__)
 
@@ -52,8 +52,26 @@ class DownloadItemWidget(QWidget):
         self._style_state = state
 
     def _build(self):
+        main_layout = QHBoxLayout()
+        main_layout.setContentsMargins(4, 4, 4, 4)
+        main_layout.setSpacing(8)
+
+        # Left side: Thumbnail
+        self.thumbnail_label = QLabel()
+        self.thumbnail_label.setFixedSize(128, 72)
+        self.thumbnail_label.setStyleSheet("background-color: #e0e0e0; border-radius: 4px;")
+        self.thumbnail_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.thumbnail_label.setText("No\nImage")
+        self.thumbnail_label.setToolTip("Thumbnail preview for this download.")
+        main_layout.addWidget(self.thumbnail_label)
+
+        # Right side: All other controls
+        right_widget = QWidget()
         layout = QVBoxLayout()
-        layout.setContentsMargins(4, 2, 4, 2)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(2)
+        right_widget.setLayout(layout)
+        main_layout.addWidget(right_widget, stretch=1)
 
         # Row: title + percent + cancel
         top = QHBoxLayout()
@@ -125,7 +143,31 @@ class DownloadItemWidget(QWidget):
         except Exception:
             pass
 
-        self.setLayout(layout)
+        self.setLayout(main_layout)
+
+    def set_thumbnail(self, image_path):
+        """Load and display the thumbnail from the given image path."""
+        if not image_path or not os.path.exists(image_path):
+            self.thumbnail_label.setText("No\nImage")
+            self.thumbnail_label.setPixmap(QPixmap())
+            return
+        try:
+            pixmap = QPixmap(image_path)
+            if pixmap.isNull():
+                self.thumbnail_label.setText("No\nImage")
+                self.thumbnail_label.setPixmap(QPixmap())
+                return
+            scaled_pixmap = pixmap.scaled(
+                self.thumbnail_label.size(),
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
+            )
+            self.thumbnail_label.setPixmap(scaled_pixmap)
+            self.thumbnail_label.setText("")
+        except Exception as e:
+            log.error(f"Failed to load thumbnail {image_path}: {e}")
+            self.thumbnail_label.setText("Error")
+            self.thumbnail_label.setPixmap(QPixmap())
 
     def update_progress(self, percent, text):
         """Update progress bar and text on right."""
@@ -1101,6 +1143,12 @@ class ActiveDownloadsTab(QWidget):
         if w:
             w.mark_failed(title)
         self._check_if_all_done()
+
+    def update_thumbnail_for_url(self, url: str, image_path: str):
+        """Find the widget for the URL and set its thumbnail."""
+        w = self._pick_widget_for_url(url)
+        if w:
+            w.set_thumbnail(image_path)
 
     def _cancel_download(self, url):
         """Signal up to main window."""

@@ -85,6 +85,10 @@ class MediaDownloaderApp(QMainWindow):
 
         # Connect core events
         self.download_manager.download_added.connect(self.tab_active.add_download_widget)
+        self.download_manager.thumbnail_ready.connect(
+            self.tab_active.update_thumbnail_for_url,
+            Qt.ConnectionType.QueuedConnection
+        )
         # Force queued delivery so completion emitted from worker/move threads
         # is always handled on the GUI thread.
         self.download_manager.download_finished.connect(
@@ -303,13 +307,27 @@ class MediaDownloaderApp(QMainWindow):
             # Create a mutable copy of opts to modify based on user choice/logic
             url_opts = opts.copy()
 
-            if is_playlist and playlist_mode == "Ask":
+            # If the user wants "Download Single" but the URL is a pure playlist (no video index),
+            # we cannot fulfill that request. Force "Ask" mode so they are presented with
+            # the valid options (which will just be "Download All").
+            effective_playlist_mode = playlist_mode
+            if is_playlist == "playlist_only" and "single" in playlist_mode.lower():
+                effective_playlist_mode = "Ask"
+
+            if is_playlist and effective_playlist_mode == "Ask":
                 msg_box = QMessageBox(self)
                 msg_box.setWindowTitle("Playlist Detected")
                 msg_box.setText(f"The URL you provided appears to be a playlist:\n\n{url}")
-                msg_box.setInformativeText("Do you want to download the entire playlist or just the single video?")
+                
                 btn_all = msg_box.addButton("Download All", QMessageBox.ButtonRole.YesRole)
-                btn_one = msg_box.addButton("Download Single", QMessageBox.ButtonRole.NoRole)
+                btn_one = None
+                
+                if is_playlist != "playlist_only":
+                    msg_box.setInformativeText("Do you want to download the entire playlist or just the single video?")
+                    btn_one = msg_box.addButton("Download Single", QMessageBox.ButtonRole.NoRole)
+                else:
+                    msg_box.setInformativeText("Do you want to download the entire playlist?")
+
                 msg_box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
                 msg_box.exec()
 
@@ -323,7 +341,7 @@ class MediaDownloaderApp(QMainWindow):
                     self.tab_active.set_placeholder_message(url, "Preparing playlist download...")
                     self.tab_active.update_progress(url, 0, "Preparing playlist download...")
                     self._start_background_download_processing([url], url_opts, expand_playlists=True)
-                elif clicked_button == btn_one:
+                elif btn_one and clicked_button == btn_one:
                     # Download Single
                     url_opts["playlist_mode"] = "ignore"
                     # Do not create the UI element yet; validation/queuing will add it once ready
@@ -332,7 +350,7 @@ class MediaDownloaderApp(QMainWindow):
                     # Cancel
                     log.info(f"Playlist download cancelled by user for URL: {url}")
 
-            elif is_playlist and "single" in playlist_mode.lower():
+            elif is_playlist and "single" in effective_playlist_mode.lower():
                 # Download Single (ignore playlist) - already specified in settings
                 url_opts["playlist_mode"] = "ignore"
                 self._start_background_download_processing([url], url_opts, expand_playlists=False)
@@ -936,5 +954,13 @@ class MediaDownloaderApp(QMainWindow):
             msg_box.exec()
 
             self.tabs.setCurrentWidget(self.tab_active)
+
+        # Remove session thumbnail cache on shutdown. This keeps GUI preview
+        # images temporary and avoids leaving permanent files on disk.
+        try:
+            import core.yt_dlp_worker as yt_dlp_worker
+            yt_dlp_worker.cleanup_thumbnail_cache()
+        except Exception:
+            log.debug("Thumbnail cache cleanup failed during shutdown", exc_info=True)
 
         super().closeEvent(event)

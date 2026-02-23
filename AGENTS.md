@@ -137,6 +137,7 @@ Dependencies are defined in `pyproject.toml`.
 - **Update AGENTS.md** (Architecture & Quick-Reference) if you add files or change core logic locations
 - **Enforce the 600-line modularity rule (See Section 13)**
 - **Ensure all UI elements have tooltips**
+- **Update `SPEC.md`, `ARCHITECTURE.md`, and `TODO.md`** to reflect any changes to functional requirements, system design, or pending tasks.
 
 ### You MUST NOT:
 - Change download paths, archive formats, or config formats without explicit intent
@@ -207,3 +208,11 @@ To maintain AI accuracy and minimize token consumption, agents must enforce stri
 
 ### 12.3 Response Efficiency
 - **Partial Updates:** When modifying large files, provide only the specific functions or classes that changed, rather than rewriting the entire file, to save tokens.
+
+---
+
+## 13. Task Tracking
+
+Agents MUST use `TODO.md` to track pending tasks, planned features, and known issues.
+Before starting work, check `TODO.md` for high-priority items.
+After completing a task or identifying a new one, update `TODO.md` accordingly.

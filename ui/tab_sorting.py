@@ -28,7 +28,7 @@ class SortingTab(QWidget):
 
         description = QLabel(
             "Create rules to automatically move downloaded files to specific folders based on metadata like uploader, title, or tags.\n"
-            "You can also define dynamic subfolder patterns using metadata tokens like {uploader}, {release_year}, or {album}."
+            "You can also define dynamic subfolder patterns using metadata tokens like {uploader}, {upload_year}, or {album}."
         )
         description.setWordWrap(True)
         layout.addWidget(description)
@@ -298,10 +298,16 @@ class ConditionWidget(QWidget):
         field_text = self.field_combo.currentText()
         op_text = self.operator_combo.currentText()
         
+        operator = self.OPERATORS.get(op_text, "is_one_of")
+        values = [v.strip() for v in self.values_edit.toPlainText().split('\n') if v.strip()]
+        
+        if operator == "is_one_of":
+            values.sort(key=str.lower)
+        
         return {
             "field": self.METADATA_FIELDS.get(field_text, "uploader"),
-            "operator": self.OPERATORS.get(op_text, "is_one_of"),
-            "values": [v.strip() for v in self.values_edit.toPlainText().split('\n') if v.strip()]
+            "operator": operator,
+            "values": values
         }
 
 class RuleDialog(QDialog):
@@ -386,9 +392,9 @@ class RuleDialog(QDialog):
         # --- Populate and Connect ---
         browse_btn.clicked.connect(self.browse_path)
         
-        self.subfolder_pattern_edit.setPlaceholderText("e.g., {release_year}/{uploader} or {album}/{uploader}")
+        self.subfolder_pattern_edit.setPlaceholderText("e.g., {upload_year}/{uploader} or {album}/{uploader}")
         self.subfolder_pattern_edit.setToolTip(
-            "Create dynamic subfolders using tokens like {release_year}, {release_month}, {release_day}, {uploader}, or {album}."
+            "Create dynamic subfolders using tokens like {upload_year}, {upload_month}, {upload_day}, {uploader}, or {album}."
         )
         
         self.tokens_combo.addItem("Insert...")
@@ -396,9 +402,9 @@ class RuleDialog(QDialog):
         self.tokens_combo.addItem("Uploader {uploader}", "{uploader}")
         self.tokens_combo.addItem("ID {id}", "{id}")
         self.tokens_combo.addItem("Album {album}", "{album}")
-        self.tokens_combo.addItem("Release Year {release_year}", "{release_year}")
-        self.tokens_combo.addItem("Release Month {release_month}", "{release_month}")
-        self.tokens_combo.addItem("Release Day {release_day}", "{release_day}")
+        self.tokens_combo.addItem("Upload Year {upload_year}", "{upload_year}")
+        self.tokens_combo.addItem("Upload Month {upload_month}", "{upload_month}")
+        self.tokens_combo.addItem("Upload Day {upload_day}", "{upload_day}")
         self.tokens_combo.activated.connect(self.insert_token)
         
         self.type_combo.addItems([

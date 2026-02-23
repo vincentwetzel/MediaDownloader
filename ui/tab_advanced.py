@@ -220,12 +220,12 @@ class AdvancedSettingsTab(QWidget):
             "You can type plain text (like brackets or dashes) and template fields like %(title)s.\n"
             "When a download runs, yt-dlp replaces each field with real video data.\n\n"
             "Example:\n"
-            "%(title)s [%(uploader)s][%(release_date>%m-%d-%Y)s][%(id)s].%(ext)s\n"
+            "%(title)s [%(uploader)s][%(upload_date>%m-%d-%Y)s][%(id)s].%(ext)s\n"
             "becomes:\n"
             "My Video [ChannelName][02-14-2026][abc123].mp4"
         )
 
-        default_template = "%(title)s [%(uploader)s][%(release_date>%m-%d-%Y)s][%(id)s].%(ext)s"
+        default_template = "%(title)s [%(uploader)s][%(upload_date>%m-%d-%Y)s][%(id)s].%(ext)s"
         current_template = self.config.get("General", "output_template", fallback=default_template)
 
         self.pattern_input = QLineEdit(current_template)
@@ -238,7 +238,7 @@ class AdvancedSettingsTab(QWidget):
             "Common fields:\n"
             "- %(title)s : Video title\n"
             "- %(uploader)s : Channel/uploader name\n"
-            "- %(release_date>%Y)s : Release year\n"
+            "- %(upload_date>%Y)s : Upload year\n"
             "- %(id)s : Unique video ID\n"
             "- %(ext)s : File extension (mp4, mp3, etc.)\n\n"
             "Safe starter pattern:\n"
@@ -251,7 +251,7 @@ class AdvancedSettingsTab(QWidget):
             "This helps avoid typos in template syntax.\n"
             "After inserting a field, continue typing in the pattern box.\n\n"
             "Tip: combine fields and plain text, e.g.\n"
-            "%(release_date>%Y)s-%(release_date>%m)s - %(title)s [%(id)s].%(ext)s"
+            "%(upload_date>%Y)s-%(upload_date>%m)s - %(title)s [%(id)s].%(ext)s"
         )
         for label, token in OUTPUT_TEMPLATE_TOKENS:
             self.pattern_tokens_combo.addItem(label, token)
@@ -271,7 +271,7 @@ class AdvancedSettingsTab(QWidget):
         btn_reset_pattern.setToolTip(
             "Restore the default filename pattern used by this app.\n\n"
             "Default:\n"
-            "%(title)s [%(uploader)s][%(release_date>%m-%d-%Y)s][%(id)s].%(ext)s"
+            "%(title)s [%(uploader)s][%(upload_date>%m-%d-%Y)s][%(id)s].%(ext)s"
         )
         btn_reset_pattern.clicked.connect(self._reset_pattern)
 
@@ -761,7 +761,7 @@ class AdvancedSettingsTab(QWidget):
             if idx >= 0:
                 self.downloader_combo.setCurrentIndex(idx)
 
-            default_template = "%(title)s [%(uploader)s][%(release_date>%m-%d-%Y)s][%(id)s].%(ext)s"
+            default_template = "%(title)s [%(uploader)s][%(upload_date>%m-%d-%Y)s][%(id)s].%(ext)s"
             self.pattern_input.setText(default_template)
 
             # Download archive remains enforced globally in config.
@@ -814,7 +814,7 @@ class AdvancedSettingsTab(QWidget):
         self.pattern_tokens_combo.setCurrentIndex(0)
 
     def _reset_pattern(self):
-        default_template = "%(title)s [%(uploader)s][%(release_date>%m-%d-%Y)s][%(id)s].%(ext)s"
+        default_template = "%(title)s [%(uploader)s][%(upload_date>%m-%d-%Y)s][%(id)s].%(ext)s"
         self.pattern_input.setText(default_template)
         self._save_general("output_template", default_template)
         QMessageBox.information(self, "Reset", "Output filename pattern reset to default.")

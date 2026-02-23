@@ -7,12 +7,14 @@ A lightweight PyQt6-based desktop application for downloading media (video and a
 - 🎬 **Download Video & Audio** — Support for YouTube, TikTok, Instagram, and 1000+ other sites via yt-dlp
 - 🎵 **Audio Extraction** — Extract audio as MP3, M4A, opus, or other formats
 - 📋 **Playlist Support** — Download entire playlists with configurable behavior
+- 🖼️ **Gallery Support** — Download image galleries from supported sites (e.g., Instagram, Twitter) via `gallery-dl`
 - 🎨 **Advanced Settings** — Quality selection, format filtering, SponsorBlock integration, metadata embedding
 - 🔄 **Auto-Update** — Checks GitHub for newer releases and updates silently
 - 📊 **Concurrent Downloads** — Queue and manage multiple downloads simultaneously (capped at 4 on startup)
 - 🖼️ **Thumbnail Embedding** — Automatic thumbnail download and embedding for videos and audio
 - 🌐 **Browser Cookies** — Use saved cookies from Firefox, Chrome, Edge, or other browsers for age-restricted content
 - 🛡️ **Anti-Bot Support** — Optional JavaScript runtime (Deno/Node.js) for handling YouTube anti-bot challenges
+- 📂 **Smart Sorting** — Automatically organize downloads into subfolders based on uploader, playlist, date, or custom patterns
 
 ## Installation
 
@@ -51,7 +53,7 @@ python main.pyw
 
 ## Configuration
 
-All settings are saved to `settings.ini` and persist between sessions:
+All settings are saved to `settings.json` and persist between sessions:
 
 - **Output folder** — Where completed downloads are saved (required on first launch)
 - **Temporary folder** — Where downloads are cached during progress (auto-created)
@@ -61,6 +63,7 @@ All settings are saved to `settings.ini` and persist between sessions:
 - **Browser Cookies** — Select a browser to use for authentication
 - **yt-dlp Channel** — Choose stable (default) or nightly builds
 - **Auto-Update** — Enable/disable startup checks for new versions (default: enabled)
+- **Sorting Rules** — Define rules to automatically move files into subfolders based on metadata
 
 See **Advanced Settings** tab in the app for full configuration.
 
@@ -117,12 +120,14 @@ MediaDownloader/
 │   ├── playlist_expander.py    # Playlist detection and expansion
 │   ├── archive_manager.py      # Download history tracking
 │   ├── logger_config.py        # Logging setup
+│   ├── sorting_manager.py      # File sorting logic
 │   └── version.py              # App version constant
 ├── ui/                          # PyQt6 user interface
 │   ├── main_window.py          # Main application window
 │   ├── tab_start.py            # Download initiation tab
 │   ├── tab_active.py           # Active/completed downloads tab
 │   ├── tab_advanced.py         # Advanced settings tab
+│   ├── tab_sorting.py          # Sorting rules tab
 │   └── widgets.py              # Custom widgets
 ├── utils/                       # Utilities
 │   ├── cookies.py              # Browser cookie extraction
@@ -141,6 +146,7 @@ MediaDownloader/
 
 - **PyQt6** — Cross-platform GUI framework
 - **yt-dlp** — Powerful media downloader
+- **gallery-dl** — Image gallery downloader
 - **ffmpeg** — Video/audio processing
 - **requests** — HTTP library for GitHub API checks
 - **PyInstaller** — Python to Windows executable compiler
@@ -196,5 +202,5 @@ See [CHANGELOG.md](CHANGELOG.md) or GitHub Releases for version history.
 
 ---
 
-**Current Version:** 0.0.7  
-**Last Updated:** February 9, 2026
+**Current Version:** 0.0.9  
+**Last Updated:** February 17, 2026

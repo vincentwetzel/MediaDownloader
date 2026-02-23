@@ -173,7 +173,13 @@ def build_yt_dlp_args(opts, config_manager):
         # Use crop=ih:ih to crop a square from the center of the image.
         # This assumes landscape input (width >= height), which is standard for YouTube.
         # This avoids complex syntax like min(iw,ih) that caused parsing errors.
-        args.extend(["--ppa", "ThumbnailsConvertor+ffmpeg_o:-vf crop=ih:ih -vcodec mjpeg -qmin 1 -qscale:v 1"])
+        
+        # Only apply cropping for audio downloads where square album art is expected.
+        # For video downloads, preserve the original aspect ratio.
+        if audio_only:
+            args.extend(["--ppa", "ThumbnailsConvertor+ffmpeg_o:-vf crop=ih:ih -vcodec mjpeg -qmin 1 -qscale:v 1"])
+        else:
+            args.extend(["--ppa", "ThumbnailsConvertor+ffmpeg_o:-vcodec mjpeg -qmin 1 -qscale:v 1"])
 
     # --- Other Options ---
     playlist_mode = opts.get("playlist_mode", "Ask")
