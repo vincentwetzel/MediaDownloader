@@ -25,6 +25,7 @@ MediaDownloader is a desktop application designed to simplify the process of dow
   - The application must support concurrent downloads (default cap: 4).
   - Users can cancel active downloads.
 - **Playlists:** The system must detect playlist URLs and offer to expand them into individual download items.
+- **Playlist Audio Track Tags:** For audio playlist downloads, the system must write each entry's playlist position into media tags (`track`/`tracknumber`) so files preserve album order in music players.
 
 ### 4.2 Configuration & Customization
 - **Download Types:**
@@ -55,6 +56,7 @@ MediaDownloader is a desktop application designed to simplify the process of dow
 - **Feedback:**
   - Real-time progress bars for downloads.
   - Thumbnail preview image for each active/queued download item when metadata provides a thumbnail URL.
+  - For audio-only downloads, thumbnail previews should be center-cropped to square artwork for consistent album-art presentation.
   - Thumbnail preview files must be treated as session-temporary UI cache data and removed on application exit.
   - Console log view for `yt-dlp` output (stdout/stderr).
   - Visual indicators for success, error, or cancellation.

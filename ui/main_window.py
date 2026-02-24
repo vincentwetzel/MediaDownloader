@@ -484,6 +484,10 @@ class MediaDownloaderApp(QMainWindow):
                     entry_opts = current_opts.copy()
                     if entry.get("playlist_title"):
                         entry_opts["playlist_title"] = entry.get("playlist_title")
+                    if entry.get("playlist_index") is not None:
+                        entry_opts["playlist_index"] = entry.get("playlist_index")
+                    if entry.get("playlist_count") is not None:
+                        entry_opts["playlist_count"] = entry.get("playlist_count")
                         
                     self.add_download_request.emit(sub_url, entry_opts)
 

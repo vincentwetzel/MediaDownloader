@@ -218,7 +218,12 @@ def _parse_stream_print_line(line: str):
     if not chosen:
         return None, index, total
 
-    return {"url": chosen, "title": title}, index, total
+    entry = {"url": chosen, "title": title}
+    if index > 0:
+        entry["playlist_index"] = index
+    if total > 0:
+        entry["playlist_count"] = total
+    return entry, index, total
 
 
 def _parse_playlist_status_line(line: str):
@@ -396,6 +401,10 @@ def _expand_playlist_via_print(url, yt_dlp_cmd, config_manager=None, progress_ca
 
             if chosen:
                 entry = {"url": chosen, "title": title}
+                if index > 0:
+                    entry["playlist_index"] = index
+                if total > 0:
+                    entry["playlist_count"] = total
                 if pl_title:
                     entry["playlist_title"] = pl_title
                 
@@ -456,7 +465,7 @@ def _expand_playlist_via_full_print(url, yt_dlp_cmd, config_manager=None, progre
         "--quiet",
         "--no-download",
         "--print",
-        "%(title)s\t%(webpage_url)s\t%(id)s\t%(playlist_title)s",
+        "%(playlist_index)s\t%(playlist_count)s\t%(title)s\t%(webpage_url)s\t%(id)s\t%(playlist_title)s",
         url,
     ]
     _append_auth_runtime_args(cmd, config_manager)
@@ -476,10 +485,14 @@ def _expand_playlist_via_full_print(url, yt_dlp_cmd, config_manager=None, progre
         if not line:
             continue
         parts = line.split("\t")
-        title = parts[0].strip() if len(parts) > 0 else ""
-        webpage_url = parts[1].strip() if len(parts) > 1 else ""
-        vid = parts[2].strip() if len(parts) > 2 else ""
-        pl_title = parts[3].strip() if len(parts) > 3 else ""
+        idx_raw = parts[0].strip() if len(parts) > 0 else ""
+        count_raw = parts[1].strip() if len(parts) > 1 else ""
+        title = parts[2].strip() if len(parts) > 2 else ""
+        webpage_url = parts[3].strip() if len(parts) > 3 else ""
+        vid = parts[4].strip() if len(parts) > 4 else ""
+        pl_title = parts[5].strip() if len(parts) > 5 else ""
+        index = int(idx_raw) if idx_raw.isdigit() else 0
+        total = int(count_raw) if count_raw.isdigit() else 0
         
         if pl_title and not playlist_title_found:
             playlist_title_found = pl_title
@@ -492,6 +505,10 @@ def _expand_playlist_via_full_print(url, yt_dlp_cmd, config_manager=None, progre
 
         if chosen:
             entry = {"url": chosen, "title": title}
+            if index > 0:
+                entry["playlist_index"] = index
+            if total > 0:
+                entry["playlist_count"] = total
             if pl_title:
                 entry["playlist_title"] = pl_title
             entries.append(entry)
@@ -519,7 +536,7 @@ def _expand_playlist_via_lazy_print(url, yt_dlp_cmd, config_manager=None, progre
         "--quiet",
         "--lazy-playlist",
         "--print",
-        "%(title)s\t%(webpage_url)s\t%(id)s\t%(playlist_title)s",
+        "%(playlist_index)s\t%(playlist_count)s\t%(title)s\t%(webpage_url)s\t%(id)s\t%(playlist_title)s",
         url,
     ]
     _append_auth_runtime_args(cmd, config_manager)
@@ -539,12 +556,16 @@ def _expand_playlist_via_lazy_print(url, yt_dlp_cmd, config_manager=None, progre
         if not line:
             continue
         parts = line.split("\t")
-        if len(parts) < 3:
+        if len(parts) < 5:
             continue
-        title = parts[0].strip()
-        webpage_url = parts[1].strip()
-        vid = parts[2].strip()
-        pl_title = parts[3].strip() if len(parts) > 3 else ""
+        idx_raw = parts[0].strip()
+        count_raw = parts[1].strip()
+        title = parts[2].strip()
+        webpage_url = parts[3].strip()
+        vid = parts[4].strip()
+        pl_title = parts[5].strip() if len(parts) > 5 else ""
+        index = int(idx_raw) if idx_raw.isdigit() else 0
+        total = int(count_raw) if count_raw.isdigit() else 0
         
         if pl_title and not playlist_title_found:
             playlist_title_found = pl_title
@@ -557,6 +578,10 @@ def _expand_playlist_via_lazy_print(url, yt_dlp_cmd, config_manager=None, progre
 
         if chosen:
             entry = {"url": chosen, "title": title}
+            if index > 0:
+                entry["playlist_index"] = index
+            if total > 0:
+                entry["playlist_count"] = total
             if pl_title:
                 entry["playlist_title"] = pl_title
             entries.append(entry)
@@ -606,7 +631,7 @@ def _expand_playlist_via_runtime_args(url, yt_dlp_cmd, config_manager=None, opts
         "--ignore-errors",
         "--skip-download",
         "--print",
-        "%(title)s\t%(webpage_url)s\t%(id)s\t%(playlist_title)s",
+        "%(playlist_index)s\t%(playlist_count)s\t%(title)s\t%(webpage_url)s\t%(id)s\t%(playlist_title)s",
         url,
     ])
 
@@ -651,10 +676,14 @@ def _expand_playlist_via_runtime_args(url, yt_dlp_cmd, config_manager=None, opts
 
             # Modified to handle playlist_title
             parts = line.split("\t")
-            title = parts[0].strip() if len(parts) > 0 else ""
-            webpage_url = parts[1].strip() if len(parts) > 1 else ""
-            vid = parts[2].strip() if len(parts) > 2 else ""
-            pl_title = parts[3].strip() if len(parts) > 3 else ""
+            idx_raw = parts[0].strip() if len(parts) > 0 else ""
+            count_raw = parts[1].strip() if len(parts) > 1 else ""
+            title = parts[2].strip() if len(parts) > 2 else ""
+            webpage_url = parts[3].strip() if len(parts) > 3 else ""
+            vid = parts[4].strip() if len(parts) > 4 else ""
+            pl_title = parts[5].strip() if len(parts) > 5 else ""
+            index = int(idx_raw) if idx_raw.isdigit() else 0
+            total = int(count_raw) if count_raw.isdigit() else 0
             
             if pl_title and not playlist_title_found:
                 playlist_title_found = pl_title
@@ -667,6 +696,10 @@ def _expand_playlist_via_runtime_args(url, yt_dlp_cmd, config_manager=None, opts
 
             if chosen:
                 entry = {"url": chosen, "title": title}
+                if index > 0:
+                    entry["playlist_index"] = index
+                if total > 0:
+                    entry["playlist_count"] = total
                 if pl_title:
                     entry["playlist_title"] = pl_title
                 entries.append(entry)
@@ -787,8 +820,22 @@ def expand_playlist_entries(url, config_manager=None, opts=None, progress_callba
                             if u:
                                 title = _entry_to_title(e)
                                 entry_obj = {"url": u, "title": title}
+                                entry_index = 0
+                                if isinstance(e, dict):
+                                    raw_index = e.get("playlist_index")
+                                    if isinstance(raw_index, int):
+                                        entry_index = raw_index
+                                    elif isinstance(raw_index, str) and raw_index.isdigit():
+                                        entry_index = int(raw_index)
+                                if entry_index <= 0:
+                                    entry_index = i
+
                                 if playlist_title:
                                     entry_obj["playlist_title"] = playlist_title
+                                if entry_index > 0:
+                                    entry_obj["playlist_index"] = entry_index
+                                if total_entries > 0:
+                                    entry_obj["playlist_count"] = total_entries
                                 out_entries.append(entry_obj)
                                 _emit_progress(progress_callback, {
                                     "phase": "extracting",

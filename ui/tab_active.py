@@ -157,6 +157,21 @@ class DownloadItemWidget(QWidget):
                 self.thumbnail_label.setText("No\nImage")
                 self.thumbnail_label.setPixmap(QPixmap())
                 return
+            # Match args-builder thumbnail behavior for audio downloads by
+            # center-cropping to a square before rendering in the UI.
+            try:
+                worker = getattr(self, "worker", None)
+                opts = getattr(worker, "opts", {}) if worker is not None else {}
+                if bool((opts or {}).get("audio_only")):
+                    width = pixmap.width()
+                    height = pixmap.height()
+                    side = min(width, height)
+                    if side > 0 and (width != height):
+                        x = max(0, (width - side) // 2)
+                        y = max(0, (height - side) // 2)
+                        pixmap = pixmap.copy(x, y, side, side)
+            except Exception:
+                log.debug("Could not apply audio thumbnail crop", exc_info=True)
             scaled_pixmap = pixmap.scaled(
                 self.thumbnail_label.size(),
                 Qt.AspectRatioMode.KeepAspectRatio,
@@ -894,7 +909,7 @@ class ActiveDownloadsTab(QWidget):
         """Return a clean video title suitable for display in the UI.
 
         Steps:
-        - If input looks like a filename, remove extension.
+        - If input looks like a filename, remove known media extension.
         - Strip trailing bracketed metadata groups like " [uploader] [date][id]".
         - Trim whitespace.
         """
@@ -905,8 +920,18 @@ class ActiveDownloadsTab(QWidget):
             # The calling context should handle path/basename separation.
             # This function should focus on cleaning a filename/title string.
             # s = re.split(r'[/\\]', s)[-1] # THIS LINE IS THE BUG
-            # Remove extension
-            s, _ = os.path.splitext(s)
+            # Remove extension only for known media/container sidecar suffixes.
+            # Avoid stripping musical movement titles like "I. Molto allegro..."
+            # where a period is part of the title and not a file extension.
+            base, ext = os.path.splitext(s)
+            known_exts = {
+                ".mp3", ".m4a", ".aac", ".flac", ".wav", ".opus", ".ogg", ".wma",
+                ".mp4", ".mkv", ".webm", ".mov", ".avi", ".m4v",
+                ".srt", ".vtt", ".ass", ".ssa", ".lrc", ".ttml", ".json3",
+                ".jpg", ".jpeg", ".png", ".webp",
+            }
+            if ext and ext.lower() in known_exts:
+                s = base
             # Remove trailing bracketed groups
             s = re.sub(r"(\s*\[.*?\])+$", "", s).strip()
             return s

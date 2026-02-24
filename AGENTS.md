@@ -72,6 +72,7 @@ The project follows a **modular, separation-of-concerns design**.
 - `core/yt_dlp_args_builder.py` - "Helper"; constructs command-line arguments for `yt-dlp` based on user options.
 - `core/updater.py` - Self-maintenance; checks GitHub Releases API for application updates and handles self-update.
 - `core/playlist_expander.py` - Pre-processing; takes a playlist URL and yields individual video URLs.
+- `core/playlist_track_tagger.py` - Post-processing helper; applies playlist track number tags to downloaded audio files using bundled `ffmpeg`.
 - `core/logger_config.py` - Diagnostics; configures Python `logging`, handles `sys.stderr` redirection to GUI console.
 - `core/file_ops_monitor.py` - File system monitoring logic.
 - `core/sorting_manager.py` - Sorting logic; manages rules and determines target paths based on metadata.
@@ -90,6 +91,7 @@ The project follows a **modular, separation-of-concerns design**.
 - Settings/Config: `core/config_manager.py` (handles `settings.json` I/O).
 - External Downloader: `ui/tab_advanced.py`, `core/yt_dlp_worker.py` (`aria2` integration).
 - File Moving: `core/download_manager.py` (moves files from `temp_downloads` to final output).
+- Playlist Track Tags: `core/playlist_expander.py` (extracts `playlist_index`), `ui/main_window.py` (propagates per-entry playlist metadata), `core/playlist_track_tagger.py` + `core/yt_dlp_worker.py` (writes audio track metadata via `ffmpeg`).
 - Logging Setup: `core/logger_config.py` (configures logging and captures stderr).
 - Sorting Rules: `core/sorting_manager.py` (logic) and `ui/tab_sorting.py` (UI).
 

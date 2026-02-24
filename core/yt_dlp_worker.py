@@ -13,6 +13,7 @@ import platform
 import time
 from PyQt6.QtCore import QThread, pyqtSignal
 from core.binary_manager import get_binary_path, get_ffmpeg_location
+from core.playlist_track_tagger import apply_playlist_track_number
 from core.yt_dlp_args_builder import build_yt_dlp_args
 
 # --- HIDE CONSOLE WINDOW for SUBPROCESS ---
@@ -858,6 +859,10 @@ class DownloadWorker(QThread):
                         self._handle_thumbnail_embedding(created_files)
                     except Exception:
                         log.exception("Thumbnail handling failed")
+                    try:
+                        self._apply_playlist_track_metadata(created_files)
+                    except Exception:
+                        log.exception("Playlist track metadata tagging failed")
 
                 self.finished.emit(self.url, True, created_files)
             else:
@@ -877,6 +882,10 @@ class DownloadWorker(QThread):
                             self._handle_thumbnail_embedding(created_files)
                         except Exception:
                             log.exception("Thumbnail handling failed")
+                        try:
+                            self._apply_playlist_track_metadata(created_files)
+                        except Exception:
+                            log.exception("Playlist track metadata tagging failed")
                     self.finished.emit(self.url, True, created_files)
                 else:
                     error_msg = self._parse_error_output(error_output) or f"Process error (code {return_code})"
@@ -910,6 +919,23 @@ class DownloadWorker(QThread):
 
     def cancel(self):
         self._is_cancelled = True
+
+    def _apply_playlist_track_metadata(self, created_files):
+        if not self.opts.get("audio_only", False):
+            return
+        if not self.opts.get("is_playlist_download", False):
+            return
+
+        playlist_index = self.opts.get("playlist_index")
+        ffmpeg_path = get_binary_path("ffmpeg")
+        tagged_count = apply_playlist_track_number(
+            created_files,
+            playlist_index,
+            ffmpeg_path,
+            creation_flags=creation_flags,
+        )
+        if tagged_count > 0:
+            log.info("Applied playlist track metadata for %s (%s files tagged, index=%s)", self.url, tagged_count, playlist_index)
 
     def _handle_thumbnail_embedding(self, created_files):
         ffmpeg_path = get_binary_path("ffmpeg")

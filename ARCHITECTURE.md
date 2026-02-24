@@ -16,7 +16,8 @@ MediaDownloader is a Python-based desktop application built with **PyQt6** that 
 2.  **Validation:** `core/download_manager.py` validates the URL (regex/probe).
 3.  **Queue:** Valid URLs are added to a download queue managed by `core/download_manager.py`.
 4.  **Execution:** `core/yt_dlp_worker.py` spawns a `yt-dlp` subprocess for each item.
-5.  **Progress/Artwork:** `yt-dlp` stdout is parsed by `core/yt_dlp_worker.py` and emitted via signals to `ui/tab_active.py`; thumbnail image paths are emitted from worker -> `core/download_manager.py` -> `ui/tab_active.py` and stored only in a session-scoped temp cache.
+5.  **Progress/Artwork:** `yt-dlp` stdout is parsed by `core/yt_dlp_worker.py` and emitted via signals to `ui/tab_active.py`; thumbnail image paths are emitted from worker -> `core/download_manager.py` -> `ui/tab_active.py` and stored only in a session-scoped temp cache. In `ui/tab_active.py`, audio-only thumbnails are center-cropped to square before rendering to align with audio artwork conventions.
+6.  **Playlist Track Tags (Audio):** `core/playlist_expander.py` extracts `playlist_index` during expansion, `ui/main_window.py` forwards it per-entry, and `core/yt_dlp_worker.py` applies track metadata through `core/playlist_track_tagger.py` with bundled `ffmpeg`.
 6.  **Completion:** Upon success, files are moved from `temp_downloads` to the final output directory.
 
 ## 3. Directory Structure
@@ -31,6 +32,7 @@ MediaDownloader/
 │   ├── yt_dlp_args_builder.py  # CLI Argument Construction
 │   ├── updater.py              # Self-Update Logic
 │   ├── playlist_expander.py    # Playlist Handling
+│   ├── playlist_track_tagger.py # Playlist Track Tagging (Audio)
 │   ├── logger_config.py        # Logging Configuration
 │   ├── file_ops_monitor.py     # File System Monitoring
 │   └── sorting_manager.py      # File Sorting Logic
@@ -68,13 +70,19 @@ MediaDownloader/
   - Parses stdout for progress percentage and speed.
   - Captures stderr for error reporting.
   - Handles thumbnail embedding.
+  - Applies playlist track number metadata for audio playlist entries.
 
-### 4.3 Config Manager (`core/config_manager.py`)
+### 4.3 Playlist Track Tagger (`core/playlist_track_tagger.py`)
+- **Responsibilities:**
+  - Applies `track` / `tracknumber` tags to completed audio files using `ffmpeg` remux (`-c copy`).
+  - Safely skips sidecar/non-media files and leaves downloads intact on tagging failures.
+
+### 4.4 Config Manager (`core/config_manager.py`)
 - **Responsibilities:**
   - Loads and saves application settings to `settings.json`.
   - Provides default configuration values.
 
-### 4.4 Updater (`core/updater.py`)
+### 4.5 Updater (`core/updater.py`)
 - **Responsibilities:**
   - Checks GitHub Releases API for updates.
   - Downloads and installs updates.
