@@ -75,6 +75,7 @@ MediaDownloader/
 ### 4.3 Playlist Track Tagger (`core/playlist_track_tagger.py`)
 - **Responsibilities:**
   - Applies `track` / `tracknumber` tags to completed audio files using `ffmpeg` remux (`-c copy`).
+  - For `.opus` outputs, retries metadata remux with audio-only stream mapping when ffmpeg rejects embedded cover-art streams.
   - Safely skips sidecar/non-media files and leaves downloads intact on tagging failures.
 
 ### 4.4 Config Manager (`core/config_manager.py`)

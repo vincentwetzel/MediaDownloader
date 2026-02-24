@@ -26,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Thumbnail preview persistence**: Thumbnail images used by the Active Downloads UI are now stored in a session-only temp cache and cleaned up automatically on app exit.
 - **Audio active-thumbnail framing**: Active Downloads thumbnail previews now center-crop audio-only artwork to a square before display, matching the existing high-quality thumbnail conversion behavior used during download postprocessing.
 - **Playlist metadata continuity across expansion fallbacks**: All playlist expansion paths now preserve per-entry `playlist_index`/`playlist_count` metadata so downstream worker logic receives stable ordering data.
+- **OPUS playlist track tagging reliability**: Playlist `track`/`tracknumber` tagging for `.opus` outputs now retries with audio-only Ogg remux when ffmpeg rejects embedded cover-art streams, so track metadata is still written.
+- **Playlist track tag formatting**: Playlist `track`/`tracknumber` values are now zero-padded for single-digit indices (for example, `01`..`09`) to improve ordering consistency in players.
 - **Audio title truncation on dotted movement names**: Active Downloads title cleanup now strips extensions only for known media/container suffixes, preventing titles like `I. Molto allegro...` from being cut at the first movement period.
 
 ### Security

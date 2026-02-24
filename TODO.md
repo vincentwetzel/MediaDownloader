@@ -7,6 +7,7 @@ Agents should check this file before starting work and update it as tasks are co
 - [x] Show per-download thumbnail previews in Active Downloads by wiring worker thumbnail events to the UI and prefetching thumbnails during metadata fetch.
 - [x] Apply center-square thumbnail cropping to Active Downloads previews for audio-only items so displayed artwork matches audio embed conversion behavior.
 - [x] Preserve playlist order in audio tags by propagating `playlist_index` and writing per-file `track`/`tracknumber` metadata after download completion.
+- [x] Fix OPUS playlist track tagging failures when files include embedded cover-art streams (fallback to audio-only Ogg remux for track metadata write).
 - [x] Prevent Active Downloads title cleanup from truncating dotted movement names (e.g., `I. Molto allegro...`) when displaying metadata titles.
 - [ ] ...
 

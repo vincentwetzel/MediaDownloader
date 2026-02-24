@@ -26,6 +26,7 @@ MediaDownloader is a desktop application designed to simplify the process of dow
   - Users can cancel active downloads.
 - **Playlists:** The system must detect playlist URLs and offer to expand them into individual download items.
 - **Playlist Audio Track Tags:** For audio playlist downloads, the system must write each entry's playlist position into media tags (`track`/`tracknumber`) so files preserve album order in music players.
+  - For `.opus` outputs, tagging must gracefully handle embedded cover-art stream incompatibilities and still apply track metadata via a safe fallback path.
 
 ### 4.2 Configuration & Customization
 - **Download Types:**
