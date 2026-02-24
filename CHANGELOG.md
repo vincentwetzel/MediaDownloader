@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 -
 
 ### Fixed
+- **Sorting subfolder token sanitization**: Sorting subfolder token values (for example `{album}`) are now sanitized before path assembly so illegal path characters like `/` and `\` are replaced with `_` instead of creating unintended nested folders or truncating names.
 - **Thumbnail signal chain for UI rendering**: Wired `DownloadWorker` thumbnail events through `DownloadManager` to `ActiveDownloadsTab`, ensuring downloaded thumbnail images are actually rendered in the GUI.
 - **Queued-item thumbnail timing**: Added early thumbnail prefetch during metadata preloading so queued downloads can show thumbnails before transfer starts.
 - **Thumbnail preview persistence**: Thumbnail images used by the Active Downloads UI are now stored in a session-only temp cache and cleaned up automatically on app exit.

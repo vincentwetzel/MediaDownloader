@@ -15,6 +15,7 @@ Agents should check this file before starting work and update it as tasks are co
 - [x] Zero-pad single-digit playlist track metadata values (`01`..`09`) for consistent player ordering.
 - [x] Prefix audio playlist output filenames with zero-padded playlist indices (`NN - `) during final move.
 - [x] Prevent Active Downloads title cleanup from truncating dotted movement names (e.g., `I. Molto allegro...`) when displaying metadata titles.
+- [x] Sanitize sorting subfolder token values so illegal path characters (for example `/` in album names) are replaced safely instead of splitting folders.
 - [ ] ...
 
 ## Medium Priority

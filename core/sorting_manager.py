@@ -7,6 +7,11 @@ import re
 log = logging.getLogger(__name__)
 
 class SortingManager:
+    INVALID_PATH_CHARS_RE = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+    WINDOWS_RESERVED_NAME_RE = re.compile(
+        r'^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\..*)?$', re.IGNORECASE
+    )
+
     def __init__(self, config_manager):
         self.config_manager = config_manager
         self.rules_path = os.path.join(self.config_manager.get_config_dir(), "sorting_rules.json")
@@ -42,6 +47,24 @@ class SortingManager:
         # Strip leading/trailing slashes
         pattern = pattern.strip('/')
         return pattern if pattern else None
+
+    def _sanitize_subfolder_component(self, value):
+        """Sanitize a single path component for cross-platform-safe folder names."""
+        text = str(value or "").strip()
+        if not text:
+            return ""
+
+        # Replace invalid filename/path characters with underscores.
+        text = self.INVALID_PATH_CHARS_RE.sub("_", text)
+        text = re.sub(r'_+', '_', text).strip()
+        # Windows cannot end a path component with dots/spaces.
+        text = text.rstrip(" .")
+
+        if not text:
+            return ""
+        if self.WINDOWS_RESERVED_NAME_RE.match(text):
+            text = f"_{text}"
+        return text
 
     def add_rule(self, name, target_path, subfolder_pattern=None, download_type="All", conditions=None):
         if conditions is None:
@@ -207,31 +230,34 @@ class SortingManager:
         base_path = rule.get('target_path')
 
         # Handle new generic subfolder pattern
-        pattern = rule.get('subfolder_pattern')
+        pattern = self._normalize_subfolder_pattern(rule.get('subfolder_pattern'))
         if pattern:
             try:
                 # Prepare metadata for formatting
                 safe_metadata = {}
                 for k, v in metadata.items():
-                    safe_metadata[k] = str(v) if v is not None else "NA"
+                    if isinstance(v, list):
+                        v = ", ".join(str(item) for item in v if item is not None)
+                    value_text = str(v) if v is not None else "NA"
+                    safe_metadata[k] = self._sanitize_subfolder_component(value_text) or "NA"
                 safe_metadata.pop('album_year', None)
 
                 if safe_metadata.get('playlist', "NA") == "NA":
                     playlist_fallback = metadata.get('playlist') or metadata.get('playlist_title')
                     if playlist_fallback is not None:
-                        safe_metadata['playlist'] = str(playlist_fallback)
+                        safe_metadata['playlist'] = self._sanitize_subfolder_component(playlist_fallback) or "NA"
                 
                 # Fallback for album_title using playlist_title if album_title is missing
                 if safe_metadata.get('album_title', "NA") == "NA":
                     playlist_title = metadata.get('playlist_title')
                     if playlist_title:
-                        safe_metadata['album_title'] = str(playlist_title)
+                        safe_metadata['album_title'] = self._sanitize_subfolder_component(playlist_title) or "NA"
                 
                 # Fallback for album using playlist_title if album is missing
                 if safe_metadata.get('album', "NA") == "NA":
                     playlist_title = metadata.get('playlist_title')
                     if playlist_title:
-                        safe_metadata['album'] = str(playlist_title)
+                        safe_metadata['album'] = self._sanitize_subfolder_component(playlist_title) or "NA"
                  
                 # Add helper date keys from distinct metadata sources.
                 release_date = self._get_release_date(metadata)
@@ -276,8 +302,7 @@ class SortingManager:
                 
                 sanitized_parts = []
                 for part in parts:
-                    # Remove illegal chars from filename component
-                    sanitized = re.sub(r'[<>:"|?*]', '', part).strip()
+                    sanitized = self._sanitize_subfolder_component(part)
                     if sanitized:
                         sanitized_parts.append(sanitized)
                 

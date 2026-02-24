@@ -40,6 +40,7 @@ MediaDownloader is a desktop application designed to simplify the process of dow
   - Configurable output directory.
   - Automatic creation of a `temp_downloads` subdirectory for in-progress files.
   - File naming sanitization and metadata embedding.
+  - Sorting-rule subfolder token values (for example `{album}`, `{uploader}`) must sanitize illegal path characters and replace them with `_` before folder creation.
 - **Advanced Options:**
   - SponsorBlock integration (skip/remove segments).
   - Thumbnail embedding.

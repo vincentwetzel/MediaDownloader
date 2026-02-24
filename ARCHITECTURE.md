@@ -66,7 +66,13 @@ MediaDownloader/
   - Applies playlist index filename prefixes (`NN - `) for audio playlist items during final move.
   - Coordinates with `yt_dlp_worker.py`.
 
-### 4.2 YT-DLP Worker (`core/yt_dlp_worker.py`)
+### 4.2 Sorting Manager (`core/sorting_manager.py`)
+- **Responsibilities:**
+  - Evaluates sorting rules and metadata conditions.
+  - Resolves dynamic subfolder patterns (`{token}` and `%(token)s`).
+  - Sanitizes token values/path components so illegal filesystem characters are replaced with safe separators (`_`) before final path assembly.
+
+### 4.3 YT-DLP Worker (`core/yt_dlp_worker.py`)
 - **Responsibilities:**
   - Executes `yt-dlp` commands.
   - Parses stdout for progress percentage and speed.
@@ -75,7 +81,7 @@ MediaDownloader/
   - Skips custom attached-pic remux for `.opus` outputs to preserve yt-dlp-native OPUS artwork embedding.
   - Applies playlist track number metadata for audio playlist entries.
 
-### 4.3 Playlist Track Tagger (`core/playlist_track_tagger.py`)
+### 4.4 Playlist Track Tagger (`core/playlist_track_tagger.py`)
 - **Responsibilities:**
   - Applies `track` / `tracknumber` tags to completed audio files.
   - Uses in-place `mutagen` tag updates for `.opus` outputs to preserve embedded artwork.
@@ -83,18 +89,18 @@ MediaDownloader/
   - Normalizes playlist track values to zero-padded formatting for single-digit indices.
   - Safely skips sidecar/non-media files and leaves downloads intact on tagging failures.
 
-### 4.4 Config Manager (`core/config_manager.py`)
+### 4.5 Config Manager (`core/config_manager.py`)
 - **Responsibilities:**
   - Loads and saves application settings to `settings.json`.
   - Provides default configuration values.
 
-### 4.5 Updater (`core/updater.py`)
+### 4.6 Updater (`core/updater.py`)
 - **Responsibilities:**
   - Checks GitHub Releases API for updates.
   - Downloads and installs updates.
   - Manages `yt-dlp` binary updates.
 
-### 4.6 Logger Config (`core/logger_config.py`)
+### 4.7 Logger Config (`core/logger_config.py`)
 - **Responsibilities:**
   - Initializes root logging handlers and stderr redirection.
   - Uses size-based rotating file logs (`MediaDownloader.log`) to bound disk usage while preserving recent history.
