@@ -26,7 +26,7 @@ MediaDownloader is a desktop application designed to simplify the process of dow
   - Users can cancel active downloads.
 - **Playlists:** The system must detect playlist URLs and offer to expand them into individual download items.
 - **Playlist Audio Track Tags:** For audio playlist downloads, the system must write each entry's playlist position into media tags (`track`/`tracknumber`) so files preserve album order in music players.
-  - For `.opus` outputs, tagging must gracefully handle embedded cover-art stream incompatibilities and still apply track metadata via a safe fallback path.
+  - For `.opus` outputs, tagging must update tags in-place without remuxing so embedded artwork is preserved.
   - Single-digit playlist indices should be written as zero-padded values (`01`..`09`).
   - Audio playlist output filenames should be prefixed with the zero-padded playlist index (`NN - `) before final move to completed output.
 
@@ -43,6 +43,7 @@ MediaDownloader is a desktop application designed to simplify the process of dow
 - **Advanced Options:**
   - SponsorBlock integration (skip/remove segments).
   - Thumbnail embedding.
+  - `.opus` audio outputs must preserve yt-dlp embedded artwork and avoid incompatible generic attached-pic remux rewrites.
   - Browser cookie import for age-restricted content.
 
 ### 4.3 Application Lifecycle
@@ -63,12 +64,14 @@ MediaDownloader is a desktop application designed to simplify the process of dow
   - Thumbnail preview files must be treated as session-temporary UI cache data and removed on application exit.
   - Console log view for `yt-dlp` output (stdout/stderr).
   - Visual indicators for success, error, or cancellation.
+  - Footer contact controls should include a clickable developer Discord icon next to "Contact Developer", opening the invite link in the default browser with tooltip text "Developer Discord".
 
 ## 5. Non-Functional Requirements
 - **Performance:** Minimal resource usage when idle. Efficient thread management for concurrent downloads.
 - **Reliability:**
   - Downloads should not corrupt existing files.
   - The application should handle network interruptions gracefully where possible.
+  - Application log files must use rotation to prevent unbounded disk usage growth during long-running sessions.
 - **Portability:**
   - The application must be compilable to a standalone executable (PyInstaller).
   - No requirement for the user to install Python or FFmpeg separately.

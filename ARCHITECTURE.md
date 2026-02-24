@@ -37,6 +37,7 @@ MediaDownloader/
 │   ├── file_ops_monitor.py     # File System Monitoring
 │   └── sorting_manager.py      # File Sorting Logic
 ├── ui/                          # User Interface
+│   ├── assets/                 # Static UI assets (for example, footer icons)
 │   ├── main_window.py          # Main Window & Signal Hub
 │   ├── tab_start.py            # Input Tab
 │   ├── tab_active.py           # Progress Tab
@@ -71,12 +72,14 @@ MediaDownloader/
   - Parses stdout for progress percentage and speed.
   - Captures stderr for error reporting.
   - Handles thumbnail embedding.
+  - Skips custom attached-pic remux for `.opus` outputs to preserve yt-dlp-native OPUS artwork embedding.
   - Applies playlist track number metadata for audio playlist entries.
 
 ### 4.3 Playlist Track Tagger (`core/playlist_track_tagger.py`)
 - **Responsibilities:**
-  - Applies `track` / `tracknumber` tags to completed audio files using `ffmpeg` remux (`-c copy`).
-  - For `.opus` outputs, retries metadata remux with audio-only stream mapping when ffmpeg rejects embedded cover-art streams.
+  - Applies `track` / `tracknumber` tags to completed audio files.
+  - Uses in-place `mutagen` tag updates for `.opus` outputs to preserve embedded artwork.
+  - Uses `ffmpeg` remux (`-c copy`) for non-`.opus` outputs.
   - Normalizes playlist track values to zero-padded formatting for single-digit indices.
   - Safely skips sidecar/non-media files and leaves downloads intact on tagging failures.
 
@@ -90,6 +93,11 @@ MediaDownloader/
   - Checks GitHub Releases API for updates.
   - Downloads and installs updates.
   - Manages `yt-dlp` binary updates.
+
+### 4.6 Logger Config (`core/logger_config.py`)
+- **Responsibilities:**
+  - Initializes root logging handlers and stderr redirection.
+  - Uses size-based rotating file logs (`MediaDownloader.log`) to bound disk usage while preserving recent history.
 
 ## 5. Concurrency Model
 - **GUI Thread:** The main thread handles all UI updates. Blocking operations are strictly prohibited.

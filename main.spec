@@ -10,6 +10,7 @@ a = Analysis(
     pathex=[project_root],
     binaries=[],
     datas=[
+        (os.path.join(project_root, 'ui/assets'), 'ui/assets'),
         (os.path.join(project_root, 'bin/windows/yt-dlp.exe'), 'bin/windows'),
         (os.path.join(project_root, 'bin/windows/deno.exe'), 'bin/windows'),
         (os.path.join(project_root, 'bin/windows/aria2-1.37.0-win-64bit-build1'), 'bin/windows/aria2-1.37.0-win-64bit-build1'),

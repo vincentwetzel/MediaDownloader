@@ -2,6 +2,10 @@ import logging
 import os
 import sys
 import tempfile
+from logging.handlers import RotatingFileHandler
+
+MAX_LOG_FILE_BYTES = 10 * 1024 * 1024  # 10 MB
+LOG_BACKUP_COUNT = 5
 
 class StreamToLogger:
     """
@@ -78,9 +82,14 @@ def setup_logging():
     for handler in root_logger.handlers[:]:
         root_logger.removeHandler(handler)
 
-    # --- File Handler ---
-    # Logs everything (DEBUG and above) to the log file
-    file_handler = logging.FileHandler(log_path, encoding="utf-8")
+    # --- File Handler (Rotating) ---
+    # Logs everything (DEBUG and above) while capping log growth on disk.
+    file_handler = RotatingFileHandler(
+        log_path,
+        maxBytes=MAX_LOG_FILE_BYTES,
+        backupCount=LOG_BACKUP_COUNT,
+        encoding="utf-8"
+    )
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(formatter)
     root_logger.addHandler(file_handler)

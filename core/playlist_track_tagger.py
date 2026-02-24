@@ -2,6 +2,7 @@ import logging
 import os
 import subprocess
 import tempfile
+from mutagen.oggopus import OggOpus
 
 
 log = logging.getLogger(__name__)
@@ -24,7 +25,11 @@ _SKIP_EXTENSIONS = {
 
 
 def apply_playlist_track_number(created_files, playlist_index, ffmpeg_path, creation_flags=0):
-    """Set track metadata for downloaded media files using ffmpeg copy remux."""
+    """Set track metadata for downloaded media files.
+
+    Uses mutagen for .opus to avoid remuxing (which can strip embedded artwork),
+    and ffmpeg copy remux for other containers.
+    """
     try:
         index = int(str(playlist_index).strip())
     except (TypeError, ValueError):
@@ -47,6 +52,16 @@ def apply_playlist_track_number(created_files, playlist_index, ffmpeg_path, crea
                 continue
 
             file_ext = os.path.splitext(src)[1].lower()
+            if file_ext == ".opus":
+                try:
+                    opus_file = OggOpus(src)
+                    opus_file["tracknumber"] = [padded_index]
+                    opus_file["track"] = [padded_index]
+                    opus_file.save()
+                    tagged_count += 1
+                except Exception:
+                    log.debug("Mutagen track tag write failed for %s", src, exc_info=True)
+                continue
 
             fd, tmp_out = tempfile.mkstemp(
                 prefix="md_tracktag_",
@@ -55,12 +70,6 @@ def apply_playlist_track_number(created_files, playlist_index, ffmpeg_path, crea
             )
             os.close(fd)
             try:
-                output_format_args = []
-                # .opus extension makes ffmpeg pick the strict `opus` muxer, which
-                # rejects attached cover-art streams. Force Ogg muxing first.
-                if file_ext == ".opus":
-                    output_format_args = ["-f", "ogg"]
-
                 cmd = [
                     ffmpeg_path,
                     "-y",
@@ -74,7 +83,6 @@ def apply_playlist_track_number(created_files, playlist_index, ffmpeg_path, crea
                     f"track={padded_index}",
                     "-metadata",
                     f"tracknumber={padded_index}",
-                    *output_format_args,
                     tmp_out,
                 ]
                 proc = subprocess.run(
@@ -85,37 +93,6 @@ def apply_playlist_track_number(created_files, playlist_index, ffmpeg_path, crea
                     shell=False,
                     creationflags=creation_flags,
                 )
-                if proc.returncode != 0 and file_ext == ".opus":
-                    stderr_text = (proc.stderr or "").lower()
-                    # Some .opus files can contain attached cover-art streams that
-                    # ffmpeg cannot remux when writing updated metadata. Retry with
-                    # audio-only mapping so track tags are still applied.
-                    if "unsupported codec id in stream" in stderr_text:
-                        retry_cmd = [
-                            ffmpeg_path,
-                            "-y",
-                            "-i",
-                            src,
-                            "-map",
-                            "0:a",
-                            "-c",
-                            "copy",
-                            "-metadata",
-                            f"track={padded_index}",
-                            "-metadata",
-                            f"tracknumber={padded_index}",
-                            "-f",
-                            "ogg",
-                            tmp_out,
-                        ]
-                        proc = subprocess.run(
-                            retry_cmd,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE,
-                            text=True,
-                            shell=False,
-                            creationflags=creation_flags,
-                        )
 
                 if proc.returncode != 0:
                     log.debug("Failed to write playlist track metadata to %s: %s", src, (proc.stderr or "").strip())

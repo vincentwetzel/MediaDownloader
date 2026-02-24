@@ -59,6 +59,7 @@ The project follows a **modular, separation-of-concerns design**.
 
 ### UI Layer (`ui/`)
 - `ui/main_window.py` - Application shell and signal orchestrator; initializes tabs, connects global signals (like log updates), handles window state.
+- `ui/assets/` - Static UI assets (for example, footer link icons such as Discord).
 - `ui/tab_start.py` - Input and configuration; URL field, Download Type dropdown (Video/Audio/Formats), "Add to Queue" logic.
 - `ui/tab_active.py` - Monitoring; renders active/completed downloads, handles progress updates, cancel buttons, and "Open Folder" actions.
 - `ui/tab_advanced.py` - Global settings; UI for max concurrency, file paths, format selection, and binary updates.
@@ -92,6 +93,7 @@ The project follows a **modular, separation-of-concerns design**.
 - External Downloader: `ui/tab_advanced.py`, `core/yt_dlp_worker.py` (`aria2` integration).
 - File Moving: `core/download_manager.py` (moves files from `temp_downloads` to final output).
 - Playlist Track Tags: `core/playlist_expander.py` (extracts `playlist_index`), `ui/main_window.py` (propagates per-entry playlist metadata), `core/playlist_track_tagger.py` + `core/yt_dlp_worker.py` (writes audio track metadata via `ffmpeg`).
+- Footer contact links/icons: `ui/main_window.py` (link handlers/layout) and `ui/assets/` (icon files).
 - Logging Setup: `core/logger_config.py` (configures logging and captures stderr).
 - Sorting Rules: `core/sorting_manager.py` (logic) and `ui/tab_sorting.py` (UI).
 

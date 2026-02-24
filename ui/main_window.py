@@ -8,10 +8,10 @@ import shutil
 import subprocess
 from PyQt6.QtWidgets import (
     QWidget, QMainWindow, QVBoxLayout, QTabWidget,
-    QMessageBox, QProgressDialog, QLabel, QHBoxLayout
+    QMessageBox, QProgressDialog, QLabel, QHBoxLayout, QPushButton
 )
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QUrl
-from PyQt6.QtGui import QDesktopServices
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QUrl, QSize
+from PyQt6.QtGui import QDesktopServices, QIcon
 
 from core.config_manager import ConfigManager
 from core.download_manager import DownloadManager
@@ -75,8 +75,23 @@ class MediaDownloaderApp(QMainWindow):
         self.contact_label.linkActivated.connect(self._on_contact_link)
         self.contact_label.setStyleSheet("padding: 5px; color: #0066cc;")
 
+        discord_icon_path = os.path.join(os.path.dirname(__file__), "assets", "discord.png")
+        self.discord_button = QPushButton()
+        self.discord_button.setToolTip("Developer Discord")
+        self.discord_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.discord_button.setFlat(True)
+        self.discord_button.setFixedSize(24, 24)
+        self.discord_button.setIconSize(QSize(18, 18))
+        self.discord_button.setStyleSheet("padding: 2px; border: none;")
+        self.discord_button.clicked.connect(self._on_discord_link)
+        if os.path.exists(discord_icon_path):
+            self.discord_button.setIcon(QIcon(discord_icon_path))
+        else:
+            log.warning("Discord icon not found at %s", discord_icon_path)
+
         bottom_row = QHBoxLayout()
         bottom_row.addWidget(self.contact_label, alignment=Qt.AlignmentFlag.AlignLeft)
+        bottom_row.addWidget(self.discord_button, alignment=Qt.AlignmentFlag.AlignLeft)
         bottom_row.addStretch(1)
         bottom_row.addWidget(self.speed_label, alignment=Qt.AlignmentFlag.AlignRight)
         layout.addLayout(bottom_row)
@@ -235,6 +250,14 @@ class MediaDownloaderApp(QMainWindow):
             QDesktopServices.openUrl(QUrl(f"mailto:{email}"))
         except Exception:
             log.exception("Failed to open contact email link")
+
+    def _on_discord_link(self):
+        """Open the developer Discord invite in the system browser."""
+        try:
+            log.info("Opening developer Discord link")
+            QDesktopServices.openUrl(QUrl("https://discord.gg/NfWaqKgYRG"))
+        except Exception:
+            log.exception("Failed to open developer Discord link")
 
     def _check_output_directory(self):
         """Check if output directory is set, if not, prompt user."""

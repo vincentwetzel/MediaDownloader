@@ -957,6 +957,17 @@ class DownloadWorker(QThread):
             if not thumb_url:
                 return
 
+            target = next((os.path.normpath(p.strip().strip('"\'')) for p in created_files if os.path.exists(os.path.normpath(p.strip().strip('"\'')))), None)
+            if not target:
+                return
+
+            target_ext = os.path.splitext(target)[1].lower()
+            if target_ext == ".opus":
+                # yt-dlp embeds artwork for OPUS via metadata tags; forcing a generic
+                # ffmpeg attached-pic remux can strip/break artwork compatibility.
+                log.info("Skipping custom thumbnail remux for OPUS output: %s", target)
+                return
+
             candidates = [(thumb_url, "original")]
             if "hqdefault" in thumb_url:
                 candidates.append((thumb_url.replace("hqdefault", "maxresdefault"), "maxresdefault"))
@@ -983,13 +994,6 @@ class DownloadWorker(QThread):
             if not downloaded_thumb:
                 return
 
-            target = next((os.path.normpath(p.strip().strip('"\'')) for p in created_files if os.path.exists(os.path.normpath(p.strip().strip('"\'')))), None)
-            if not target:
-                # Cleanup and exit if no valid media file was found
-                for p in created_temp_files:
-                    if os.path.exists(p): os.remove(p)
-                return
-
             thumb_jpg = downloaded_thumb
             if not thumb_jpg.lower().endswith((".jpg", ".jpeg")):
                 conv = os.path.join(download_dir, f"embed_thumb_{vid_id}.jpg")
@@ -1001,13 +1005,14 @@ class DownloadWorker(QThread):
                     pass
 
             out_tmp = f"{os.path.splitext(target)[0]}.embedtmp{os.path.splitext(target)[1]}"
+            cover_stream_index = "0" if self.opts.get("audio_only", False) else "1"
 
             cmd = [
                 ffmpeg_path, "-y", "-i", target, "-i", thumb_jpg,
                 "-map", "0", "-map", "1", "-c", "copy",
-                "-metadata:s:v:1", "title=Album cover",
-                "-metadata:s:v:1", "comment=Cover (front)",
-                "-disposition:v:1", "attached_pic", out_tmp,
+                f"-metadata:s:v:{cover_stream_index}", "title=Album cover",
+                f"-metadata:s:v:{cover_stream_index}", "comment=Cover (front)",
+                f"-disposition:v:{cover_stream_index}", "attached_pic", out_tmp,
             ]
 
             try:
