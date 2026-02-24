@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Playlist metadata continuity across expansion fallbacks**: All playlist expansion paths now preserve per-entry `playlist_index`/`playlist_count` metadata so downstream worker logic receives stable ordering data.
 - **OPUS playlist track tagging reliability**: Playlist `track`/`tracknumber` tagging for `.opus` outputs now retries with audio-only Ogg remux when ffmpeg rejects embedded cover-art streams, so track metadata is still written.
 - **Playlist track tag formatting**: Playlist `track`/`tracknumber` values are now zero-padded for single-digit indices (for example, `01`..`09`) to improve ordering consistency in players.
+- **Playlist audio filename ordering**: Audio playlist downloads are now renamed on move to include a zero-padded playlist index prefix (`NN - `), for example `01 - <original name>.opus`.
 - **Audio title truncation on dotted movement names**: Active Downloads title cleanup now strips extensions only for known media/container suffixes, preventing titles like `I. Molto allegro...` from being cut at the first movement period.
 
 ### Security

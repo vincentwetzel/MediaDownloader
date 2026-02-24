@@ -370,6 +370,25 @@ class DownloadManager(QObject):
                 log.exception(f"Could not create default_completed_dir: {default_completed_dir}")
 
             log.debug(f"_move_files_job start: default_completed_dir={default_completed_dir}, temp_dir={temp_dir}, files={files}")
+            move_opts = self._original_opts.get(url, {}) or {}
+            playlist_audio_prefix = ""
+            try:
+                if move_opts.get("audio_only", False) and move_opts.get("is_playlist_download", False):
+                    raw_index = move_opts.get("playlist_index")
+                    index = int(str(raw_index).strip())
+                    if index > 0:
+                        width = 2
+                        raw_total = move_opts.get("playlist_count")
+                        try:
+                            total = int(str(raw_total).strip())
+                            if total > 0:
+                                width = max(2, len(str(total)))
+                        except Exception:
+                            pass
+                        playlist_audio_prefix = f"{index:0{width}d} - "
+            except Exception:
+                log.debug("Could not build playlist audio filename prefix for %s", url, exc_info=True)
+
             # Small pause to allow worker-side postprocessing (thumbnail embedding, replace/remove)
             try:
                 time.sleep(0.25)
@@ -559,7 +578,10 @@ class DownloadManager(QObject):
                     if file_to_move:
                         try:
                             abs_path = os.path.abspath(file_to_move)
-                            dst = os.path.normpath(os.path.join(target_dir, os.path.basename(abs_path)))
+                            dst_name = os.path.basename(abs_path)
+                            if playlist_audio_prefix and not re.match(r"^\d+\s-\s", dst_name):
+                                dst_name = f"{playlist_audio_prefix}{dst_name}"
+                            dst = os.path.normpath(os.path.join(target_dir, dst_name))
 
                             if os.path.abspath(dst) == os.path.abspath(abs_path):
                                 log.info(f"File already in target directory, skipping move: {abs_path}")

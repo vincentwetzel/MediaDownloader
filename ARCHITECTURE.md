@@ -62,6 +62,7 @@ MediaDownloader/
   - Validates URLs.
   - Manages the download queue (concurrency limits).
   - Handles file lifecycle (Temp -> Final).
+  - Applies playlist index filename prefixes (`NN - `) for audio playlist items during final move.
   - Coordinates with `yt_dlp_worker.py`.
 
 ### 4.2 YT-DLP Worker (`core/yt_dlp_worker.py`)
@@ -76,6 +77,7 @@ MediaDownloader/
 - **Responsibilities:**
   - Applies `track` / `tracknumber` tags to completed audio files using `ffmpeg` remux (`-c copy`).
   - For `.opus` outputs, retries metadata remux with audio-only stream mapping when ffmpeg rejects embedded cover-art streams.
+  - Normalizes playlist track values to zero-padded formatting for single-digit indices.
   - Safely skips sidecar/non-media files and leaves downloads intact on tagging failures.
 
 ### 4.4 Config Manager (`core/config_manager.py`)
