@@ -251,7 +251,11 @@ class StartTab(QWidget):
         max_lbl = QLabel("Max Concurrent:")
         max_lbl.setToolTip("Set the maximum number of concurrent downloads (limited to 4 on app startup).")
         self.max_threads_combo = QComboBox()
+        # Add standard options 1-8
         self.max_threads_combo.addItems([str(i) for i in range(1, 9)])
+        # Add sleep options
+        self.max_threads_combo.addItem("1 (Short Sleep)", "short-sleep")
+        self.max_threads_combo.addItem("1 (Long Sleep)", "long-sleep")
         
         saved_threads = self.config.get("General", "max_threads", "2")
         try:
@@ -264,27 +268,36 @@ class StartTab(QWidget):
             self.max_threads_combo.setCurrentText("2")
         
         self.max_threads_combo.setToolTip("Maximum concurrent downloads.")
-        def _on_max_changed(t):
+        def _on_max_changed(idx):
+            # Get the data associated with the item if available, otherwise use text
+            data = self.max_threads_combo.itemData(idx)
+            text = self.max_threads_combo.itemText(idx)
+            
+            val_to_send = data if data else text
+            
+            # Persist safe integer value if it's a number, otherwise default to 1 for sleep modes
             try:
-                threads_val = int(t)
+                threads_val = int(val_to_send)
                 if threads_val < 1:
                     threads_val = 1
                 if threads_val > 8:
                     threads_val = 8
                 # Persist only up to 4 so app restart defaults stay bounded.
                 self.config.set("General", "max_threads", str(min(threads_val, 4)))
-            except Exception:
-                pass
+            except (ValueError, TypeError):
+                # If sleep mode selected, persist "1" so next launch is safe
+                self.config.set("General", "max_threads", "1")
+
             try:
                 dm = getattr(self.main, 'download_manager', None)
                 if dm:
-                    # Allow up to 8 during the current app session.
-                    dm.set_runtime_max_threads(threads_val)
+                    # Pass the raw value (int string or sleep code) to manager
+                    dm.set_runtime_max_threads(val_to_send)
                     dm._maybe_start_next()
             except Exception:
                 pass
 
-        self.max_threads_combo.currentTextChanged.connect(_on_max_changed)
+        self.max_threads_combo.currentIndexChanged.connect(_on_max_changed)
 
         rate_limit_lbl = QLabel("Rate Limit:")
         rate_limit_lbl.setToolTip("Limit the download speed for each individual download (e.g., 5M for 5 MB/s).")

@@ -5,6 +5,7 @@ import shutil
 import time
 import json
 import subprocess
+import random
 from core.yt_dlp_worker import DownloadWorker, check_yt_dlp_available, fetch_metadata, is_url_valid, is_gallery_url_valid
 from core.playlist_expander import expand_playlist
 import threading
@@ -39,6 +40,7 @@ class DownloadManager(QObject):
         # Runtime-only override for max concurrent downloads.
         # This is not persisted and resets when the app restarts.
         self._runtime_max_threads = None
+        self._sleep_mode = None  # Can be 'short' or 'long'
         self.config = config_manager
         self.archive_manager = ArchiveManager(self.config)
         self.sorting_manager = SortingManager(self.config)
@@ -54,7 +56,21 @@ class DownloadManager(QObject):
         return self._completed_paths.get(url)
 
     def set_runtime_max_threads(self, value):
-        """Set runtime-only concurrency override (1-8)."""
+        """Set runtime-only concurrency override, including sleep modes."""
+        self._sleep_mode = None
+        self._runtime_max_threads = None
+
+        if value == "short-sleep":
+            self._runtime_max_threads = 1
+            self._sleep_mode = "short"
+            log.info("Concurrency set to 1 with short sleep.")
+            return
+        elif value == "long-sleep":
+            self._runtime_max_threads = 1
+            self._sleep_mode = "long"
+            log.info("Concurrency set to 1 with long sleep.")
+            return
+
         try:
             parsed = int(value)
             if parsed < 1:
@@ -62,7 +78,7 @@ class DownloadManager(QObject):
             if parsed > 8:
                 parsed = 8
             self._runtime_max_threads = parsed
-        except Exception:
+        except (ValueError, TypeError):
             self._runtime_max_threads = None
 
     def _get_effective_max_threads(self):
@@ -70,8 +86,10 @@ class DownloadManager(QObject):
         if isinstance(self._runtime_max_threads, int):
             return self._runtime_max_threads
         try:
-            return int(self.config.get("General", "max_threads", fallback="2"))
-        except Exception:
+            # Read the persisted value, but don't allow sleep modes from config
+            val = self.config.get("General", "max_threads", fallback="2")
+            return int(val)
+        except (ValueError, TypeError):
             return 2
 
     def _enqueue_single_download(self, url, opts, parent_url=None):
@@ -741,6 +759,18 @@ class DownloadManager(QObject):
 
         if not success:
              self.download_finished.emit(url, False)
+
+        # Sleep if configured and there are more items to download
+        if self._sleep_mode and self._pending_queue:
+            sleep_duration = 0
+            if self._sleep_mode == "short":
+                sleep_duration = random.uniform(20, 30)
+            elif self._sleep_mode == "long":
+                sleep_duration = random.uniform(90, 120)
+
+            if sleep_duration > 0:
+                log.info(f"Sleeping for {sleep_duration:.1f} seconds between downloads.")
+                time.sleep(sleep_duration)
 
         # Start next queued download if any
         self._maybe_start_next()
