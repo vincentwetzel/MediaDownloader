@@ -45,6 +45,7 @@ class MediaDownloaderApp(QMainWindow):
         # Core components
         self.config_manager = config_manager
         self.download_manager = DownloadManager(self.config_manager)
+        self.download_processing_lock = threading.Lock()
 
         # UI setup
         self.tabs = QTabWidget()
@@ -396,125 +397,126 @@ class MediaDownloaderApp(QMainWindow):
     def _start_background_download_processing(self, urls, opts, expand_playlists=True):
         """Helper to run playlist expansion and download queuing in a background thread."""
         def _bg_worker():
-            for url in urls:
-                urls_to_download = []
-                if expand_playlists:
-                    try:
-                        self._playlist_extract_seen[url] = False
-                        
-                        # Create a cancellation event for this URL
-                        cancel_event = threading.Event()
-                        self._playlist_cancel_events[url] = cancel_event
+            with self.download_processing_lock:
+                for url in urls:
+                    urls_to_download = []
+                    if expand_playlists:
+                        try:
+                            self._playlist_extract_seen[url] = False
+                            
+                            # Create a cancellation event for this URL
+                            cancel_event = threading.Event()
+                            self._playlist_cancel_events[url] = cancel_event
 
-                        stop_progress_pulse = threading.Event()
-                        def _progress_pulse():
-                            started = time.monotonic()
-                            while not stop_progress_pulse.is_set():
-                                elapsed = int(max(0, time.monotonic() - started))
-                                self.add_download_request.emit(
-                                    '__playlist_extract_progress__',
-                                    (url, {"status_text": f"Gathering playlist URLs... {elapsed}s"})
-                                )
-                                stop_progress_pulse.wait(1.0)
+                            stop_progress_pulse = threading.Event()
+                            def _progress_pulse():
+                                started = time.monotonic()
+                                while not stop_progress_pulse.is_set():
+                                    elapsed = int(max(0, time.monotonic() - started))
+                                    self.add_download_request.emit(
+                                        '__playlist_extract_progress__',
+                                        (url, {"status_text": f"Gathering playlist URLs... {elapsed}s"})
+                                    )
+                                    stop_progress_pulse.wait(1.0)
 
-                        pulse_thread = threading.Thread(target=_progress_pulse, daemon=True)
-                        pulse_thread.start()
+                            pulse_thread = threading.Thread(target=_progress_pulse, daemon=True)
+                            pulse_thread.start()
 
-                        def _on_playlist_progress(payload):
-                            self.add_download_request.emit('__playlist_extract_progress__', (url, payload or {}))
+                            def _on_playlist_progress(payload):
+                                self.add_download_request.emit('__playlist_extract_progress__', (url, payload or {}))
 
-                        expanded_entries = expand_playlist_entries(
-                            url,
-                            config_manager=self.config_manager,
-                            opts=opts,
-                            progress_callback=_on_playlist_progress,
-                            cancel_event=cancel_event
-                        )
-                        stop_progress_pulse.set()
-                        if not expanded_entries:
-                            expanded_entries = [{"url": url, "title": ""}]
-                        expanded_urls = [e.get("url", url) for e in expanded_entries if isinstance(e, dict)]
-                        if not expanded_urls:
-                            expanded_urls = [url]
-
-                        log.info(
-                            "Playlist expansion result for %s: %d entries",
-                            url,
-                            len(expanded_urls)
-                        )
-                        if expanded_urls:
-                            log.debug("First expanded URL for %s: %s", url, expanded_urls[0])
-
-                        # If user explicitly chose playlist expansion but we still
-                        # have only a single URL, refuse to fall back to a single
-                        # playlist worker (which causes one-row UI behavior).
-                        if is_likely_playlist(url) and len(expanded_urls) <= 1:
-                            raise PlaylistExpansionError(
-                                "Could not expand playlist into individual items. "
-                                "No downloads were queued."
+                            expanded_entries = expand_playlist_entries(
+                                url,
+                                config_manager=self.config_manager,
+                                opts=opts,
+                                progress_callback=_on_playlist_progress,
+                                cancel_event=cancel_event
                             )
+                            stop_progress_pulse.set()
+                            if not expanded_entries:
+                                expanded_entries = [{"url": url, "title": ""}]
+                            expanded_urls = [e.get("url", url) for e in expanded_entries if isinstance(e, dict)]
+                            if not expanded_urls:
+                                expanded_urls = [url]
 
-                        # If playlist has multiple entries, update calculating text/count.
-                        if len(expanded_urls) > 1:
-                            self.add_download_request.emit('__playlist_detected__', (url, len(expanded_urls)))
+                            log.info(
+                                "Playlist expansion result for %s: %d entries",
+                                url,
+                                len(expanded_urls)
+                            )
+                            if expanded_urls:
+                                log.debug("First expanded URL for %s: %s", url, expanded_urls[0])
 
-                        # Always replace the "Preparing playlist..." placeholder
-                        # once expansion completes to avoid stale placeholder rows.
-                        self.add_download_request.emit('__playlist_expanded__', (url, expanded_entries))
-                        urls_to_download.extend(expanded_entries)
-                    except PlaylistExpansionCancelledError:
-                        try:
-                            stop_progress_pulse.set()
-                        except Exception:
-                            pass
-                        log.info(f"Playlist expansion cancelled for {url}")
-                        self.add_download_request.emit('__playlist_cancelled__', url)
-                        continue
-                    except PlaylistExpansionError as e:
-                        try:
-                            stop_progress_pulse.set()
-                        except Exception:
-                            pass
-                        # Handle specific playlist errors (e.g., premiere)
-                        self.download_manager.download_error.emit(url, str(e))
-                        self.add_download_request.emit('__playlist_failed__', url)
-                        continue  # Skip to the next URL
-                    except Exception as e:
-                        try:
-                            stop_progress_pulse.set()
-                        except Exception:
-                            pass
-                        log.error(f"Generic error expanding playlist {url}: {e}")
-                        # Fallback to trying to download the original URL
+                            # If user explicitly chose playlist expansion but we still
+                            # have only a single URL, refuse to fall back to a single
+                            # playlist worker (which causes one-row UI behavior).
+                            if is_likely_playlist(url) and len(expanded_urls) <= 1:
+                                raise PlaylistExpansionError(
+                                    "Could not expand playlist into individual items. "
+                                    "No downloads were queued."
+                                )
+
+                            # If playlist has multiple entries, update calculating text/count.
+                            if len(expanded_urls) > 1:
+                                self.add_download_request.emit('__playlist_detected__', (url, len(expanded_urls)))
+
+                            # Always replace the "Preparing playlist..." placeholder
+                            # once expansion completes to avoid stale placeholder rows.
+                            self.add_download_request.emit('__playlist_expanded__', (url, expanded_entries))
+                            urls_to_download.extend(expanded_entries)
+                        except PlaylistExpansionCancelledError:
+                            try:
+                                stop_progress_pulse.set()
+                            except Exception:
+                                pass
+                            log.info(f"Playlist expansion cancelled for {url}")
+                            self.add_download_request.emit('__playlist_cancelled__', url)
+                            continue
+                        except PlaylistExpansionError as e:
+                            try:
+                                stop_progress_pulse.set()
+                            except Exception:
+                                pass
+                            # Handle specific playlist errors (e.g., premiere)
+                            self.download_manager.download_error.emit(url, str(e))
+                            self.add_download_request.emit('__playlist_failed__', url)
+                            continue  # Skip to the next URL
+                        except Exception as e:
+                            try:
+                                stop_progress_pulse.set()
+                            except Exception:
+                                pass
+                            log.error(f"Generic error expanding playlist {url}: {e}")
+                            # Fallback to trying to download the original URL
+                            urls_to_download.append({"url": url, "title": ""})
+                        finally:
+                            # Clean up the cancel event
+                            self._playlist_cancel_events.pop(url, None)
+                    else:
                         urls_to_download.append({"url": url, "title": ""})
-                    finally:
-                        # Clean up the cancel event
-                        self._playlist_cancel_events.pop(url, None)
-                else:
-                    urls_to_download.append({"url": url, "title": ""})
 
-                # Prepare opts for these downloads
-                current_opts = opts.copy()
-                if expand_playlists:
-                    current_opts['is_playlist_download'] = True
+                    # Prepare opts for these downloads
+                    current_opts = opts.copy()
+                    if expand_playlists:
+                        current_opts['is_playlist_download'] = True
 
-                for entry in urls_to_download:
-                    sub_url = entry.get("url")
-                    if not sub_url:
-                        continue
-                    
-                    # Pass playlist_title if available
-                    entry_opts = current_opts.copy()
-                    if entry.get("playlist_title"):
-                        entry_opts["playlist_title"] = entry.get("playlist_title")
-                    if entry.get("playlist_index") is not None:
-                        entry_opts["playlist_index"] = entry.get("playlist_index")
-                    if entry.get("playlist_count") is not None:
-                        entry_opts["playlist_count"] = entry.get("playlist_count")
+                    for entry in urls_to_download:
+                        sub_url = entry.get("url")
+                        if not sub_url:
+                            continue
                         
-                    self.add_download_request.emit(sub_url, entry_opts)
+                        # Pass playlist_title if available
+                        entry_opts = current_opts.copy()
+                        if entry.get("playlist_title"):
+                            entry_opts["playlist_title"] = entry.get("playlist_title")
+                        if entry.get("playlist_index") is not None:
+                            entry_opts["playlist_index"] = entry.get("playlist_index")
+                        if entry.get("playlist_count") is not None:
+                            entry_opts["playlist_count"] = entry.get("playlist_count")
+                            
+                        self.add_download_request.emit(sub_url, entry_opts)
 
-            self.add_download_request.emit('__mark_in_progress__', None)
+                self.add_download_request.emit('__mark_in_progress__', None)
 
         thread = threading.Thread(target=_bg_worker, daemon=True)
         thread.start()
