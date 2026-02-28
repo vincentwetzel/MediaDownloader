@@ -124,7 +124,9 @@ class DownloadManager(QObject):
 
         with self.lock:
             running = sum(1 for w in self.active_downloads if w.isRunning())
-            if running < max_threads:
+            # If there's already a queue, always add to the back to maintain order.
+            # Only start immediately if the queue is empty and there's a free slot.
+            if running < max_threads and not self._pending_queue:
                 # Start immediately
                 self.active_downloads.append(worker)
                 try:
