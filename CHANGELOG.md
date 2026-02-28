@@ -8,18 +8,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased] - YYYY-MM-DD
 
 ### Added
-- **Active download thumbnail previews**: The Active Downloads list now shows per-item thumbnail previews (when available) to the left of each title/progress row.
-- **Audio playlist track-number tagging**: Playlist expansion now propagates `playlist_index` per entry, and audio playlist downloads write `track`/`tracknumber` tags so player ordering matches playlist order.
-- **Developer Discord footer link**: Added a Discord icon button beside "Contact Developer" at the bottom of the main window; clicking opens `https://discord.gg/NfWaqKgYRG` and shows tooltip text "Developer Discord".
+-
 
 ### Changed
-- **Rotating application logs**: Switched the main file logger to size-based rotation (`MediaDownloader.log`, 10 MB per file, 5 backups) to prevent unbounded log growth.
+-
 
 ### Deprecated
 -
 
 ### Removed
 -
+
+### Fixed
+-
+
+### Security
+-
+
+## [0.0.10] - 02-18-2026
+
+### Added
+- **Active download thumbnail previews**: The Active Downloads list now shows per-item thumbnail previews (when available) to the left of each title/progress row.
+- **Audio playlist track-number tagging**: Playlist expansion now propagates `playlist_index` per entry, and audio playlist downloads write `track`/`tracknumber` tags so player ordering matches playlist order.
+- **Developer Discord footer link**: Added a Discord icon button beside "Contact Developer" at the bottom of the main window; clicking opens `https://discord.gg/NfWaqKgYRG` and shows tooltip text "Developer Discord".
+
+### Changed
+- **Rotating application logs**: Switched the main file logger to size-based rotation (`MediaDownloader.log`, 10 MB per file, 5 backups) to prevent unbounded log growth.
 
 ### Fixed
 - **Sorting subfolder token sanitization**: Sorting subfolder token values (for example `{album}`) are now sanitized before path assembly so illegal path characters like `/` and `\` are replaced with `_` instead of creating unintended nested folders or truncating names.
@@ -34,9 +48,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Playlist track tag formatting**: Playlist `track`/`tracknumber` values are now zero-padded for single-digit indices (for example, `01`..`09`) to improve ordering consistency in players.
 - **Playlist audio filename ordering**: Audio playlist downloads are now renamed on move to include a zero-padded playlist index prefix (`NN - `), for example `01 - <original name>.opus`.
 - **Audio title truncation on dotted movement names**: Active Downloads title cleanup now strips extensions only for known media/container suffixes, preventing titles like `I. Molto allegro...` from being cut at the first movement period.
-
-### Security
--
 
 ## [0.0.9] - 02-17-2026
 
