@@ -16,7 +16,7 @@ dependencies = [
     "requests==2.32.5",         # For the application self-updater
     "Send2Trash==2.1.0",        # For safely deleting files
     "tendo==0.3.0",             # To ensure only a single instance of the app is running
-    "yt-dlp==2026.1.6.233142.dev0", # The core media downloader
+    "yt-dlp==2026.2.21", # The core media downloader
     "yt-dlp-ejs==0.3.2",        # Optional dependency for yt-dlp for certain websites
 ]
 
