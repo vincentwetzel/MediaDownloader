@@ -78,7 +78,7 @@ QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString 
         if (audioCodecSetting != "Default") audioFormatSelector += QString("[acodec~='(?i)%1']").arg(acodec);
 
         rawArgs << "-f" << QString("%1+%2/bestvideo+bestaudio/best").arg(videoFormatSelector, audioFormatSelector);
-        if (videoCodecSetting != "Default") rawArgs << "--merge-output-format" << requestedExtension;
+        rawArgs << "--merge-output-format" << requestedExtension;
 
     } else if (downloadType == "audio") {
         QString audioQuality = configManager->get("Audio", "audio_quality", "Best").toString();

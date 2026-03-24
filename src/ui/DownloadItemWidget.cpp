@@ -26,11 +26,14 @@ void DownloadItemWidget::setupUi() {
 
     m_titleLabel = new QLabel(m_itemData["url"].toString(), this);
     m_titleLabel->setWordWrap(true);
+    m_titleLabel->setToolTip("The URL or title of the media being downloaded.");
 
     m_statusLabel = new QLabel("Queued", this);
+    m_statusLabel->setToolTip("Current status of this download.");
     m_progressBar = new QProgressBar(this);
     m_progressBar->setRange(0, 100);
     m_progressBar->setValue(0);
+    m_progressBar->setToolTip("Download progress.");
 
     QVBoxLayout *infoLayout = new QVBoxLayout();
     infoLayout->addWidget(m_titleLabel);
@@ -38,8 +41,11 @@ void DownloadItemWidget::setupUi() {
     infoLayout->addWidget(m_progressBar);
 
     m_cancelButton = new QPushButton("Cancel", this);
+    m_cancelButton->setToolTip("Cancel this download.");
     m_retryButton = new QPushButton("Retry", this);
+    m_retryButton->setToolTip("Retry this failed or cancelled download.");
     m_openFolderButton = new QPushButton("Open Folder", this);
+    m_openFolderButton->setToolTip("Open the folder where this file was saved.");
 
     m_retryButton->hide();
     m_openFolderButton->hide();

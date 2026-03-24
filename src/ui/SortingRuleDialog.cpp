@@ -26,8 +26,10 @@ public:
 
         m_fieldCombo = new QComboBox(this);
         m_fieldCombo->addItems({"Uploader", "Title", "Playlist Title", "Duration (seconds)", "Album", "ID"});
+        m_fieldCombo->setToolTip("Select the metadata field to examine.");
 
         m_operatorCombo = new QComboBox(this);
+        m_operatorCombo->setToolTip("Select the comparison operator.");
         // Items will be populated by onFieldChanged
 
         m_valueInputSingle = new QLineEdit(this);
@@ -132,7 +134,7 @@ private slots:
                 placeholder = "Enter a number (e.g., 300 for 5 minutes).";
             }
             m_valueInputSingle->setPlaceholderText(placeholder);
-            m_valueInputSingle->setToolTip("");
+            m_valueInputSingle->setToolTip("Enter the value to compare against.");
 
             // When switching from multi-line, copy the first line to the single-line input
             if (m_valueStackedWidget->currentWidget() == m_valueInputMulti) {
@@ -174,6 +176,7 @@ void SortingRuleDialog::setupUI() {
     m_targetFolderInput = new QLineEdit(this);
     m_targetFolderInput->setToolTip("The main folder where matching files will be moved.");
     m_browseButton = new QPushButton("Browse...", this);
+    m_browseButton->setToolTip("Browse to select the target folder.");
     targetFolderLayout->addWidget(m_targetFolderInput);
     targetFolderLayout->addWidget(m_browseButton);
     formLayout->addRow("Target Folder:", targetFolderLayout);
@@ -200,9 +203,12 @@ void SortingRuleDialog::setupUI() {
     mainLayout->addLayout(formLayout);
 
     QHBoxLayout* conditionsHeaderLayout = new QHBoxLayout();
-    conditionsHeaderLayout->addWidget(new QLabel("Conditions (All Must Match):"));
+    QLabel *conditionsHeaderLabel = new QLabel("Conditions (All Must Match):");
+    conditionsHeaderLabel->setToolTip("A list of conditions that must all be true for this sorting rule to trigger.");
+    conditionsHeaderLayout->addWidget(conditionsHeaderLabel);
     conditionsHeaderLayout->addStretch();
     m_addConditionButton = new QPushButton("Add Condition", this);
+    m_addConditionButton->setToolTip("Add a new condition to this rule. All conditions must be met for the rule to apply.");
     conditionsHeaderLayout->addWidget(m_addConditionButton);
     mainLayout->addLayout(conditionsHeaderLayout);
 
@@ -286,6 +292,7 @@ void SortingRuleDialog::addCondition(const QVariantMap &condition) {
 
     QPushButton *removeButton = new QPushButton("Remove", containerWidget);
     removeButton->setStyleSheet("color: red;");
+    removeButton->setToolTip("Remove this condition.");
 
     hbox->addWidget(conditionWidget);
     hbox->addWidget(removeButton);

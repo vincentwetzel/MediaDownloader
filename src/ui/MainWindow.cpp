@@ -204,17 +204,23 @@ void MainWindow::setupUI() {
     QHBoxLayout *footerLayout = new QHBoxLayout();
     QLabel *githubLink = new QLabel(QString("<a href=\"%1\">Source Code</a>").arg(GITHUB_PROJECT_URL));
     githubLink->setOpenExternalLinks(true);
+    githubLink->setToolTip("Visit the project's source code repository on GitHub.");
 
     QLabel *discordLink = new QLabel(QString("<a href=\"%1%2%3\"><img src=\":/ui/assets/discord.png\" alt=\"Developer Discord\" width=\"24\" height=\"24\"></a>")
                                          .arg(DEVELOPER_DISCORD_URL_PART1)
                                          .arg(DEVELOPER_DISCORD_URL_PART2)
                                          .arg(DEVELOPER_DISCORD_URL_PART3));
     discordLink->setOpenExternalLinks(true);
+    discordLink->setToolTip("Join the developer Discord server.");
 
     m_queuedDownloadsLabel = new QLabel("Queued: 0", this);
+    m_queuedDownloadsLabel->setToolTip("Number of downloads waiting to start.");
     m_activeDownloadsLabel = new QLabel("Active: 0", this);
+    m_activeDownloadsLabel->setToolTip("Number of currently active downloads.");
     m_completedDownloadsLabel = new QLabel("Completed: 0", this);
+    m_completedDownloadsLabel->setToolTip("Number of successfully completed downloads.");
     m_speedLabel = new QLabel("Current Speed: 0.00 MB/s", this);
+    m_speedLabel->setToolTip("Total download speed across all active transfers.");
 
     footerLayout->addWidget(githubLink);
     footerLayout->addSpacing(20);

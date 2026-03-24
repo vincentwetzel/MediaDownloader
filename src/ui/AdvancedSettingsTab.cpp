@@ -195,6 +195,7 @@ QWidget* AdvancedSettingsTab::createVideoSettingsPage() {
     m_videoLayout->addRow("Codec:", m_videoCodecCombo);
 
     m_videoExtLabel = new QLabel("Extension:", this);
+    m_videoExtLabel->setToolTip("Select the file type for your video, like '.mp4' (very common) or '.mkv' (supports more features). This changes automatically based on the video codec you pick.");
     m_videoExtCombo = new QComboBox(this);
     m_videoExtCombo->setToolTip("Select the file type for your video, like '.mp4' (very common) or '.mkv' (supports more features). This changes automatically based on the video codec you pick.");
     m_videoExtCombo->addItems({"mp4", "mkv", "webm"});
@@ -202,7 +203,7 @@ QWidget* AdvancedSettingsTab::createVideoSettingsPage() {
 
     m_videoAudioCodecCombo = new QComboBox(this);
     m_videoAudioCodecCombo->setToolTip("Choose the audio format (codec) that will be included in your video file. AAC is common, Opus is good for web, MP3 is widely supported.");
-    m_videoAudioCodecCombo->addItems({"AAC", "Opus", "Vorbis", "MP3", "FLAC", "PCM"});
+    m_videoAudioCodecCombo->addItems({"Default", "AAC", "Opus", "Vorbis", "MP3", "FLAC", "PCM"});
     m_videoLayout->addRow("Audio Codec:", m_videoAudioCodecCombo);
 
     layout->addWidget(videoGroup);
@@ -236,6 +237,7 @@ QWidget* AdvancedSettingsTab::createAudioSettingsPage() {
     m_audioLayout->addRow("Codec:", m_audioCodecCombo);
 
     m_audioExtLabel = new QLabel("Extension:", this);
+    m_audioExtLabel->setToolTip("Select the file type for your audio, like '.mp3' (very common) or '.opus' (modern and small). This changes automatically based on the audio codec you pick.");
     m_audioExtCombo = new QComboBox(this);
     m_audioExtCombo->setToolTip("Select the file type for your audio, like '.mp3' (very common) or '.opus' (modern and small). This changes automatically based on the audio codec you pick.");
     m_audioExtCombo->addItems({"mp3", "m4a", "opus", "wav", "flac"});
@@ -315,7 +317,9 @@ QWidget* AdvancedSettingsTab::createOutputTemplatePage() {
     ytDlpGroup->setToolTip("Define how downloaded files from yt-dlp are named using special tokens.");
     QVBoxLayout *ytDlpLayout = new QVBoxLayout(ytDlpGroup);
     QHBoxLayout *ytDlpControlsLayout = new QHBoxLayout();
-    ytDlpControlsLayout->addWidget(new QLabel("Filename Pattern:", this));
+    QLabel *ytPatternLabel = new QLabel("Filename Pattern:", this);
+    ytPatternLabel->setToolTip("This is how your downloaded files will be named. You can use special 'tokens' (like %(title)s) to automatically include information about the video.");
+    ytDlpControlsLayout->addWidget(ytPatternLabel);
     m_ytDlpOutputTemplateInput = new QLineEdit(this);
     m_ytDlpOutputTemplateInput->setToolTip("This is how your downloaded files will be named. You can use special 'tokens' (like %(title)s) to automatically include information about the video.");
     ytDlpControlsLayout->addWidget(m_ytDlpOutputTemplateInput);
@@ -352,7 +356,9 @@ QWidget* AdvancedSettingsTab::createOutputTemplatePage() {
     galleryDlGroup->setToolTip("Define how downloaded files from gallery-dl are named using special tokens.");
     QVBoxLayout *galleryDlLayout = new QVBoxLayout(galleryDlGroup);
     QHBoxLayout *galleryDlControlsLayout = new QHBoxLayout();
-    galleryDlControlsLayout->addWidget(new QLabel("Filename Pattern:", this));
+    QLabel *galleryPatternLabel = new QLabel("Filename Pattern:", this);
+    galleryPatternLabel->setToolTip("This is how your downloaded files will be named. You can use special 'tokens' (like {filename}) to automatically include information about the image.");
+    galleryDlControlsLayout->addWidget(galleryPatternLabel);
     m_galleryDlOutputTemplateInput = new QLineEdit(this);
     m_galleryDlOutputTemplateInput->setToolTip("This is how your downloaded files will be named. You can use special 'tokens' (like {filename}) to automatically include information about the image.");
     galleryDlControlsLayout->addWidget(m_galleryDlOutputTemplateInput);
@@ -544,6 +550,7 @@ QWidget* AdvancedSettingsTab::createUpdatesPage() {
     updatesLayout->addRow(ytDlpUpdateLayout);
 
     m_ytDlpUpdateStatusLabel = new QLabel(this);
+    m_ytDlpUpdateStatusLabel->setToolTip("Displays the status of the yt-dlp update process.");
     updatesLayout->addRow(m_ytDlpUpdateStatusLabel);
 
     m_galleryDlVersionLabel = new QLabel("gallery-dl version: Unknown", this);
@@ -556,6 +563,7 @@ QWidget* AdvancedSettingsTab::createUpdatesPage() {
     updatesLayout->addRow(galleryDlUpdateLayout);
 
     m_galleryDlUpdateStatusLabel = new QLabel(this);
+    m_galleryDlUpdateStatusLabel->setToolTip("Displays the status of the gallery-dl update process.");
     updatesLayout->addRow(m_galleryDlUpdateStatusLabel);
 
     layout->addWidget(updatesGroup);
@@ -1210,15 +1218,15 @@ void AdvancedSettingsTab::updateVideoOptions() {
     QString currentAudioCodec = m_videoAudioCodecCombo->currentText();
     m_videoAudioCodecCombo->clear();
     if (selectedVideoCodec == "AV1" || selectedVideoCodec == "VP9") {
-        m_videoAudioCodecCombo->addItems({"Opus", "Vorbis", "AAC"});
+        m_videoAudioCodecCombo->addItems({"Default", "Opus", "Vorbis", "AAC"});
     } else if (selectedVideoCodec == "H.264 (AVC)" || selectedVideoCodec == "H.265 (HEVC)") {
-        m_videoAudioCodecCombo->addItems({"AAC", "MP3", "FLAC", "PCM"});
+        m_videoAudioCodecCombo->addItems({"Default", "AAC", "MP3", "FLAC", "PCM"});
     } else if (selectedVideoCodec == "ProRes (Archive)") {
-        m_videoAudioCodecCombo->addItems({"PCM", "AAC"});
+        m_videoAudioCodecCombo->addItems({"Default", "PCM", "AAC"});
     } else if (selectedVideoCodec == "Theora") {
-        m_videoAudioCodecCombo->addItems({"Vorbis"});
+        m_videoAudioCodecCombo->addItems({"Default", "Vorbis"});
     } else {
-        m_videoAudioCodecCombo->addItems({"AAC", "Opus", "Vorbis", "MP3", "FLAC", "PCM"});
+        m_videoAudioCodecCombo->addItems({"Default", "AAC", "Opus", "Vorbis", "MP3", "FLAC", "PCM"});
     }
 
     if (m_videoAudioCodecCombo->findText(currentAudioCodec) != -1) {

@@ -255,6 +255,7 @@ void StartTab::setupUI() {
     QVBoxLayout *urlInputLayout = new QVBoxLayout();
     QLabel *urlLabel = new QLabel("Video/Playlist URL(s):", this);
     urlLabel->setStyleSheet("font-weight: bold; font-size: 14px;");
+    urlLabel->setToolTip("Enter the URLs of the videos or playlists you want to download.");
     urlInputLayout->addWidget(urlLabel);
 
     m_urlInput = new QTextEdit(this);
@@ -340,6 +341,7 @@ void StartTab::setupUI() {
 
     QLabel *commandPreviewLabel = new QLabel("Command Preview:", this);
     commandPreviewLabel->setStyleSheet("font-weight: bold;");
+    commandPreviewLabel->setToolTip("Shows the exact command that will be executed.");
     mainLayout->addWidget(commandPreviewLabel);
 
     m_commandPreview = new QTextEdit(this);
@@ -347,6 +349,7 @@ void StartTab::setupUI() {
     m_commandPreview->setFontFamily("Courier New");
     m_commandPreview->setPlaceholderText("The generated command will be shown here...");
     m_commandPreview->setFixedHeight(120);
+    m_commandPreview->setToolTip("The exact command-line arguments that will be passed to the downloader.");
     mainLayout->addWidget(m_commandPreview);
 
     connect(m_downloadButton, &QPushButton::clicked, this, &StartTab::onDownloadButtonClicked);

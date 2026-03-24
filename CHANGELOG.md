@@ -18,12 +18,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Clipboard auto-paste domain list**: Added app-directory `extractors.json` loading for Start tab clipboard URL auto-paste.
 - **Auto-paste on focus toggle**: Added an Advanced Settings option to auto-paste clipboard URLs when the app is focused or hovered.
 - **Aria2c RPC Daemon Integration**: Replaced standard `yt-dlp` download execution with a background `aria2c` daemon, enabling massively faster multi-connection segment downloads.
+- **Comprehensive UI Tooltips**: Enforced a requirement that *all* GUI elements must have hover hints (tooltips) and added missing tooltips across the application.
 - **Asynchronous Engine**: Fully decoupled `yt-dlp` metadata extraction and `ffmpeg` post-processing into their own non-blocking workers to prevent UI freezes.
 
 ### Changed
 - **Architecture**: Switched from Python/PyQt6 to C++/Qt6.
 - **Build System**: Switched from PyInstaller to CMake/MSVC.
 - **Extractor loading**: Replaced runtime `yt-dlp --eval` attempts with app-directory `extractors.json` loading.
+
+### Removed
+- **Unused SSL Libraries**: Removed `libssl-3-x64.dll` and `libcrypto-3-x64.dll` from the `bin/` directory to reduce distribution size, as Qt 6 natively uses the Windows SChannel backend.
 
 ### Fixed
 - **Advanced Settings toggle switches snapping back after click**: The custom `ToggleSwitch` control no longer toggles twice on mouse release, so slider-style settings in Advanced Settings now stay in the selected state and persist correctly after a single click.

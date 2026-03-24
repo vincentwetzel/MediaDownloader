@@ -140,8 +140,6 @@ Bundled binaries (located in `bin/` and copied to the build output directory):
 - `aria2c.exe`
 - `deno.exe`
 - `qsqlite.dll` (Qt SQLITE plugin)
-- `libssl-3-x64.dll` (OpenSSL library)
-- `libcrypto-3-x64.dll` (OpenSSL library)
 
 Agents MUST NOT:
 - Remove bundling assumptions.
