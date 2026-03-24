@@ -1,0 +1,1206 @@
+{
+    "2ch": {
+        "domains": [
+            "2ch.org"
+        ]
+    },
+    "2chan": {
+        "domains": [
+            "dec.2chan.net"
+        ]
+    },
+    "35photo": {
+        "domains": [
+            "35photo.pro"
+        ]
+    },
+    "3dbooru": {
+        "domains": [
+            "behoimi.org"
+        ]
+    },
+    "4archive": {
+        "domains": [
+            "4archive.org"
+        ]
+    },
+    "4chan": {
+        "domains": [
+            "boards.4channel.org"
+        ]
+    },
+    "4chanarchives": {
+        "domains": [
+            "4chanarchives.com"
+        ]
+    },
+    "500px": {
+        "domains": [
+            "500px.com"
+        ]
+    },
+    "8chan": {
+        "domains": [
+            "8chan.moe"
+        ]
+    },
+    "8muses": {
+        "domains": [
+            "comics.8muses.com"
+        ]
+    },
+    "acidimg": {
+        "domains": [
+            "acidimg.cc"
+        ]
+    },
+    "adultempire": {
+        "domains": [
+            "adultempire.com"
+        ]
+    },
+    "agnph": {
+        "domains": [
+            "agn.ph"
+        ]
+    },
+    "ahottie": {
+        "domains": [
+            "ahottie.top"
+        ]
+    },
+    "ao3": {
+        "domains": [
+            "archiveofourown.org"
+        ]
+    },
+    "arcalive": {
+        "domains": [
+            "arca.live"
+        ]
+    },
+    "architizer": {
+        "domains": [
+            "architizer.com"
+        ]
+    },
+    "arena": {
+        "domains": [
+            "are.na"
+        ]
+    },
+    "artstation": {
+        "domains": [
+            "artstation.com"
+        ]
+    },
+    "aryion": {
+        "domains": [
+            "aryion.com",
+            "latest.php"
+        ]
+    },
+    "audiochan": {
+        "domains": [
+            "audiochan.com"
+        ]
+    },
+    "bbc": {
+        "domains": [
+            "bbc.co.uk"
+        ]
+    },
+    "behance": {
+        "domains": [
+            "behance.net"
+        ]
+    },
+    "bellazon": {
+        "domains": [
+            "bellazon.com"
+        ]
+    },
+    "bilibili": {
+        "domains": [
+            "bilibili.com",
+            "space.bilibili.com"
+        ]
+    },
+    "bluesky": {
+        "domains": [
+            "bsky.app"
+        ]
+    },
+    "boosty": {
+        "domains": [
+            "boosty.to"
+        ]
+    },
+    "booth": {
+        "domains": [
+            "booth.pm",
+            "shop.booth.pm"
+        ]
+    },
+    "bunkr": {
+        "domains": [
+            "bunkr.si"
+        ]
+    },
+    "catbox": {
+        "domains": [
+            "catbox.moe",
+            "files.catbox.moe"
+        ]
+    },
+    "cfake": {
+        "domains": [
+            "cfake.com"
+        ]
+    },
+    "cien": {
+        "domains": [
+            "ci-en.net"
+        ]
+    },
+    "civitai": {
+        "domains": [
+            "civitai.com"
+        ]
+    },
+    "comedywildlifephoto": {
+        "domains": [
+            "comedywildlifephoto.com"
+        ]
+    },
+    "comick": {
+        "domains": [
+            "comick.io"
+        ]
+    },
+    "comicvine": {
+        "domains": [
+            "comicvine.gamespot.com"
+        ]
+    },
+    "cyberdrop": {
+        "domains": [
+            "cyberdrop.cr"
+        ]
+    },
+    "cyberfile": {
+        "domains": [
+            "cyberfile.me"
+        ]
+    },
+    "dandadan": {
+        "domains": [
+            "dandadan.net"
+        ]
+    },
+    "dankefuerslesen": {
+        "domains": [
+            "danke.moe"
+        ]
+    },
+    "desktopography": {
+        "domains": [
+            "desktopography.net"
+        ]
+    },
+    "deviantart": {
+        "domains": [
+            "deviantart.com"
+        ]
+    },
+    "directlink": {
+        "domains": [
+            "en.wikipedia.org"
+        ]
+    },
+    "discord": {
+        "domains": [
+            "discord.com"
+        ]
+    },
+    "dynastyscans": {
+        "domains": [
+            "dynasty-scans.com"
+        ]
+    },
+    "e621": {
+        "domains": [
+            "e621.cc"
+        ]
+    },
+    "eporner": {
+        "domains": [
+            "eporner.com"
+        ]
+    },
+    "erome": {
+        "domains": [
+            "erome.com"
+        ]
+    },
+    "everia": {
+        "domains": [
+            "everia.club"
+        ]
+    },
+    "exhentai": {
+        "domains": [
+            "e-hentai.org",
+            "exhentai.org"
+        ]
+    },
+    "facebook": {
+        "domains": [
+            "facebook.com",
+            "permalink.php",
+            "photo.php"
+        ]
+    },
+    "fanbox": {
+        "domains": [
+            "fanbox.cc",
+            "pixiv.net",
+            "user.fanbox.cc"
+        ]
+    },
+    "fansly": {
+        "domains": [
+            "fansly.com"
+        ]
+    },
+    "fantia": {
+        "domains": [
+            "fantia.jp"
+        ]
+    },
+    "fapachi": {
+        "domains": [
+            "fapachi.com"
+        ]
+    },
+    "fapello": {
+        "domains": [
+            "fapello.com"
+        ]
+    },
+    "fappic": {
+        "domains": [
+            "fappic.com"
+        ]
+    },
+    "fikfap": {
+        "domains": [
+            "fikfap.com"
+        ]
+    },
+    "fitnakedgirls": {
+        "domains": [
+            "fitnakedgirls.com"
+        ]
+    },
+    "flickr": {
+        "domains": [
+            "flickr.com"
+        ]
+    },
+    "furaffinity": {
+        "domains": [
+            "furaffinity.net"
+        ]
+    },
+    "furry34": {
+        "domains": [
+            "furry34.com"
+        ]
+    },
+    "fuskator": {
+        "domains": [
+            "fuskator.com"
+        ]
+    },
+    "gelbooru": {
+        "domains": [
+            "gelbooru.com"
+        ]
+    },
+    "girlsreleased": {
+        "domains": [
+            "girlsreleased.com"
+        ]
+    },
+    "girlswithmuscle": {
+        "domains": [
+            "girlswithmuscle.com"
+        ]
+    },
+    "gofile": {
+        "domains": [
+            "gofile.io"
+        ]
+    },
+    "hatenablog": {
+        "domains": [
+            "blog.hatenablog.com"
+        ]
+    },
+    "hdoujin": {
+        "domains": [
+            "hdoujin.org"
+        ]
+    },
+    "hentai2read": {
+        "domains": [
+            "hentai2read.com"
+        ]
+    },
+    "hentaifoundry": {
+        "domains": [
+            "hentai-foundry.com"
+        ]
+    },
+    "hentaihand": {
+        "domains": [
+            "hentaihand.com"
+        ]
+    },
+    "hentaihere": {
+        "domains": [
+            "hentaihere.com"
+        ]
+    },
+    "hentainexus": {
+        "domains": [
+            "hentainexus.com"
+        ]
+    },
+    "hiperdex": {
+        "domains": [
+            "hiperdex.com"
+        ]
+    },
+    "hitomi": {
+        "domains": [
+            "hitomi.la"
+        ]
+    },
+    "hotleak": {
+        "domains": [
+            "hotleak.vip"
+        ]
+    },
+    "idolcomplex": {
+        "domains": [
+            "idolcomplex.com"
+        ]
+    },
+    "imagebam": {
+        "domains": [
+            "imagebam.com"
+        ]
+    },
+    "imagechest": {
+        "domains": [
+            "imgchest.com"
+        ]
+    },
+    "imagefap": {
+        "domains": [
+            "imagefap.com"
+        ]
+    },
+    "imagetwist": {
+        "domains": [
+            "imagetwist.com"
+        ]
+    },
+    "imagevenue": {
+        "domains": [
+            "imagevenue.com"
+        ]
+    },
+    "imgadult": {
+        "domains": [
+            "imgadult.com"
+        ]
+    },
+    "imgbb": {
+        "domains": [
+            "ibb.co",
+            "user.imgbb.com"
+        ]
+    },
+    "imgbox": {
+        "domains": [
+            "imgbox.com"
+        ]
+    },
+    "imgclick": {
+        "domains": [
+            "imgclick.net"
+        ]
+    },
+    "imgdrive": {
+        "domains": [
+            "imgdrive.net"
+        ]
+    },
+    "imgpile": {
+        "domains": [
+            "imgpile.com"
+        ]
+    },
+    "imgpv": {
+        "domains": [
+            "imgpv.com"
+        ]
+    },
+    "imgspice": {
+        "domains": [
+            "imgspice.com"
+        ]
+    },
+    "imgth": {
+        "domains": [
+            "imgth.com"
+        ]
+    },
+    "imgur": {
+        "domains": [
+            "imgur.com"
+        ]
+    },
+    "imxto": {
+        "domains": [
+            "imx.to"
+        ]
+    },
+    "inkbunny": {
+        "domains": [
+            "inkbunny.net"
+        ]
+    },
+    "instagram": {
+        "domains": [
+            "instagram.com"
+        ]
+    },
+    "issuu": {
+        "domains": [
+            "issuu.com"
+        ]
+    },
+    "itaku": {
+        "domains": [
+            "itaku.ee"
+        ]
+    },
+    "itchio": {
+        "domains": [
+            "itch.io",
+            "user.itch.io"
+        ]
+    },
+    "iwara": {
+        "domains": [
+            "iwara.tv"
+        ]
+    },
+    "kabeuchi": {
+        "domains": [
+            "kabe-uchiroom.com"
+        ]
+    },
+    "kaliscan": {
+        "domains": [
+            "kaliscan.me"
+        ]
+    },
+    "keenspot": {
+        "domains": [
+            "comic.keenspot.com"
+        ]
+    },
+    "kemono": {
+        "domains": [
+            "kemono.cr"
+        ]
+    },
+    "khinsider": {
+        "domains": [
+            "downloads.khinsider.com"
+        ]
+    },
+    "komikcast": {
+        "domains": [
+            "komikcast.li"
+        ]
+    },
+    "koofr": {
+        "domains": [
+            "app.koofr.net"
+        ]
+    },
+    "leakgallery": {
+        "domains": [
+            "leakgallery.com"
+        ]
+    },
+    "lensdump": {
+        "domains": [
+            "lensdump.com"
+        ]
+    },
+    "lexica": {
+        "domains": [
+            "lexica.art"
+        ]
+    },
+    "lightroom": {
+        "domains": [
+            "lightroom.adobe.com"
+        ]
+    },
+    "listal": {
+        "domains": [
+            "listal.com"
+        ]
+    },
+    "livedoor": {
+        "domains": [
+            "blog.livedoor.jp"
+        ]
+    },
+    "lofter": {
+        "domains": [
+            "blog.lofter.com",
+            "lofter.com"
+        ]
+    },
+    "luscious": {
+        "domains": [
+            "luscious.net",
+            "members.luscious.net"
+        ]
+    },
+    "madokami": {
+        "domains": [
+            "manga.madokami.al"
+        ]
+    },
+    "mangadex": {
+        "domains": [
+            "mangadex.org"
+        ]
+    },
+    "mangafire": {
+        "domains": [
+            "mangafire.to"
+        ]
+    },
+    "mangafox": {
+        "domains": [
+            "fanfox.net",
+            "m.fanfox.net"
+        ]
+    },
+    "mangafreak": {
+        "domains": [
+            "ww2.mangafreak.me"
+        ]
+    },
+    "mangahere": {
+        "domains": [
+            "mangahere.cc"
+        ]
+    },
+    "mangapark": {
+        "domains": [
+            "mangapark.net"
+        ]
+    },
+    "mangaread": {
+        "domains": [
+            "mangaread.org"
+        ]
+    },
+    "mangareader": {
+        "domains": [
+            "mangareader.to"
+        ]
+    },
+    "mangataro": {
+        "domains": [
+            "mangataro.org"
+        ]
+    },
+    "mangatown": {
+        "domains": [
+            "mangatown.com"
+        ]
+    },
+    "mangoxo": {
+        "domains": [
+            "mangoxo.com"
+        ]
+    },
+    "motherless": {
+        "domains": [
+            "motherless.com"
+        ]
+    },
+    "myhentaigallery": {
+        "domains": [
+            "myhentaigallery.com"
+        ]
+    },
+    "myportfolio": {
+        "domains": [
+            "user.myportfolio.com"
+        ]
+    },
+    "naver-blog": {
+        "domains": [
+            "blog.naver.com"
+        ]
+    },
+    "naver-chzzk": {
+        "domains": [
+            "chzzk.naver.com"
+        ]
+    },
+    "naver-webtoon": {
+        "domains": [
+            "comic.naver.com"
+        ]
+    },
+    "nekohouse": {
+        "domains": [
+            "nekohouse.su"
+        ]
+    },
+    "newgrounds": {
+        "domains": [
+            "newgrounds.com",
+            "user.newgrounds.com"
+        ]
+    },
+    "nhentai": {
+        "domains": [
+            "nhentai.net"
+        ]
+    },
+    "nozomi": {
+        "domains": [
+            "nozomi.la"
+        ]
+    },
+    "nsfwalbum": {
+        "domains": [
+            "nsfwalbum.com"
+        ]
+    },
+    "nudostar": {
+        "domains": [
+            "nudostar.tv"
+        ]
+    },
+    "oauth": {
+        "domains": [
+            "oauth:mastodon:mastodon.social"
+        ]
+    },
+    "okporn": {
+        "domains": [
+            "ok.porn"
+        ]
+    },
+    "paheal": {
+        "domains": [
+            "rule34.paheal.net"
+        ]
+    },
+    "patreon": {
+        "domains": [
+            "patreon.com"
+        ]
+    },
+    "pexels": {
+        "domains": [
+            "pexels.com"
+        ]
+    },
+    "photovogue": {
+        "domains": [
+            "vogue.com"
+        ]
+    },
+    "picarto": {
+        "domains": [
+            "picarto.tv"
+        ]
+    },
+    "picazor": {
+        "domains": [
+            "picazor.com"
+        ]
+    },
+    "picstate": {
+        "domains": [
+            "picstate.com"
+        ]
+    },
+    "pictoa": {
+        "domains": [
+            "pictoa.com"
+        ]
+    },
+    "piczel": {
+        "domains": [
+            "piczel.tv"
+        ]
+    },
+    "pillowfort": {
+        "domains": [
+            "pillowfort.social"
+        ]
+    },
+    "pinterest": {
+        "domains": [
+            "pin.it",
+            "pinterest.com"
+        ]
+    },
+    "pixeldrain": {
+        "domains": [
+            "pixeldrain.com"
+        ]
+    },
+    "pixhost": {
+        "domains": [
+            "pixhost.to"
+        ]
+    },
+    "pixiv": {
+        "domains": [
+            "pixiv.me",
+            "pixiv.net",
+            "pixivision.net",
+            "sketch.pixiv.net"
+        ]
+    },
+    "pixiv-novel": {
+        "domains": [
+            "pixiv.net"
+        ]
+    },
+    "pixnet": {
+        "domains": [
+            "pixnet.net",
+            "user.pixnet.net"
+        ]
+    },
+    "plurk": {
+        "domains": [
+            "plurk.com"
+        ]
+    },
+    "poipiku": {
+        "domains": [
+            "poipiku.com"
+        ]
+    },
+    "poringa": {
+        "domains": [
+            "poringa.net"
+        ]
+    },
+    "pornhub": {
+        "domains": [
+            "pornhub.com"
+        ]
+    },
+    "pornpics": {
+        "domains": [
+            "pornpics.com"
+        ]
+    },
+    "pornstarstube": {
+        "domains": [
+            "pornstars.tube"
+        ]
+    },
+    "postimg": {
+        "domains": [
+            "postimg.cc"
+        ]
+    },
+    "rawkuma": {
+        "domains": [
+            "rawkuma.net"
+        ]
+    },
+    "readcomiconline": {
+        "domains": [
+            "readcomiconline.li"
+        ]
+    },
+    "realbooru": {
+        "domains": [
+            "realbooru.com"
+        ]
+    },
+    "reddit": {
+        "domains": [
+            "i.redd.it",
+            "reddit.com"
+        ]
+    },
+    "redgifs": {
+        "domains": [
+            "redgifs.com"
+        ]
+    },
+    "rule34us": {
+        "domains": [
+            "rule34.us"
+        ]
+    },
+    "rule34vault": {
+        "domains": [
+            "rule34vault.com"
+        ]
+    },
+    "rule34xyz": {
+        "domains": [
+            "rule34.xyz"
+        ]
+    },
+    "s3ndpics": {
+        "domains": [
+            "s3nd.pics"
+        ]
+    },
+    "sankaku": {
+        "domains": [
+            "sankaku.app"
+        ]
+    },
+    "sankakucomplex": {
+        "domains": [
+            "news.sankakucomplex.com"
+        ]
+    },
+    "schalenetwork": {
+        "domains": [
+            "niyaniya.moe"
+        ]
+    },
+    "scrolller": {
+        "domains": [
+            "scrolller.com"
+        ]
+    },
+    "seiga": {
+        "domains": [
+            "seiga.nicovideo.jp"
+        ]
+    },
+    "senmanga": {
+        "domains": [
+            "raw.senmanga.com"
+        ]
+    },
+    "sexcom": {
+        "domains": [
+            "sex.com"
+        ]
+    },
+    "silverpic": {
+        "domains": [
+            "silverpic.net"
+        ]
+    },
+    "simplyhentai": {
+        "domains": [
+            "simply-hentai.com",
+            "videos.simply-hentai.com"
+        ]
+    },
+    "sizebooru": {
+        "domains": [
+            "sizebooru.com"
+        ]
+    },
+    "skeb": {
+        "domains": [
+            "skeb.jp"
+        ]
+    },
+    "slickpic": {
+        "domains": [
+            "user.slickpic.com"
+        ]
+    },
+    "slideshare": {
+        "domains": [
+            "slideshare.net"
+        ]
+    },
+    "smugmug": {
+        "domains": [
+            "user.smugmug.com"
+        ]
+    },
+    "soundgasm": {
+        "domains": [
+            "soundgasm.net"
+        ]
+    },
+    "speakerdeck": {
+        "domains": [
+            "speakerdeck.com"
+        ]
+    },
+    "steamgriddb": {
+        "domains": [
+            "steamgriddb.com"
+        ]
+    },
+    "subscribestar": {
+        "domains": [
+            "subscribestar.com"
+        ]
+    },
+    "sxypix": {
+        "domains": [
+            "sxypix.com"
+        ]
+    },
+    "tapas": {
+        "domains": [
+            "tapas.io"
+        ]
+    },
+    "tcbscans": {
+        "domains": [
+            "tcbscans.me"
+        ]
+    },
+    "telegraph": {
+        "domains": [
+            "telegra.ph"
+        ]
+    },
+    "tenor": {
+        "domains": [
+            "tenor.com"
+        ]
+    },
+    "thefap": {
+        "domains": [
+            "thefap.net"
+        ]
+    },
+    "thehentaiworld": {
+        "domains": [
+            "thehentaiworld.com"
+        ]
+    },
+    "tiktok": {
+        "domains": [
+            "tiktok.com",
+            "vm.tiktok.com"
+        ]
+    },
+    "tmohentai": {
+        "domains": [
+            "tmohentai.com"
+        ]
+    },
+    "toyhouse": {
+        "domains": [
+            "toyhou.se"
+        ]
+    },
+    "tsumino": {
+        "domains": [
+            "tsumino.com"
+        ]
+    },
+    "tumblr": {
+        "domains": [
+            "tumblr.com"
+        ]
+    },
+    "tumblrgallery": {
+        "domains": [
+            "tumblrgallery.xyz"
+        ]
+    },
+    "tungsten": {
+        "domains": [
+            "tungsten.run"
+        ]
+    },
+    "turbo": {
+        "domains": [
+            "turbo.cr"
+        ]
+    },
+    "turboimagehost": {
+        "domains": [
+            "turboimagehost.com"
+        ]
+    },
+    "twibooru": {
+        "domains": [
+            "twibooru.org"
+        ]
+    },
+    "twitter": {
+        "domains": [
+            "pbs.twimg.com",
+            "x.com"
+        ]
+    },
+    "unsplash": {
+        "domains": [
+            "unsplash.com"
+        ]
+    },
+    "uploadir": {
+        "domains": [
+            "uploadir.com"
+        ]
+    },
+    "urlgalleries": {
+        "domains": [
+            "urlgalleries.net"
+        ]
+    },
+    "vanillarock": {
+        "domains": [
+            "vanilla-rock.com"
+        ]
+    },
+    "vipergirls": {
+        "domains": [
+            "vipergirls.to"
+        ]
+    },
+    "vipr": {
+        "domains": [
+            "vipr.im"
+        ]
+    },
+    "vk": {
+        "domains": [
+            "vk.com"
+        ]
+    },
+    "vsco": {
+        "domains": [
+            "vsco.co"
+        ]
+    },
+    "wallhaven": {
+        "domains": [
+            "wallhaven.cc"
+        ]
+    },
+    "wallpapercave": {
+        "domains": [
+            "wallpapercave.com"
+        ]
+    },
+    "warosu": {
+        "domains": [
+            "warosu.org"
+        ]
+    },
+    "weasyl": {
+        "domains": [
+            "weasyl.com"
+        ]
+    },
+    "webmshare": {
+        "domains": [
+            "webmshare.com"
+        ]
+    },
+    "webtoons": {
+        "domains": [
+            "webtoons.com"
+        ]
+    },
+    "weebcentral": {
+        "domains": [
+            "weebcentral.com"
+        ]
+    },
+    "weebdex": {
+        "domains": [
+            "weebdex.org"
+        ]
+    },
+    "weibo": {
+        "domains": [
+            "weibo.com"
+        ]
+    },
+    "whyp": {
+        "domains": [
+            "whyp.it"
+        ]
+    },
+    "wikiart": {
+        "domains": [
+            "wikiart.org"
+        ]
+    },
+    "wikifeet": {
+        "domains": [
+            "wikifeet.com"
+        ]
+    },
+    "xasiat": {
+        "domains": [
+            "xasiat.com"
+        ]
+    },
+    "xfolio": {
+        "domains": [
+            "xfolio.jp"
+        ]
+    },
+    "xhamster": {
+        "domains": [
+            "xhamster.com"
+        ]
+    },
+    "xvideos": {
+        "domains": [
+            "xvideos.com"
+        ]
+    },
+    "yiffverse": {
+        "domains": [
+            "yiffverse.com"
+        ]
+    },
+    "yourlesbians": {
+        "domains": [
+            "yourlesbians.com"
+        ]
+    },
+    "zerochan": {
+        "domains": [
+            "zerochan.net"
+        ]
+    }
+}

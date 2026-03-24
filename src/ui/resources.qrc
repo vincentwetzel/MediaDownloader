@@ -1,0 +1,9 @@
+<RCC>
+    <qresource prefix="/">
+        <file alias="app-icon">../resources/icon.ico</file>
+    </qresource>
+    <qresource prefix="/ui">
+        <file>assets/discord.png</file>
+    </qresource>
+    <!-- Force re-compilation -->
+</RCC>

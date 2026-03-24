@@ -1,0 +1,21 @@
+{
+  "youtube": {
+    "domains": [
+      "youtube.com",
+      "www.youtube.com",
+      "m.youtube.com",
+      "music.youtube.com",
+      "youtu.be"
+    ]
+  },
+  "vimeo": {
+    "domains": [
+      "vimeo.com"
+    ]
+  },
+  "soundcloud": {
+    "domains": [
+      "soundcloud.com"
+    ]
+  }
+}

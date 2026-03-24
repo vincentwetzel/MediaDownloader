@@ -1,0 +1,42 @@
+#ifndef SORTINGRULEDIALOG_H
+#define SORTINGRULEDIALOG_H
+
+#include <QDialog>
+#include <QComboBox>
+#include <QLineEdit>
+#include <QListWidget>
+#include <QVariantMap>
+#include <QPushButton>
+
+class SortingRuleDialog : public QDialog
+{
+    Q_OBJECT
+
+public:
+    explicit SortingRuleDialog(QWidget *parent = nullptr);
+    explicit SortingRuleDialog(const QVariantMap &rule, QWidget *parent = nullptr);
+
+    QVariantMap getRule() const;
+
+private slots:
+    void browseTargetFolder();
+    void addCondition(const QVariantMap &condition = {});
+    void insertToken(const QString &token);
+    void accept() override;
+
+private:
+    void setupUI();
+    void setRule(const QVariantMap &rule);
+    bool validateSubfolderPattern(const QString &pattern, QString &error) const;
+
+    QLineEdit *m_ruleNameInput;
+    QLineEdit *m_targetFolderInput;
+    QPushButton *m_browseButton;
+    QLineEdit *m_subfolderPatternInput;
+    QComboBox *m_tokenDropdown;
+    QComboBox *m_appliesToDropdown;
+    QListWidget *m_conditionsList;
+    QPushButton *m_addConditionButton;
+};
+
+#endif // SORTINGRULEDIALOG_H

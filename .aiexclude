@@ -1,0 +1,14 @@
+# Build outputs
+/build/
+/cmake-build-debug/
+*.pdb
+
+# IDE-specific files
+/.idea/
+/.vscode/
+
+# Dependencies
+/bin/
+
+# Other
+*.bak

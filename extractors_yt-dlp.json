@@ -1,0 +1,8185 @@
+{
+    "10play": {
+        "domains": [
+            "10.com.au",
+            "10play.com.au"
+        ]
+    },
+    "17live": {
+        "domains": [
+            "17.live"
+        ]
+    },
+    "1news": {
+        "domains": [
+            "1news.co.nz",
+            "onenews.co.nz"
+        ]
+    },
+    "1tv": {
+        "domains": [
+            "1tv.ru",
+            "sport1tv.ru"
+        ]
+    },
+    "20min": {
+        "domains": [
+            "20min.ch"
+        ]
+    },
+    "23video": {
+        "domains": [
+            "bonnier-publications-danmark.23video.com",
+            "video.twentythree.net"
+        ]
+    },
+    "247sports": {
+        "domains": [
+            "247sports.com"
+        ]
+    },
+    "24tv.ua": {
+        "domains": [
+            "24tv.ua"
+        ]
+    },
+    "3qsdn": {
+        "domains": [
+            "playout.3qsdn.com"
+        ]
+    },
+    "3sat": {
+        "domains": [
+            "3sat.de"
+        ]
+    },
+    "4tube": {
+        "domains": [
+            "4tube.com",
+            "m.4tube.com"
+        ]
+    },
+    "56.com": {
+        "domains": [
+            "56.com"
+        ]
+    },
+    "7plus": {
+        "domains": [
+            "7plus.com.au"
+        ]
+    },
+    "8tracks": {
+        "domains": [
+            "8tracks.com"
+        ]
+    },
+    "9gag": {
+        "domains": [
+            "9gag.com"
+        ]
+    },
+    "9news": {
+        "domains": [
+            "9news.com.au"
+        ]
+    },
+    "9now.com.au": {
+        "domains": [
+            "9now.com.au"
+        ]
+    },
+    "abc.net.au": {
+        "domains": [
+            "abc.net.au",
+            "iview.abc.net.au"
+        ]
+    },
+    "abcnews": {
+        "domains": [
+            "abcnews.go.com"
+        ]
+    },
+    "abcotvs": {
+        "domains": [
+            "6abc.com",
+            "abc7news.com",
+            "clips.abcotvs.com"
+        ]
+    },
+    "abematv": {
+        "domains": [
+            "abema.tv"
+        ]
+    },
+    "abematvtitle": {
+        "domains": [
+            "abema.tv"
+        ]
+    },
+    "academicearth": {
+        "domains": [
+            "academicearth.org"
+        ]
+    },
+    "acast": {
+        "domains": [
+            "acast.com",
+            "embed.acast.com",
+            "play.acast.com",
+            "shows.acast.com"
+        ]
+    },
+    "acfunbangumi": {
+        "domains": [
+            "acfun.cn"
+        ]
+    },
+    "acfunvideo": {
+        "domains": [
+            "acfun.cn"
+        ]
+    },
+    "adn": {
+        "domains": [
+            "animationdigitalnetwork.com"
+        ]
+    },
+    "adnseason": {
+        "domains": [
+            "animationdigitalnetwork.com"
+        ]
+    },
+    "adobetv": {
+        "domains": [
+            "video.tv.adobe.com"
+        ]
+    },
+    "adultswim": {
+        "domains": [
+            "adultswim.com"
+        ]
+    },
+    "aenetworks": {
+        "domains": [
+            "aetv.com",
+            "fyi.tv",
+            "history.com",
+            "historyvault.com",
+            "mylifetime.com",
+            "play.aetv.com",
+            "play.mylifetime.com",
+            "watch.historyvault.com",
+            "watch.lifetimemovieclub.com"
+        ]
+    },
+    "aeonco": {
+        "domains": [
+            "aeon.co"
+        ]
+    },
+    "agalega": {
+        "domains": [
+            "agalega.gal"
+        ]
+    },
+    "airtv": {
+        "domains": [
+            "air.tv"
+        ]
+    },
+    "aitubekzvideo": {
+        "domains": [
+            "aitube.kz"
+        ]
+    },
+    "alibaba": {
+        "domains": [
+            "alibaba.com"
+        ]
+    },
+    "aliexpresslive": {
+        "domains": [
+            "live.aliexpress.com"
+        ]
+    },
+    "aljazeera": {
+        "domains": [
+            "balkans.aljazeera.net"
+        ]
+    },
+    "allocine": {
+        "domains": [
+            "allocine.fr"
+        ]
+    },
+    "allstar": {
+        "domains": [
+            "allstar.gg"
+        ]
+    },
+    "allstarprofile": {
+        "domains": [
+            "allstar.gg"
+        ]
+    },
+    "alphaporno": {
+        "domains": [
+            "alphaporno.com"
+        ]
+    },
+    "alsace20tv": {
+        "domains": [
+            "alsace20.tv"
+        ]
+    },
+    "alsace20tvembed": {
+        "domains": [
+            "alsace20.tv"
+        ]
+    },
+    "altcensored": {
+        "domains": [
+            "altcensored.com"
+        ]
+    },
+    "alura": {
+        "domains": [
+            "cursos.alura.com.br"
+        ]
+    },
+    "aluracourse": {
+        "domains": [
+            "cursos.alura.com.br"
+        ]
+    },
+    "amadeustv": {
+        "domains": [
+            "amadeus.tv"
+        ]
+    },
+    "amara": {
+        "domains": [
+            "amara.org"
+        ]
+    },
+    "amazonminitv": {
+        "domains": [
+            "amazon.in"
+        ]
+    },
+    "amazonreviews": {
+        "domains": [
+            "amazon.com",
+            "amazon.in"
+        ]
+    },
+    "amazonstore": {
+        "domains": [
+            "amazon.co.uk",
+            "amazon.com",
+            "amazon.es",
+            "amazon.in"
+        ]
+    },
+    "amcnetworks": {
+        "domains": [
+            "amc.com",
+            "bbcamerica.com",
+            "ifc.com",
+            "sundancetv.com",
+            "wetv.com"
+        ]
+    },
+    "americastestkitchen": {
+        "domains": [
+            "americastestkitchen.com",
+            "cookscountry.com",
+            "cooksillustrated.com"
+        ]
+    },
+    "americastestkitchenseason": {
+        "domains": [
+            "americastestkitchen.com",
+            "cookscountry.com",
+            "cooksillustrated.com"
+        ]
+    },
+    "amhistorychannel": {
+        "domains": [
+            "ahctv.com"
+        ]
+    },
+    "anchorfmepisode": {
+        "domains": [
+            "anchor.fm"
+        ]
+    },
+    "anderetijden": {
+        "domains": [
+            "anderetijden.nl"
+        ]
+    },
+    "angel": {
+        "domains": [
+            "angel.com"
+        ]
+    },
+    "animalplanet": {
+        "domains": [
+            "animalplanet.com"
+        ]
+    },
+    "ant1newsgr": {
+        "domains": [
+            "ant1news.gr",
+            "antenna.gr"
+        ]
+    },
+    "antenna": {
+        "domains": [
+            "ant1news.gr",
+            "antenna.gr"
+        ]
+    },
+    "aol.com": {
+        "domains": [
+            "aol.ca",
+            "aol.co.uk",
+            "aol.com",
+            "aol.de",
+            "aol.jp"
+        ]
+    },
+    "apa": {
+        "domains": [
+            "uvp-apapublisher.sf.apa.at",
+            "uvp-kleinezeitung.sf.apa.at",
+            "uvp-rma.sf.apa.at",
+            "uvp.apa.at"
+        ]
+    },
+    "aparat": {
+        "domains": [
+            "aparat.com"
+        ]
+    },
+    "apple": {
+        "domains": [
+            "music.apple.com"
+        ]
+    },
+    "applepodcasts": {
+        "domains": [
+            "podcasts.apple.com"
+        ]
+    },
+    "appletrailers": {
+        "domains": [
+            "movietrailers.apple.com",
+            "trailers.apple.com"
+        ]
+    },
+    "archive.org": {
+        "domains": [
+            "archive.org"
+        ]
+    },
+    "ard": {
+        "domains": [
+            "daserste.de"
+        ]
+    },
+    "ardaudiothek": {
+        "domains": [
+            "ardaudiothek.de"
+        ]
+    },
+    "ardaudiothekplaylist": {
+        "domains": [
+            "ardaudiothek.de"
+        ]
+    },
+    "ardmediathek": {
+        "domains": [
+            "ardmediathek.de",
+            "beta.ardmediathek.de"
+        ]
+    },
+    "ardmediathekcollection": {
+        "domains": [
+            "ardmediathek.de"
+        ]
+    },
+    "art19": {
+        "domains": [
+            "art19.com",
+            "rss.art19.com"
+        ]
+    },
+    "art19show": {
+        "domains": [
+            "art19.com",
+            "rss.art19.com"
+        ]
+    },
+    "arte.sky.it": {
+        "domains": [
+            "arte.sky.it"
+        ]
+    },
+    "artetv": {
+        "domains": [
+            "api.arte.tv",
+            "arte.tv"
+        ]
+    },
+    "artetvcategory": {
+        "domains": [
+            "arte.tv"
+        ]
+    },
+    "artetvembed": {
+        "domains": [
+            "arte.tv"
+        ]
+    },
+    "artetvplaylist": {
+        "domains": [
+            "arte.tv"
+        ]
+    },
+    "asobichannel": {
+        "domains": [
+            "asobichannel.asobistore.jp"
+        ]
+    },
+    "asobistage": {
+        "domains": [
+            "asobistage.asobistore.jp"
+        ]
+    },
+    "atresplayer": {
+        "domains": [
+            "atresplayer.com"
+        ]
+    },
+    "atscaleconfevent": {
+        "domains": [
+            "atscaleconference.com"
+        ]
+    },
+    "atvat": {
+        "domains": [
+            "atv.at"
+        ]
+    },
+    "audimedia": {
+        "domains": [
+            "audi-mediacenter.com"
+        ]
+    },
+    "audioboom": {
+        "domains": [
+            "audioboom.com"
+        ]
+    },
+    "audiodraft": {
+        "domains": [
+            "audiodraft.com",
+            "nokiatune.audiodraft.com",
+            "timferriss.audiodraft.com",
+            "vikinggrace.audiodraft.com"
+        ]
+    },
+    "audiomack": {
+        "domains": [
+            "audiomack.com"
+        ]
+    },
+    "audius": {
+        "domains": [
+            "audius.co"
+        ]
+    },
+    "awaan": {
+        "domains": [
+            "awaan.ae",
+            "dcndigital.ae"
+        ]
+    },
+    "axs.tv": {
+        "domains": [
+            "axs.tv"
+        ]
+    },
+    "azmedien": {
+        "domains": [
+            "telebaern.tv",
+            "tv.telezueri.ch"
+        ]
+    },
+    "baiduvideo": {
+        "domains": [
+            "v.baidu.com"
+        ]
+    },
+    "banbye": {
+        "domains": [
+            "banbye.com"
+        ]
+    },
+    "banbyechannel": {
+        "domains": [
+            "banbye.com"
+        ]
+    },
+    "bandcamp": {
+        "domains": [
+            "adrianvonziegler.bandcamp.com",
+            "bandcamp.com",
+            "benprunty.bandcamp.com",
+            "blazo.bandcamp.com",
+            "coldworldofficial.bandcamp.com",
+            "diskotopia.bandcamp.com",
+            "dotscale.bandcamp.com",
+            "insulters.bandcamp.com",
+            "jstrecords.bandcamp.com",
+            "nightbringer.bandcamp.com",
+            "nightcallofficial.bandcamp.com",
+            "nuclearwarnowproductions.bandcamp.com",
+            "relapsealumni.bandcamp.com",
+            "steviasphere.bandcamp.com",
+            "youtube-dl.bandcamp.com"
+        ]
+    },
+    "bandlab": {
+        "domains": [
+            "bandlab.com"
+        ]
+    },
+    "bandlabplaylist": {
+        "domains": [
+            "bandlab.com"
+        ]
+    },
+    "bannedvideo": {
+        "domains": [
+            "banned.video"
+        ]
+    },
+    "bbc": {
+        "domains": [
+            "bbc.co.uk",
+            "bbc.com",
+            "bbcnewsd73hkzno2ini43t4gblxvycyac5aw4gnv7t2rccijh7745uqd.onion",
+            "bbcweb3hytmzhn5d532owbu6oqadra5z3ar726vq5kgwwn6aucdccrad.onion"
+        ]
+    },
+    "bbc.co.uk": {
+        "domains": [
+            "bbc.co.uk"
+        ]
+    },
+    "bbvtv": {
+        "domains": [
+            "bbv-tv.net"
+        ]
+    },
+    "bbvtvlive": {
+        "domains": [
+            "bbv-tv.net"
+        ]
+    },
+    "bbvtvrecordings": {
+        "domains": [
+            "bbv-tv.net"
+        ]
+    },
+    "beacontv": {
+        "domains": [
+            "beacon.tv"
+        ]
+    },
+    "beatbumpplaylist": {
+        "domains": [
+            "beatbump.io",
+            "beatbump.ml"
+        ]
+    },
+    "beatbumpvideo": {
+        "domains": [
+            "beatbump.io",
+            "beatbump.ml"
+        ]
+    },
+    "beatport": {
+        "domains": [
+            "beatport.com"
+        ]
+    },
+    "beeg": {
+        "domains": [
+            "beeg.com"
+        ]
+    },
+    "behindkink": {
+        "domains": [
+            "behindkink.com"
+        ]
+    },
+    "berufetv": {
+        "domains": [
+            "web.arbeitsagentur.de"
+        ]
+    },
+    "bet": {
+        "domains": [
+            "bet.com"
+        ]
+    },
+    "bfi": {
+        "domains": [
+            "player.bfi.org.uk"
+        ]
+    },
+    "bfmtv": {
+        "domains": [
+            "bfmtv.com",
+            "rmc.bfmtv.com"
+        ]
+    },
+    "bibeltv": {
+        "domains": [
+            "bibeltv.de"
+        ]
+    },
+    "bigflix": {
+        "domains": [
+            "bigflix.com"
+        ]
+    },
+    "bigo": {
+        "domains": [
+            "bigo.tv"
+        ]
+    },
+    "bild": {
+        "domains": [
+            "bild.de"
+        ]
+    },
+    "bilibili": {
+        "domains": [
+            "bilibili.com"
+        ]
+    },
+    "bilibili category extractor": {
+        "domains": [
+            "bilibili.com"
+        ]
+    },
+    "bilibiliaudio": {
+        "domains": [
+            "bilibili.com"
+        ]
+    },
+    "bilibiliaudioalbum": {
+        "domains": [
+            "bilibili.com"
+        ]
+    },
+    "bilibilibangumi": {
+        "domains": [
+            "bilibili.com"
+        ]
+    },
+    "bilibilibangumimedia": {
+        "domains": [
+            "bilibili.com"
+        ]
+    },
+    "bilibilibangumiseason": {
+        "domains": [
+            "bilibili.com"
+        ]
+    },
+    "bilibilicheese": {
+        "domains": [
+            "bilibili.com"
+        ]
+    },
+    "bilibilicheeseseason": {
+        "domains": [
+            "bilibili.com"
+        ]
+    },
+    "bilibilicollectionlist": {
+        "domains": [
+            "space.bilibili.com"
+        ]
+    },
+    "bilibilidynamic": {
+        "domains": [
+            "t.bilibili.com"
+        ]
+    },
+    "bilibilifavoriteslist": {
+        "domains": [
+            "bilibili.com",
+            "space.bilibili.com"
+        ]
+    },
+    "bilibiliplayer": {
+        "domains": [
+            "player.bilibili.com"
+        ]
+    },
+    "bilibiliplaylist": {
+        "domains": [
+            "bilibili.com"
+        ]
+    },
+    "bilibiliserieslist": {
+        "domains": [
+            "space.bilibili.com"
+        ]
+    },
+    "bilibilispaceaudio": {
+        "domains": [
+            "space.bilibili.com"
+        ]
+    },
+    "bilibilispacevideo": {
+        "domains": [
+            "space.bilibili.com"
+        ]
+    },
+    "bilibiliwatchlater": {
+        "domains": [
+            "bilibili.com"
+        ]
+    },
+    "biliintl": {
+        "domains": [
+            "bilibili.tv",
+            "biliintl.com"
+        ]
+    },
+    "bililive": {
+        "domains": [
+            "live.bilibili.com"
+        ]
+    },
+    "biobiochiletv": {
+        "domains": [
+            "biobiochile.cl",
+            "tv.biobiochile.cl"
+        ]
+    },
+    "biography": {
+        "domains": [
+            "biography.com"
+        ]
+    },
+    "bitchute": {
+        "domains": [
+            "bitchute.com",
+            "old.bitchute.com"
+        ]
+    },
+    "bitchutechannel": {
+        "domains": [
+            "bitchute.com",
+            "old.bitchute.com"
+        ]
+    },
+    "bitmovin": {
+        "domains": [
+            "streams.bitmovin.com"
+        ]
+    },
+    "blackboardcollaborate": {
+        "domains": [
+            "au.bbcollab.com",
+            "ca.bbcollab.com",
+            "eu.bbcollab.com",
+            "us-lti.bbcollab.com",
+            "us.bbcollab.com"
+        ]
+    },
+    "blackboardcollaboratelaunch": {
+        "domains": [
+            "au.bbcollab.com",
+            "eu.bbcollab.com",
+            "us.bbcollab.com"
+        ]
+    },
+    "bleacherreport": {
+        "domains": [
+            "bleacherreport.com"
+        ]
+    },
+    "bleacherreportcms": {
+        "domains": [
+            "bleacherreport.com"
+        ]
+    },
+    "blerp": {
+        "domains": [
+            "blerp.com"
+        ]
+    },
+    "blogger.com": {
+        "domains": [
+            "blogger.com"
+        ]
+    },
+    "bloomberg": {
+        "domains": [
+            "bloomberg.com"
+        ]
+    },
+    "bluesky": {
+        "domains": [
+            "bsky.app",
+            "main.bsky.dev"
+        ]
+    },
+    "bokecc": {
+        "domains": [
+            "union.bokecc.com"
+        ]
+    },
+    "bongacams": {
+        "domains": [
+            "cn.bongacams.com",
+            "de.bongacams.com",
+            "de.bongacams.net"
+        ]
+    },
+    "boosty": {
+        "domains": [
+            "boosty.to"
+        ]
+    },
+    "bostonglobe": {
+        "domains": [
+            "bostonglobe.com"
+        ]
+    },
+    "box": {
+        "domains": [
+            "mlssoccer.app.box.com",
+            "thejacksonlaboratory.ent.box.com",
+            "utexas.app.box.com"
+        ]
+    },
+    "boxcastvideo": {
+        "domains": [
+            "boxcast.tv"
+        ]
+    },
+    "bpb": {
+        "domains": [
+            "bpb.de"
+        ]
+    },
+    "br": {
+        "domains": [
+            "br-klassik.de",
+            "br.de"
+        ]
+    },
+    "brainpop": {
+        "domains": [
+            "brainpop.com"
+        ]
+    },
+    "brainpopell": {
+        "domains": [
+            "ell.brainpop.com"
+        ]
+    },
+    "brainpopesp": {
+        "domains": [
+            "esp.brainpop.com"
+        ]
+    },
+    "brainpopfr": {
+        "domains": [
+            "fr.brainpop.com"
+        ]
+    },
+    "brainpopil": {
+        "domains": [
+            "il.brainpop.com"
+        ]
+    },
+    "brainpopjr": {
+        "domains": [
+            "jr.brainpop.com"
+        ]
+    },
+    "bravotv": {
+        "domains": [
+            "bravotv.com",
+            "oxygen.com"
+        ]
+    },
+    "breitbart": {
+        "domains": [
+            "breitbart.com"
+        ]
+    },
+    "brightcove": {
+        "domains": [
+            "c.brightcove.com",
+            "link.brightcove.com",
+            "players.brightcove.net"
+        ]
+    },
+    "brilliantpala": {
+        "domains": [
+            "classes.brilliantpala.org",
+            "elearn.brilliantpala.org"
+        ]
+    },
+    "bt": {
+        "domains": [
+            "bt.no"
+        ]
+    },
+    "btvplus": {
+        "domains": [
+            "btvplus.bg"
+        ]
+    },
+    "bundesliga": {
+        "domains": [
+            "bundesliga.com"
+        ]
+    },
+    "bundestag": {
+        "domains": [
+            "bundestag.de",
+            "dbtg.tv"
+        ]
+    },
+    "bunnycdn": {
+        "domains": [
+            "iframe.mediadelivery.net",
+            "player.mediadelivery.net"
+        ]
+    },
+    "businessinsider": {
+        "domains": [
+            "businessinsider.com",
+            "businessinsider.nl",
+            "uk.businessinsider.com"
+        ]
+    },
+    "buzzfeed": {
+        "domains": [
+            "buzzfeed.com"
+        ]
+    },
+    "byutv": {
+        "domains": [
+            "byutv.org"
+        ]
+    },
+    "caffeinetv": {
+        "domains": [
+            "caffeine.tv"
+        ]
+    },
+    "callin": {
+        "domains": [
+            "callin.com"
+        ]
+    },
+    "caltrans": {
+        "domains": [
+            "cwwp2.dot.ca.gov"
+        ]
+    },
+    "cam4": {
+        "domains": [
+            "cam4.com"
+        ]
+    },
+    "camdemy": {
+        "domains": [
+            "camdemy.com"
+        ]
+    },
+    "camdemyfolder": {
+        "domains": [
+            "camdemy.com"
+        ]
+    },
+    "camfmepisode": {
+        "domains": [
+            "camfm.co.uk"
+        ]
+    },
+    "camfmshow": {
+        "domains": [
+            "camfm.co.uk"
+        ]
+    },
+    "cammodels": {
+        "domains": [
+            "cammodels.com"
+        ]
+    },
+    "camsoda": {
+        "domains": [
+            "camsoda.com"
+        ]
+    },
+    "canal1": {
+        "domains": [
+            "canal1.com.co",
+            "noticias.canal1.com.co"
+        ]
+    },
+    "canalalpha": {
+        "domains": [
+            "canalalpha.ch"
+        ]
+    },
+    "canalc2.tv": {
+        "domains": [
+            "archives-canalc2.u-strasbg.fr",
+            "canalc2.tv"
+        ]
+    },
+    "canalplus": {
+        "domains": [
+            "mycanal.fr",
+            "piwiplus.fr"
+        ]
+    },
+    "canalsurmas": {
+        "domains": [
+            "canalsurmas.es"
+        ]
+    },
+    "caracoltvplay": {
+        "domains": [
+            "play.caracoltv.com"
+        ]
+    },
+    "cbc.ca": {
+        "domains": [
+            "cbc.ca"
+        ]
+    },
+    "cbs": {
+        "domains": [
+            "cbs.com",
+            "colbertlateshow.com"
+        ]
+    },
+    "cbslocal": {
+        "domains": [
+            "cbsnews.com"
+        ]
+    },
+    "cbslocalarticle": {
+        "domains": [
+            "cbsnews.com"
+        ]
+    },
+    "cbslocallive": {
+        "domains": [
+            "cbsnews.com"
+        ]
+    },
+    "cbsnews": {
+        "domains": [
+            "cbsnews.com"
+        ]
+    },
+    "cbssports": {
+        "domains": [
+            "cbssports.com",
+            "embed.247sports.com"
+        ]
+    },
+    "ccma": {
+        "domains": [
+            "3cat.cat"
+        ]
+    },
+    "cctv": {
+        "domains": [
+            "cctv.cntv.cn",
+            "english.cntv.cn",
+            "ent.cntv.cn",
+            "ncpa-classic.com",
+            "news.cctv.com",
+            "sports.cntv.cn",
+            "tv.cctv.com",
+            "tv.cntv.cn"
+        ]
+    },
+    "cda": {
+        "domains": [
+            "cda.pl",
+            "ebd.cda.pl",
+            "m.cda.pl"
+        ]
+    },
+    "cdafolder": {
+        "domains": [
+            "cda.pl",
+            "m.cda.pl"
+        ]
+    },
+    "cellebrite": {
+        "domains": [
+            "cellebrite.com"
+        ]
+    },
+    "ceskatelevize": {
+        "domains": [
+            "ceskatelevize.cz"
+        ]
+    },
+    "cgtn": {
+        "domains": [
+            "news.cgtn.com"
+        ]
+    },
+    "charlierose": {
+        "domains": [
+            "charlierose.com"
+        ]
+    },
+    "chaturbate": {
+        "domains": [
+            "chaturbate.com",
+            "chaturbate.eu",
+            "chaturbate.global",
+            "en.chaturbate.com"
+        ]
+    },
+    "chilloutzone": {
+        "domains": [
+            "chilloutzone.net"
+        ]
+    },
+    "chzzk": {
+        "domains": [
+            "chzzk.naver.com"
+        ]
+    },
+    "cielotv.it": {
+        "domains": [
+            "cielotv.it"
+        ]
+    },
+    "cinemax": {
+        "domains": [
+            "cinemax.com"
+        ]
+    },
+    "cinetecamilano": {
+        "domains": [
+            "cinetecamilano.it"
+        ]
+    },
+    "cineverse": {
+        "domains": [
+            "asiancrush.com",
+            "retrocrush.tv"
+        ]
+    },
+    "cineversedetails": {
+        "domains": [
+            "asiancrush.com",
+            "retrocrush.tv"
+        ]
+    },
+    "ciscolivesession": {
+        "domains": [
+            "ciscolive.cisco.com",
+            "ciscolive.com"
+        ]
+    },
+    "ciscowebex": {
+        "domains": [
+            "demosubdomain.webex.com",
+            "ldr.php",
+            "lsr.php"
+        ]
+    },
+    "cjsw": {
+        "domains": [
+            "cjsw.com"
+        ]
+    },
+    "clipchamp": {
+        "domains": [
+            "clipchamp.com"
+        ]
+    },
+    "clippit": {
+        "domains": [
+            "clippituser.tv"
+        ]
+    },
+    "cliprs": {
+        "domains": [
+            "clip.rs"
+        ]
+    },
+    "closertotruth": {
+        "domains": [
+            "closertotruth.com"
+        ]
+    },
+    "cloudflarestream": {
+        "domains": [
+            "cloudflarestream.com",
+            "customer-aw5py76sw8wyqzmh.cloudflarestream.com",
+            "embed.cloudflarestream.com",
+            "embed.videodelivery.net",
+            "watch.cloudflarestream.com"
+        ]
+    },
+    "cloudycdn": {
+        "domains": [
+            "embed.backscreen.com",
+            "embed.cloudycdn.services"
+        ]
+    },
+    "clubic": {
+        "domains": [
+            "clubic.com"
+        ]
+    },
+    "clyp": {
+        "domains": [
+            "clyp.it"
+        ]
+    },
+    "cnbcvideo": {
+        "domains": [
+            "cnbc.com"
+        ]
+    },
+    "cnn": {
+        "domains": [
+            "cnn.com",
+            "cnnespanol.cnn.com",
+            "edition.cnn.com"
+        ]
+    },
+    "cnnindonesia": {
+        "domains": [
+            "cnnindonesia.com"
+        ]
+    },
+    "comedycentral": {
+        "domains": [
+            "cc.com"
+        ]
+    },
+    "conanclassic": {
+        "domains": [
+            "conan25.teamcoco.com",
+            "conanclassic.com"
+        ]
+    },
+    "condenast": {
+        "domains": [
+            "player-backend.cnevids.com",
+            "player.cnevids.com",
+            "vanityfair.com",
+            "video.gq.com",
+            "video.wired.com"
+        ]
+    },
+    "contv": {
+        "domains": [
+            "contv.com"
+        ]
+    },
+    "cookingchannel": {
+        "domains": [
+            "watch.cookingchanneltv.com"
+        ]
+    },
+    "corus": {
+        "domains": [
+            "bigbrothercanada.ca",
+            "disneychannel.ca",
+            "etcanada.com",
+            "foodnetwork.ca",
+            "hgtv.ca",
+            "history.ca",
+            "seriesplus.com",
+            "showcase.ca"
+        ]
+    },
+    "coub": {
+        "domains": [
+            "c-cdn.coub.com",
+            "coub.com"
+        ]
+    },
+    "cozytv": {
+        "domains": [
+            "cozy.tv"
+        ]
+    },
+    "cp24": {
+        "domains": [
+            "cp24.com"
+        ]
+    },
+    "cpac": {
+        "domains": [
+            "cpac.ca"
+        ]
+    },
+    "cracked": {
+        "domains": [
+            "cracked.com"
+        ]
+    },
+    "craftsy": {
+        "domains": [
+            "craftsy.com"
+        ]
+    },
+    "croatian.film": {
+        "domains": [
+            "croatian.film"
+        ]
+    },
+    "crooksandliars": {
+        "domains": [
+            "embed.crooksandliars.com"
+        ]
+    },
+    "crowdbunker": {
+        "domains": [
+            "crowdbunker.com"
+        ]
+    },
+    "crowdbunkerchannel": {
+        "domains": [
+            "crowdbunker.com"
+        ]
+    },
+    "crtvg": {
+        "domains": [
+            "crtvg.es"
+        ]
+    },
+    "cspan": {
+        "domains": [
+            "c-span.org"
+        ]
+    },
+    "cspancongress": {
+        "domains": [
+            "c-span.org"
+        ]
+    },
+    "ctsnews": {
+        "domains": [
+            "news.cts.com.tw"
+        ]
+    },
+    "ctvnews": {
+        "domains": [
+            "barrie.ctvnews.ca",
+            "ctvnews.ca",
+            "ottawa.ctvnews.ca",
+            "stox.ctvnews.ca",
+            "vancouverisland.ctvnews.ca"
+        ]
+    },
+    "cu.ntv.co.jp": {
+        "domains": [
+            "cu.ntv.co.jp"
+        ]
+    },
+    "cultureunplugged": {
+        "domains": [
+            "cultureunplugged.com"
+        ]
+    },
+    "curiositystream": {
+        "domains": [
+            "app.curiositystream.com",
+            "curiositystream.com"
+        ]
+    },
+    "cybrary": {
+        "domains": [
+            "app.cybrary.it"
+        ]
+    },
+    "cybrarycourse": {
+        "domains": [
+            "app.cybrary.it"
+        ]
+    },
+    "dacastplaylist": {
+        "domains": [
+            "iframe.dacast.com"
+        ]
+    },
+    "dacastvod": {
+        "domains": [
+            "iframe.dacast.com"
+        ]
+    },
+    "dagelijksekost": {
+        "domains": [
+            "dagelijksekost.een.be"
+        ]
+    },
+    "dailymail": {
+        "domains": [
+            "dailymail.co.uk"
+        ]
+    },
+    "dailymotion": {
+        "domains": [
+            "dai.ly",
+            "dailymotion.com",
+            "geo.dailymotion.com",
+            "lequipe.fr"
+        ]
+    },
+    "dailywire": {
+        "domains": [
+            "dailywire.com"
+        ]
+    },
+    "dailywirepodcast": {
+        "domains": [
+            "dailywire.com"
+        ]
+    },
+    "damtomo": {
+        "domains": [
+            "clubdam.com"
+        ]
+    },
+    "dangalplay": {
+        "domains": [
+            "dangalplay.com"
+        ]
+    },
+    "daum.net": {
+        "domains": [
+            "m.tvpot.daum.net",
+            "tvpot.daum.net",
+            "videofarm.daum.net",
+            "view.do"
+        ]
+    },
+    "daystar": {
+        "domains": [
+            "player.daystar.tv"
+        ]
+    },
+    "dbtv": {
+        "domains": [
+            "dagbladet.no"
+        ]
+    },
+    "dctptv": {
+        "domains": [
+            "dctp.tv"
+        ]
+    },
+    "democracynow": {
+        "domains": [
+            "democracynow.org"
+        ]
+    },
+    "destinationamerica": {
+        "domains": [
+            "destinationamerica.com"
+        ]
+    },
+    "deuxm": {
+        "domains": [
+            "2m.ma"
+        ]
+    },
+    "deuxmnews": {
+        "domains": [
+            "2m.ma"
+        ]
+    },
+    "dhm": {
+        "domains": [
+            "dhm.de"
+        ]
+    },
+    "digitalconcerthall": {
+        "domains": [
+            "digitalconcerthall.com"
+        ]
+    },
+    "digitallyspeaking": {
+        "domains": [
+            "events.digitallyspeaking.com",
+            "evt.dispeak.com",
+            "sevt.dispeak.com"
+        ]
+    },
+    "digiteka": {
+        "domains": [
+            "ultimedia.com"
+        ]
+    },
+    "digiview": {
+        "domains": [
+            "ladigitale.dev"
+        ]
+    },
+    "discogsreleaseplaylist": {
+        "domains": [
+            "discogs.com"
+        ]
+    },
+    "discoverylife": {
+        "domains": [
+            "discoverylife.com"
+        ]
+    },
+    "discoverynetworksde": {
+        "domains": [
+            "dmax.de",
+            "tlc.de"
+        ]
+    },
+    "discoveryplus": {
+        "domains": [
+            "discoveryplus.com"
+        ]
+    },
+    "discoveryplusindia": {
+        "domains": [
+            "discoveryplus.in"
+        ]
+    },
+    "discoveryplusindiashow": {
+        "domains": [
+            "discoveryplus.in"
+        ]
+    },
+    "discoveryplusitaly": {
+        "domains": [
+            "discoveryplus.com"
+        ]
+    },
+    "discoveryplusitalyshow": {
+        "domains": [
+            "discoveryplus.it"
+        ]
+    },
+    "disney": {
+        "domains": [
+            "disneychannel.de",
+            "disneyjunior.disney.com",
+            "disneyjunior.en.disneyme.com",
+            "spiderman.marvelkids.com",
+            "starwars.com",
+            "video.disney.com",
+            "video.disneyturkiye.com.tr",
+            "video.en.disneyme.com",
+            "videos.disneylatino.com"
+        ]
+    },
+    "dlf": {
+        "domains": [
+            "deutschlandfunk.de"
+        ]
+    },
+    "dlive": {
+        "domains": [
+            "dlive.tv"
+        ]
+    },
+    "douyin": {
+        "domains": [
+            "douyin.com"
+        ]
+    },
+    "douyushow": {
+        "domains": [
+            "v.douyu.com",
+            "vmobile.douyu.com"
+        ]
+    },
+    "douyutv": {
+        "domains": [
+            "douyu.com",
+            "douyutv.com"
+        ]
+    },
+    "dplay": {
+        "domains": [
+            "discoveryplus.dk",
+            "discoveryplus.es",
+            "discoveryplus.fi",
+            "discoveryplus.it",
+            "discoveryplus.no",
+            "discoveryplus.se",
+            "dplay.dk",
+            "dplay.fi",
+            "dplay.jp",
+            "dplay.no",
+            "dplay.se",
+            "es.dplay.com",
+            "it.dplay.com"
+        ]
+    },
+    "drbonanza": {
+        "domains": [
+            "dr.dk"
+        ]
+    },
+    "drm": {
+        "domains": [
+            "6play.fr",
+            "aha.video",
+            "amazon.co.jp",
+            "artstation.com",
+            "b-ch.com",
+            "beta.crunchyroll.com",
+            "channel4.com",
+            "channel5.com",
+            "crackle.com",
+            "crunchyroll.com",
+            "ctv.ca",
+            "cwseed.com",
+            "cwtv.com",
+            "cwtvpr.com",
+            "deezer.com",
+            "disneyplus.com",
+            "front.njpwworld.com",
+            "hsesn.apps.disneyplus.com",
+            "hulu.com",
+            "joyn.de",
+            "m.sonycrackle.com",
+            "mech-plus.com",
+            "mediasetinfinity.es",
+            "mubi.com",
+            "music.amazon.co.jp",
+            "noovo.ca",
+            "nowtv.it",
+            "oneplus.ch",
+            "open.spotify.com",
+            "paramountplus.com",
+            "peacocktv.com",
+            "philo.com",
+            "play.rtl.hr",
+            "plus.rtl.de",
+            "primevideo.com",
+            "qub.ca",
+            "resource.inkryptvideos.com",
+            "rtlmost.hu",
+            "rtlplay.be",
+            "tsn.ca",
+            "tv.apple.com",
+            "tv.rakuten.co.jp",
+            "tv5mondeplus.com",
+            "tvnz.co.nz",
+            "video.unext.jp",
+            "viki.com",
+            "vootkids.com",
+            "watch.mech-plus.com",
+            "watch.njpwworld.com",
+            "watch.telusoriginals.com",
+            "web.nhk"
+        ]
+    },
+    "drooble": {
+        "domains": [
+            "drooble.com"
+        ]
+    },
+    "dropbox": {
+        "domains": [
+            "dropbox.com"
+        ]
+    },
+    "dropout": {
+        "domains": [
+            "watch.dropout.tv"
+        ]
+    },
+    "dropoutseason": {
+        "domains": [
+            "watch.dropout.tv"
+        ]
+    },
+    "drtalks": {
+        "domains": [
+            "drtalks.com"
+        ]
+    },
+    "drtuber": {
+        "domains": [
+            "drtuber.com",
+            "m.drtuber.com"
+        ]
+    },
+    "drtv": {
+        "domains": [
+            "dr-massive.com",
+            "dr.dk"
+        ]
+    },
+    "dtube": {
+        "domains": [
+            "d.tube"
+        ]
+    },
+    "duboku": {
+        "domains": [
+            "w.duboku.io"
+        ]
+    },
+    "dumpert": {
+        "domains": [
+            "dumpert.nl",
+            "legacy.dumpert.nl"
+        ]
+    },
+    "duoplay": {
+        "domains": [
+            "duoplay.ee"
+        ]
+    },
+    "dvtv": {
+        "domains": [
+            "video.aktualne.cz"
+        ]
+    },
+    "dw": {
+        "domains": [
+            "dw.com"
+        ]
+    },
+    "dzen.ru": {
+        "domains": [
+            "dzen.ru",
+            "zen.yandex.ru"
+        ]
+    },
+    "ebaumsworld": {
+        "domains": [
+            "ebaumsworld.com"
+        ]
+    },
+    "ebay": {
+        "domains": [
+            "ebay.com"
+        ]
+    },
+    "egghead": {
+        "domains": [
+            "app.egghead.io",
+            "egghead.io"
+        ]
+    },
+    "eggs": {
+        "domains": [
+            "eggs.mu"
+        ]
+    },
+    "einsundeinstv": {
+        "domains": [
+            "1und1.tv"
+        ]
+    },
+    "einsundeinstvlive": {
+        "domains": [
+            "1und1.tv"
+        ]
+    },
+    "einsundeinstvrecordings": {
+        "domains": [
+            "1und1.tv"
+        ]
+    },
+    "eitb.tv": {
+        "domains": [
+            "eitb.tv"
+        ]
+    },
+    "elonet": {
+        "domains": [
+            "elonet.finna.fi"
+        ]
+    },
+    "elpais": {
+        "domains": [
+            "blogs.elpais.com",
+            "elcomidista.elpais.com",
+            "elpais.com",
+            "epv.elpais.com"
+        ]
+    },
+    "eltrecetv": {
+        "domains": [
+            "eltrecetv.com.ar"
+        ]
+    },
+    "embedly": {
+        "domains": [
+            "cdn.embedly.com"
+        ]
+    },
+    "empflix": {
+        "domains": [
+            "empflix.com"
+        ]
+    },
+    "epicon": {
+        "domains": [
+            "epicon.in"
+        ]
+    },
+    "epiconseries": {
+        "domains": [
+            "epicon.in"
+        ]
+    },
+    "epidemicsound": {
+        "domains": [
+            "epidemicsound.com"
+        ]
+    },
+    "eplus": {
+        "domains": [
+            "live.eplus.jp"
+        ]
+    },
+    "epoch": {
+        "domains": [
+            "theepochtimes.com"
+        ]
+    },
+    "eporner": {
+        "domains": [
+            "eporner.com"
+        ]
+    },
+    "erocast": {
+        "domains": [
+            "erocast.me"
+        ]
+    },
+    "eroprofile": {
+        "domains": [
+            "eroprofile.com"
+        ]
+    },
+    "errarhiiv": {
+        "domains": [
+            "arhiiv.err.ee"
+        ]
+    },
+    "errjupiter": {
+        "domains": [
+            "jupiter.err.ee",
+            "jupiterpluss.err.ee",
+            "lasteekraan.err.ee"
+        ]
+    },
+    "ertflix": {
+        "domains": [
+            "ertflix.gr"
+        ]
+    },
+    "ertwebtv": {
+        "domains": [
+            "ert.gr"
+        ]
+    },
+    "espn": {
+        "domains": [
+            "broadband.espn.go.com",
+            "cdn.espn.go.com",
+            "espn.com",
+            "espn.go.com",
+            "espnfc.com",
+            "espnfc.us",
+            "nonredline.sports.espn.go.com"
+        ]
+    },
+    "espnarticle": {
+        "domains": [
+            "espn.go.com"
+        ]
+    },
+    "espncricinfo": {
+        "domains": [
+            "espncricinfo.com"
+        ]
+    },
+    "ettutv": {
+        "domains": [
+            "ettu.tv"
+        ]
+    },
+    "europa": {
+        "domains": [
+            "ec.europa.eu"
+        ]
+    },
+    "europarlwebstream": {
+        "domains": [
+            "multimedia.europarl.europa.eu"
+        ]
+    },
+    "europeantour": {
+        "domains": [
+            "europeantour.com"
+        ]
+    },
+    "eurosport": {
+        "domains": [
+            "eurosport.com",
+            "eurosport.com.tr",
+            "eurosport.de",
+            "eurosport.dk",
+            "eurosport.es",
+            "eurosport.fr",
+            "eurosport.hu",
+            "eurosport.it",
+            "eurosport.nl",
+            "eurosport.no",
+            "eurosport.ro",
+            "eurosport.tvn24.pl"
+        ]
+    },
+    "euscreen": {
+        "domains": [
+            "euscreen.eu",
+            "item.html"
+        ]
+    },
+    "ewetv": {
+        "domains": [
+            "tvonline.ewe.de"
+        ]
+    },
+    "ewetvlive": {
+        "domains": [
+            "tvonline.ewe.de"
+        ]
+    },
+    "ewetvrecordings": {
+        "domains": [
+            "tvonline.ewe.de"
+        ]
+    },
+    "expressen": {
+        "domains": [
+            "di.se",
+            "expressen.se"
+        ]
+    },
+    "eyedotv": {
+        "domains": [
+            "eyedo.tv"
+        ]
+    },
+    "facebook": {
+        "domains": [
+            "es-la.facebook.com",
+            "facebook.com",
+            "facebookwkhpilnemxj7asaniu7vnjjbiltxjqhye3mhbshg7kx5tfyd.onion",
+            "m.facebook.com",
+            "zh-hk.facebook.com"
+        ]
+    },
+    "facebookpluginsvideo": {
+        "domains": [
+            "facebook.com"
+        ]
+    },
+    "facebookredirecturl": {
+        "domains": [
+            "facebook.com"
+        ]
+    },
+    "fancode": {
+        "domains": [
+            "fancode.com"
+        ]
+    },
+    "fathom": {
+        "domains": [
+            "fathom.video"
+        ]
+    },
+    "faulio": {
+        "domains": [
+            "aloula.sba.sa",
+            "bahry.com",
+            "maraya.sba.net.ae",
+            "sat7plus.org"
+        ]
+    },
+    "fauliolive": {
+        "domains": [
+            "aloula.sba.sa",
+            "bahry.com",
+            "maraya.sba.net.ae",
+            "sat7plus.org"
+        ]
+    },
+    "faz.net": {
+        "domains": [
+            "faz.net"
+        ]
+    },
+    "fc2": {
+        "domains": [
+            "live.fc2.com",
+            "video.fc2.com"
+        ]
+    },
+    "fczenit": {
+        "domains": [
+            "fc-zenit.ru"
+        ]
+    },
+    "fifa": {
+        "domains": [
+            "fifa.com"
+        ]
+    },
+    "filmarchiv": {
+        "domains": [
+            "filmarchiv.at"
+        ]
+    },
+    "filmon": {
+        "domains": [
+            "filmon.com"
+        ]
+    },
+    "filmweb": {
+        "domains": [
+            "filmweb.no"
+        ]
+    },
+    "fivethirtyeight": {
+        "domains": [
+            "fivethirtyeight.com"
+        ]
+    },
+    "fivetv": {
+        "domains": [
+            "5-tv.ru"
+        ]
+    },
+    "flickr": {
+        "domains": [
+            "flickr.com"
+        ]
+    },
+    "floatplane": {
+        "domains": [
+            "beta.floatplane.com",
+            "floatplane.com"
+        ]
+    },
+    "floatplanechannel": {
+        "domains": [
+            "beta.floatplane.com",
+            "floatplane.com"
+        ]
+    },
+    "folketinget": {
+        "domains": [
+            "ft.dk"
+        ]
+    },
+    "foodnetwork": {
+        "domains": [
+            "watch.foodnetwork.com"
+        ]
+    },
+    "footyroom": {
+        "domains": [
+            "footyroom.com"
+        ]
+    },
+    "formula1": {
+        "domains": [
+            "formula1.com"
+        ]
+    },
+    "fox": {
+        "domains": [
+            "fox.com",
+            "foxsports.com"
+        ]
+    },
+    "fox9news": {
+        "domains": [
+            "fox9.com"
+        ]
+    },
+    "foxnews": {
+        "domains": [
+            "foxnews.com",
+            "insider.foxnews.com",
+            "video.foxbusiness.com",
+            "video.foxnews.com",
+            "video.insider.foxnews.com"
+        ]
+    },
+    "foxnewsvideo": {
+        "domains": [
+            "foxnews.com"
+        ]
+    },
+    "foxsports": {
+        "domains": [
+            "foxsports.com"
+        ]
+    },
+    "fptplay": {
+        "domains": [
+            "fptplay.vn"
+        ]
+    },
+    "francaisfacile": {
+        "domains": [
+            "francaisfacile.rfi.fr"
+        ]
+    },
+    "franceculture": {
+        "domains": [
+            "radiofrance.fr"
+        ]
+    },
+    "franceinfo": {
+        "domains": [
+            "france3-regions.francetvinfo.fr",
+            "franceinfo.fr",
+            "francetvinfo.fr",
+            "info.fr"
+        ]
+    },
+    "franceinter": {
+        "domains": [
+            "franceinter.fr"
+        ]
+    },
+    "francetv": {
+        "domains": [
+            "france.tv",
+            "mobile.france.tv"
+        ]
+    },
+    "freesound": {
+        "domains": [
+            "freesound.org"
+        ]
+    },
+    "freespeech.org": {
+        "domains": [
+            "freespeech.org"
+        ]
+    },
+    "freetv": {
+        "domains": [
+            "freetv.com"
+        ]
+    },
+    "freetvmovies": {
+        "domains": [
+            "freetv.com"
+        ]
+    },
+    "frontendmasters": {
+        "domains": [
+            "api.frontendmasters.com"
+        ]
+    },
+    "frontendmasterscourse": {
+        "domains": [
+            "frontendmasters.com"
+        ]
+    },
+    "frontendmasterslesson": {
+        "domains": [
+            "frontendmasters.com"
+        ]
+    },
+    "fujitvfodplus7": {
+        "domains": [
+            "fod.fujitv.co.jp"
+        ]
+    },
+    "funk": {
+        "domains": [
+            "funk.net",
+            "play.funk.net"
+        ]
+    },
+    "funker530": {
+        "domains": [
+            "funker530.com"
+        ]
+    },
+    "fux": {
+        "domains": [
+            "fux.com"
+        ]
+    },
+    "fuyintv": {
+        "domains": [
+            "fuyin.tv"
+        ]
+    },
+    "gab": {
+        "domains": [
+            "gab.com"
+        ]
+    },
+    "gabtv": {
+        "domains": [
+            "tv.gab.com"
+        ]
+    },
+    "gaia": {
+        "domains": [
+            "gaia.com"
+        ]
+    },
+    "gamedevtvdashboard": {
+        "domains": [
+            "gamedev.tv"
+        ]
+    },
+    "gamejolt": {
+        "domains": [
+            "gamejolt.com"
+        ]
+    },
+    "gamejoltcommunity": {
+        "domains": [
+            "gamejolt.com"
+        ]
+    },
+    "gamejoltgame": {
+        "domains": [
+            "gamejolt.com"
+        ]
+    },
+    "gamejoltgamesoundtrack": {
+        "domains": [
+            "gamejolt.com"
+        ]
+    },
+    "gamejoltuser": {
+        "domains": [
+            "gamejolt.com"
+        ]
+    },
+    "gamespot": {
+        "domains": [
+            "gamespot.com"
+        ]
+    },
+    "gamestar": {
+        "domains": [
+            "gamepro.de",
+            "gamestar.de"
+        ]
+    },
+    "gaskrank": {
+        "domains": [
+            "gaskrank.tv"
+        ]
+    },
+    "gazeta": {
+        "domains": [
+            "gazeta.ru"
+        ]
+    },
+    "gbnews": {
+        "domains": [
+            "gbnews.com",
+            "gbnews.uk"
+        ]
+    },
+    "gdcvault": {
+        "domains": [
+            "gdcvault.com"
+        ]
+    },
+    "gedidigital": {
+        "domains": [
+            "video.corrierealpi.gelocal.it",
+            "video.espresso.repubblica.it",
+            "video.gazzettadimantova.gelocal.it",
+            "video.gazzettadimodena.gelocal.it",
+            "video.huffingtonpost.it",
+            "video.ilpiccolo.gelocal.it",
+            "video.ilsecoloxix.it",
+            "video.iltirreno.gelocal.it",
+            "video.lanuovaferrara.gelocal.it",
+            "video.laprovinciapavese.gelocal.it",
+            "video.lasentinella.gelocal.it",
+            "video.lastampa.it",
+            "video.mattinopadova.gelocal.it",
+            "video.messaggeroveneto.gelocal.it",
+            "video.nuovavenezia.gelocal.it",
+            "video.repubblica.it",
+            "video.tribunatreviso.gelocal.it"
+        ]
+    },
+    "gem.cbc.ca": {
+        "domains": [
+            "gem.cbc.ca"
+        ]
+    },
+    "genius": {
+        "domains": [
+            "genius.com"
+        ]
+    },
+    "geniuslyrics": {
+        "domains": [
+            "genius.com"
+        ]
+    },
+    "germanupa": {
+        "domains": [
+            "germanupa.de"
+        ]
+    },
+    "getcourseru": {
+        "domains": [
+            "academymel.getcourse.ru",
+            "academymel.online",
+            "gaismasmandalas.getcourse.io",
+            "manibeauty.getcourse.ru"
+        ]
+    },
+    "getcourseruplayer": {
+        "domains": [
+            "cf-api-2.vhcdn.com",
+            "player02.getcourse.ru"
+        ]
+    },
+    "gettr": {
+        "domains": [
+            "gettr.com"
+        ]
+    },
+    "gettrstreaming": {
+        "domains": [
+            "gettr.com"
+        ]
+    },
+    "giantbomb": {
+        "domains": [
+            "giantbomb.com"
+        ]
+    },
+    "glattvisiontv": {
+        "domains": [
+            "iptv.glattvision.ch"
+        ]
+    },
+    "glattvisiontvlive": {
+        "domains": [
+            "iptv.glattvision.ch"
+        ]
+    },
+    "glattvisiontvrecordings": {
+        "domains": [
+            "iptv.glattvision.ch"
+        ]
+    },
+    "glide": {
+        "domains": [
+            "share.glide.me"
+        ]
+    },
+    "globalplayeraudio": {
+        "domains": [
+            "globalplayer.com"
+        ]
+    },
+    "globalplayeraudioepisode": {
+        "domains": [
+            "globalplayer.com"
+        ]
+    },
+    "globalplayerlive": {
+        "domains": [
+            "globalplayer.com"
+        ]
+    },
+    "globalplayerliveplaylist": {
+        "domains": [
+            "globalplayer.com"
+        ]
+    },
+    "globalplayervideo": {
+        "domains": [
+            "globalplayer.com"
+        ]
+    },
+    "globo": {
+        "domains": [
+            "globoplay.globo.com"
+        ]
+    },
+    "globoarticle": {
+        "domains": [
+            "g1.globo.com",
+            "ge.globo.com",
+            "gq.globo.com",
+            "gshow.globo.com",
+            "oglobo.globo.com",
+            "redeglobo.globo.com"
+        ]
+    },
+    "glomex": {
+        "domains": [
+            "player.glomex.com",
+            "video.glomex.com"
+        ]
+    },
+    "gmanetworkvideo": {
+        "domains": [
+            "gmanetwork.com"
+        ]
+    },
+    "go": {
+        "domains": [
+            "abc.com",
+            "disneynow.com",
+            "freeform.com",
+            "fxnow.fxnetworks.com",
+            "nationalgeographic.com"
+        ]
+    },
+    "godiscovery": {
+        "domains": [
+            "discovery.com",
+            "go.discovery.com"
+        ]
+    },
+    "godresource": {
+        "domains": [
+            "new.godresource.com"
+        ]
+    },
+    "godtube": {
+        "domains": [
+            "godtube.com"
+        ]
+    },
+    "gofile": {
+        "domains": [
+            "gofile.io"
+        ]
+    },
+    "golem": {
+        "domains": [
+            "video.golem.de"
+        ]
+    },
+    "goodgame": {
+        "domains": [
+            "goodgame.ru"
+        ]
+    },
+    "google": {
+        "domains": [
+            "podcasts.google.com"
+        ]
+    },
+    "googledrive": {
+        "domains": [
+            "drive.google.com",
+            "drive.usercontent.google.com"
+        ]
+    },
+    "gopro": {
+        "domains": [
+            "gopro.com"
+        ]
+    },
+    "goshgay": {
+        "domains": [
+            "goshgay.com"
+        ]
+    },
+    "gotostage": {
+        "domains": [
+            "gotostage.com"
+        ]
+    },
+    "gputechconf": {
+        "domains": [
+            "on-demand.gputechconf.com"
+        ]
+    },
+    "graspop": {
+        "domains": [
+            "vod.graspop.be"
+        ]
+    },
+    "gronkh": {
+        "domains": [
+            "gronkh.tv"
+        ]
+    },
+    "groupon": {
+        "domains": [
+            "groupon.com"
+        ]
+    },
+    "harpodeon": {
+        "domains": [
+            "harpodeon.com"
+        ]
+    },
+    "hbo": {
+        "domains": [
+            "hbo.com"
+        ]
+    },
+    "hearthisat": {
+        "domains": [
+            "hearthis.at"
+        ]
+    },
+    "heise": {
+        "domains": [
+            "heise.de"
+        ]
+    },
+    "hellporno": {
+        "domains": [
+            "hellporno.com",
+            "hellporno.net"
+        ]
+    },
+    "hetklokhuis": {
+        "domains": [
+            "hetklokhuis.nl"
+        ]
+    },
+    "hgtv.com": {
+        "domains": [
+            "hgtv.com"
+        ]
+    },
+    "hgtvde": {
+        "domains": [
+            "de.hgtv.com"
+        ]
+    },
+    "hgtvusa": {
+        "domains": [
+            "watch.hgtv.com"
+        ]
+    },
+    "hidive": {
+        "domains": [
+            "hidive.com"
+        ]
+    },
+    "historicfilms": {
+        "domains": [
+            "historicfilms.com"
+        ]
+    },
+    "history": {
+        "domains": [
+            "history.com"
+        ]
+    },
+    "hitrecord": {
+        "domains": [
+            "hitrecord.org"
+        ]
+    },
+    "hketv": {
+        "domains": [
+            "hkedcity.net"
+        ]
+    },
+    "hollywoodreporter": {
+        "domains": [
+            "hollywoodreporter.com"
+        ]
+    },
+    "hollywoodreporterplaylist": {
+        "domains": [
+            "hollywoodreporter.com"
+        ]
+    },
+    "holodex": {
+        "domains": [
+            "holodex.net",
+            "staging.holodex.net"
+        ]
+    },
+    "hotnewhiphop": {
+        "domains": [
+            "hotnewhiphop.com"
+        ]
+    },
+    "hotstar": {
+        "domains": [
+            "hotstar.com"
+        ]
+    },
+    "href.li": {
+        "domains": [
+            "href.li"
+        ]
+    },
+    "hrfernsehen": {
+        "domains": [
+            "hessenschau.de",
+            "hr-fernsehen.de"
+        ]
+    },
+    "hrti": {
+        "domains": [
+            "hrti.hrt.hr"
+        ]
+    },
+    "hrtiplaylist": {
+        "domains": [
+            "hrti.hrt.hr"
+        ]
+    },
+    "hseproduct": {
+        "domains": [
+            "hse.de"
+        ]
+    },
+    "hseshow": {
+        "domains": [
+            "hse.de"
+        ]
+    },
+    "huajiao": {
+        "domains": [
+            "huajiao.com"
+        ]
+    },
+    "huffpost": {
+        "domains": [
+            "live.huffingtonpost.com"
+        ]
+    },
+    "hungama": {
+        "domains": [
+            "hungama.com",
+            "un.hungama.com"
+        ]
+    },
+    "hungamaalbumplaylist": {
+        "domains": [
+            "hungama.com",
+            "un.hungama.com"
+        ]
+    },
+    "hungamasong": {
+        "domains": [
+            "hungama.com",
+            "un.hungama.com"
+        ]
+    },
+    "huya": {
+        "domains": [
+            "huya.com"
+        ]
+    },
+    "hypem": {
+        "domains": [
+            "hypem.com"
+        ]
+    },
+    "hytale": {
+        "domains": [
+            "hytale.com"
+        ]
+    },
+    "icareus": {
+        "domains": [
+            "asahitv.fi",
+            "helsinkikanava.fi",
+            "hyvinvointitv.fi",
+            "inez.fi",
+            "permanto.fi",
+            "suite.icareus.com",
+            "videos.minifiddlers.org"
+        ]
+    },
+    "idagioalbum": {
+        "domains": [
+            "app.idagio.com"
+        ]
+    },
+    "idagiopersonalplaylist": {
+        "domains": [
+            "app.idagio.com"
+        ]
+    },
+    "idagioplaylist": {
+        "domains": [
+            "app.idagio.com"
+        ]
+    },
+    "idagiorecording": {
+        "domains": [
+            "app.idagio.com"
+        ]
+    },
+    "idagiotrack": {
+        "domains": [
+            "app.idagio.com"
+        ]
+    },
+    "idolplus": {
+        "domains": [
+            "idolplus.com"
+        ]
+    },
+    "iflix": {
+        "domains": [
+            "iflix.com"
+        ]
+    },
+    "iflixseries": {
+        "domains": [
+            "iflix.com"
+        ]
+    },
+    "ign.com": {
+        "domains": [
+            "ign.com",
+            "pcmag.com"
+        ]
+    },
+    "ignarticle": {
+        "domains": [
+            "ign.com",
+            "me.ign.com"
+        ]
+    },
+    "ignvideo": {
+        "domains": [
+            "adria.ign.com",
+            "kr.ign.com",
+            "me.ign.com"
+        ]
+    },
+    "iheartradio": {
+        "domains": [
+            "iheart.com",
+            "iheartpodcastnetwork.com"
+        ]
+    },
+    "ilpost": {
+        "domains": [
+            "ilpost.it"
+        ]
+    },
+    "iltalehti": {
+        "domains": [
+            "iltalehti.fi"
+        ]
+    },
+    "imdb": {
+        "domains": [
+            "imdb.com"
+        ]
+    },
+    "imgur": {
+        "domains": [
+            "i.imgur.com",
+            "imgur.com"
+        ]
+    },
+    "ina": {
+        "domains": [
+            "ina.fr",
+            "m.ina.fr"
+        ]
+    },
+    "inc": {
+        "domains": [
+            "inc.com"
+        ]
+    },
+    "indavideoembed": {
+        "domains": [
+            "embed.indavideo.hu",
+            "indavideo.hu"
+        ]
+    },
+    "infoq": {
+        "domains": [
+            "infoq.com"
+        ]
+    },
+    "instagram": {
+        "domains": [
+            "instagram.com"
+        ]
+    },
+    "internazionale": {
+        "domains": [
+            "internazionale.it"
+        ]
+    },
+    "internetvideoarchive": {
+        "domains": [
+            "video.internetvideoarchive.net"
+        ]
+    },
+    "investigationdiscovery": {
+        "domains": [
+            "investigationdiscovery.com"
+        ]
+    },
+    "iprima": {
+        "domains": [
+            "cool.iprima.cz",
+            "iprima.cz",
+            "krimi.iprima.cz",
+            "love.iprima.cz",
+            "play.iprima.cz",
+            "prima.iprima.cz",
+            "zoom.iprima.cz"
+        ]
+    },
+    "iprimacnn": {
+        "domains": [
+            "cnn.iprima.cz"
+        ]
+    },
+    "iq.com": {
+        "domains": [
+            "iq.com"
+        ]
+    },
+    "iqiyi": {
+        "domains": [
+            "iqiyi.com",
+            "pps.tv",
+            "yule.iqiyi.com"
+        ]
+    },
+    "islamchannel": {
+        "domains": [
+            "watch.islamchannel.tv"
+        ]
+    },
+    "islamchannelseries": {
+        "domains": [
+            "watch.islamchannel.tv"
+        ]
+    },
+    "israelnationalnews": {
+        "domains": [
+            "israelnationalnews.com"
+        ]
+    },
+    "itprotv": {
+        "domains": [
+            "app.itpro.tv"
+        ]
+    },
+    "itprotvcourse": {
+        "domains": [
+            "app.itpro.tv"
+        ]
+    },
+    "itv": {
+        "domains": [
+            "itv.com"
+        ]
+    },
+    "itvbtcc": {
+        "domains": [
+            "itv.com"
+        ]
+    },
+    "ivi": {
+        "domains": [
+            "ivi.ru",
+            "ivi.tv"
+        ]
+    },
+    "ivideon": {
+        "domains": [
+            "ivideon.com"
+        ]
+    },
+    "ivoox": {
+        "domains": [
+            "go.ivoox.com",
+            "ivoox.com"
+        ]
+    },
+    "iwara": {
+        "domains": [
+            "iwara.tv"
+        ]
+    },
+    "ixigua": {
+        "domains": [
+            "ixigua.com"
+        ]
+    },
+    "izlesene": {
+        "domains": [
+            "izlesene.com"
+        ]
+    },
+    "jamendo": {
+        "domains": [
+            "jamendo.com",
+            "licensing.jamendo.com"
+        ]
+    },
+    "jamendoalbum": {
+        "domains": [
+            "jamendo.com"
+        ]
+    },
+    "jeuxvideo": {
+        "domains": [
+            "jeuxvideo.com"
+        ]
+    },
+    "jiosaavn": {
+        "domains": [
+            "jiosaavn.com",
+            "saavn.com"
+        ]
+    },
+    "joj": {
+        "domains": [
+            "media.joj.sk"
+        ]
+    },
+    "jove": {
+        "domains": [
+            "jove.com"
+        ]
+    },
+    "jtbc": {
+        "domains": [
+            "tv.jtbc.co.kr",
+            "vod.jtbc.co.kr"
+        ]
+    },
+    "jwplatform": {
+        "domains": [
+            "cdn.jwplayer.com",
+            "content.jwplatform.com"
+        ]
+    },
+    "kakao": {
+        "domains": [
+            "tv.kakao.com"
+        ]
+    },
+    "kaltura": {
+        "domains": [
+            "cdnapisec.kaltura.com",
+            "kaltura.com"
+        ]
+    },
+    "kankanews": {
+        "domains": [
+            "kankanews.com"
+        ]
+    },
+    "karaoketv": {
+        "domains": [
+            "karaoketv.co.il"
+        ]
+    },
+    "katsomo": {
+        "domains": [
+            "katsomo.fi",
+            "mtv.fi",
+            "mtvuutiset.fi"
+        ]
+    },
+    "kelbyone": {
+        "domains": [
+            "members.kelbyone.com"
+        ]
+    },
+    "kenh14playlist": {
+        "domains": [
+            "video.kenh14.vn"
+        ]
+    },
+    "kenh14video": {
+        "domains": [
+            "video.kenh14.vn"
+        ]
+    },
+    "khanacademy": {
+        "domains": [
+            "khanacademy.org"
+        ]
+    },
+    "kick": {
+        "domains": [
+            "kick.com"
+        ]
+    },
+    "kicker": {
+        "domains": [
+            "kicker.de"
+        ]
+    },
+    "kickstarter": {
+        "domains": [
+            "kickstarter.com"
+        ]
+    },
+    "kika": {
+        "domains": [
+            "kika.de"
+        ]
+    },
+    "kikaplaylist": {
+        "domains": [
+            "kika.de"
+        ]
+    },
+    "kinja": {
+        "domains": [
+            "kinja.com"
+        ]
+    },
+    "kinopoisk": {
+        "domains": [
+            "kinopoisk.ru"
+        ]
+    },
+    "kommunetv": {
+        "domains": [
+            "oslo.kommunetv.no"
+        ]
+    },
+    "kompasvideo": {
+        "domains": [
+            "video.kompas.com"
+        ]
+    },
+    "koo": {
+        "domains": [
+            "kooapp.com"
+        ]
+    },
+    "krasview": {
+        "domains": [
+            "krasview.ru"
+        ]
+    },
+    "kth": {
+        "domains": [
+            "play.kth.se"
+        ]
+    },
+    "ku6": {
+        "domains": [
+            "v.ku6.com"
+        ]
+    },
+    "kukululive": {
+        "domains": [
+            "live.erinn.biz"
+        ]
+    },
+    "kuwo": {
+        "domains": [
+            "kuwo.cn",
+            "yinyue.kuwo.cn"
+        ]
+    },
+    "la7.it": {
+        "domains": [
+            "la7.it"
+        ]
+    },
+    "laracasts": {
+        "domains": [
+            "laracasts.com"
+        ]
+    },
+    "lastfm": {
+        "domains": [
+            "last.fm"
+        ]
+    },
+    "lastfmplaylist": {
+        "domains": [
+            "last.fm"
+        ]
+    },
+    "lastfmuser": {
+        "domains": [
+            "last.fm"
+        ]
+    },
+    "laxarxames": {
+        "domains": [
+            "laxarxames.cat"
+        ]
+    },
+    "lbry": {
+        "domains": [
+            "lbry.tv",
+            "odysee.com"
+        ]
+    },
+    "lci": {
+        "domains": [
+            "lci.fr",
+            "tf1info.fr"
+        ]
+    },
+    "lcp": {
+        "domains": [
+            "lcp.fr"
+        ]
+    },
+    "lcpplay": {
+        "domains": [
+            "play.lcp.fr"
+        ]
+    },
+    "le": {
+        "domains": [
+            "le.com",
+            "lesports.com",
+            "sports.le.com"
+        ]
+    },
+    "learningonscreen": {
+        "domains": [
+            "learningonscreen.ac.uk"
+        ]
+    },
+    "lecture2go": {
+        "domains": [
+            "lecture2go.uni-hamburg.de"
+        ]
+    },
+    "lecturio": {
+        "domains": [
+            "app.lecturio.com",
+            "lecturio.de"
+        ]
+    },
+    "lecturiocourse": {
+        "domains": [
+            "app.lecturio.com"
+        ]
+    },
+    "lecturiodecourse": {
+        "domains": [
+            "lecturio.de"
+        ]
+    },
+    "lefigarovideoembed": {
+        "domains": [
+            "video.lefigaro.fr"
+        ]
+    },
+    "lefigarovideosection": {
+        "domains": [
+            "video.lefigaro.fr"
+        ]
+    },
+    "lego": {
+        "domains": [
+            "lego.com"
+        ]
+    },
+    "lemonde": {
+        "domains": [
+            "lemonde.fr",
+            "redaction.actu.lemonde.fr"
+        ]
+    },
+    "lenta": {
+        "domains": [
+            "lenta.ru"
+        ]
+    },
+    "leplaylist": {
+        "domains": [
+            "le.com",
+            "list.le.com",
+            "tv.le.com"
+        ]
+    },
+    "letvcloud": {
+        "domains": [
+            "bcloud.html",
+            "yuntv.letv.com"
+        ]
+    },
+    "libsyn": {
+        "domains": [
+            "html5-player.libsyn.com"
+        ]
+    },
+    "life": {
+        "domains": [
+            "embed.life.ru",
+            "life.ru"
+        ]
+    },
+    "likee": {
+        "domains": [
+            "likee.video"
+        ]
+    },
+    "linkedin": {
+        "domains": [
+            "linkedin.com"
+        ]
+    },
+    "liputan6": {
+        "domains": [
+            "liputan6.com"
+        ]
+    },
+    "listennotes": {
+        "domains": [
+            "listennotes.com"
+        ]
+    },
+    "litv": {
+        "domains": [
+            "litv.tv"
+        ]
+    },
+    "livejournal": {
+        "domains": [
+            "andrei-bt.livejournal.com"
+        ]
+    },
+    "livestream": {
+        "domains": [
+            "livestream.com",
+            "new.livestream.com",
+            "original.livestream.com"
+        ]
+    },
+    "livestreamfails": {
+        "domains": [
+            "livestreamfails.com"
+        ]
+    },
+    "lnk": {
+        "domains": [
+            "lnk.lt"
+        ]
+    },
+    "loc": {
+        "domains": [
+            "loc.gov"
+        ]
+    },
+    "locipo": {
+        "domains": [
+            "locipo.jp"
+        ]
+    },
+    "locipoplaylist": {
+        "domains": [
+            "locipo.jp"
+        ]
+    },
+    "loco": {
+        "domains": [
+            "loco.com"
+        ]
+    },
+    "loom": {
+        "domains": [
+            "loom.com"
+        ]
+    },
+    "lovehomeporn": {
+        "domains": [
+            "lovehomeporn.com"
+        ]
+    },
+    "lrtradio": {
+        "domains": [
+            "lrt.lt"
+        ]
+    },
+    "lrtstream": {
+        "domains": [
+            "lrt.lt"
+        ]
+    },
+    "lrtvod": {
+        "domains": [
+            "archyvai.lrt.lt",
+            "lrt.lt"
+        ]
+    },
+    "lsmlrembed": {
+        "domains": [
+            "klasika.lsm.lv",
+            "latvijasradio.lsm.lv",
+            "lr1.lsm.lv",
+            "lr2.lsm.lv",
+            "lr4.lsm.lv",
+            "naba.lsm.lv",
+            "pieci.lv",
+            "radioteatris.lsm.lv"
+        ]
+    },
+    "lsmltvembed": {
+        "domains": [
+            "ltv.lsm.lv"
+        ]
+    },
+    "lsmreplay": {
+        "domains": [
+            "replay.lsm.lv"
+        ]
+    },
+    "lumni": {
+        "domains": [
+            "lumni.fr"
+        ]
+    },
+    "lynda": {
+        "domains": [
+            "educourse.ga",
+            "lynda.com"
+        ]
+    },
+    "maariv.co.il": {
+        "domains": [
+            "player.maariv.co.il"
+        ]
+    },
+    "magellantv": {
+        "domains": [
+            "magellantv.com"
+        ]
+    },
+    "magentamusik": {
+        "domains": [
+            "magentamusik.de"
+        ]
+    },
+    "mailru": {
+        "domains": [
+            "m.my.mail.ru",
+            "my.mail.ru",
+            "videoapi.my.mail.ru"
+        ]
+    },
+    "mainstreaming": {
+        "domains": [
+            "859c1818ed614cc5b0047439470927b0.msvdn.net",
+            "f5842579ff984c1c98d63b8d789673eb.msvdn.net",
+            "webtools-859c1818ed614cc5b0047439470927b0.msvdn.net",
+            "webtools-e18da6642b684f8aa9ae449862783a56.msvdn.net",
+            "webtools-f5842579ff984c1c98d63b8d789673eb.msvdn.net",
+            "webtools.msvdn.net"
+        ]
+    },
+    "mangotv": {
+        "domains": [
+            "mgtv.com",
+            "w.mgtv.com"
+        ]
+    },
+    "manyvids": {
+        "domains": [
+            "manyvids.com"
+        ]
+    },
+    "maoritv": {
+        "domains": [
+            "maoritelevision.com"
+        ]
+    },
+    "markiza": {
+        "domains": [
+            "videoarchiv.markiza.sk"
+        ]
+    },
+    "markizapage": {
+        "domains": [
+            "dajto.markiza.sk",
+            "doma.markiza.sk",
+            "hybsa.markiza.sk",
+            "markiza.sk",
+            "superstar.markiza.sk",
+            "tvnoviny.sk"
+        ]
+    },
+    "massengeschmack.tv": {
+        "domains": [
+            "massengeschmack.tv"
+        ]
+    },
+    "masters": {
+        "domains": [
+            "masters.com"
+        ]
+    },
+    "matchitv": {
+        "domains": [
+            "matchi.tv"
+        ]
+    },
+    "matchtv": {
+        "domains": [
+            "matchtv.ru",
+            "video.matchtv.ru"
+        ]
+    },
+    "mave": {
+        "domains": [
+            "budem.mave.digital",
+            "geekcity.mave.digital",
+            "ochenlichnoe.mave.digital"
+        ]
+    },
+    "mbn": {
+        "domains": [
+            "mbn.co.kr"
+        ]
+    },
+    "mdr": {
+        "domains": [
+            "mdr.de"
+        ]
+    },
+    "medaltv": {
+        "domains": [
+            "medal.tv"
+        ]
+    },
+    "media.ccc.de": {
+        "domains": [
+            "media.ccc.de"
+        ]
+    },
+    "mediaite": {
+        "domains": [
+            "mediaite.com"
+        ]
+    },
+    "mediaklikk": {
+        "domains": [
+            "hirado.hu",
+            "m4sport.hu",
+            "mediaklikk.hu"
+        ]
+    },
+    "medialaan": {
+        "domains": [
+            "7sur7.be",
+            "bndestem.nl",
+            "embed.mychannels.video",
+            "gelderlander.nl",
+            "mychannels.video"
+        ]
+    },
+    "mediaset": {
+        "domains": [
+            "mediasetinfinity.mediaset.it",
+            "mediasetplay.mediaset.it",
+            "static3.mediasetplay.mediaset.it"
+        ]
+    },
+    "mediasetshow": {
+        "domains": [
+            "mediasetinfinity.mediaset.it"
+        ]
+    },
+    "mediasite": {
+        "domains": [
+            "collegerama.tudelft.nl",
+            "digitalops.sandia.gov",
+            "hitsmediaweb.h-its.org",
+            "mediasite.ntnu.no",
+            "mediasite.uib.no"
+        ]
+    },
+    "mediasitecatalog": {
+        "domains": [
+            "events7.mediasite.com",
+            "live.libraries.psu.edu",
+            "medaudio.medicine.iu.edu",
+            "uipsyc.mediasite.com"
+        ]
+    },
+    "mediasitenamedcatalog": {
+        "domains": [
+            "msite.misis.ru"
+        ]
+    },
+    "mediastream": {
+        "domains": [
+            "mdstrm.com"
+        ]
+    },
+    "mediaworksnzvod": {
+        "domains": [
+            "vodupload-api.mediaworks.nz"
+        ]
+    },
+    "medici": {
+        "domains": [
+            "edu.medici.tv",
+            "medici.tv"
+        ]
+    },
+    "megaphone.fm": {
+        "domains": [
+            "player.megaphone.fm"
+        ]
+    },
+    "megatvcom": {
+        "domains": [
+            "megatv.com"
+        ]
+    },
+    "meipai": {
+        "domains": [
+            "meipai.com"
+        ]
+    },
+    "melonvod": {
+        "domains": [
+            "vod.melon.com"
+        ]
+    },
+    "metacritic": {
+        "domains": [
+            "metacritic.com"
+        ]
+    },
+    "mewatch": {
+        "domains": [
+            "live.mewatch.sg",
+            "mewatch.sg"
+        ]
+    },
+    "microsoftbuild": {
+        "domains": [
+            "build.microsoft.com"
+        ]
+    },
+    "microsoftembed": {
+        "domains": [
+            "microsoft.com"
+        ]
+    },
+    "microsoftlearnepisode": {
+        "domains": [
+            "learn.microsoft.com"
+        ]
+    },
+    "microsoftlearnplaylist": {
+        "domains": [
+            "learn.microsoft.com"
+        ]
+    },
+    "microsoftlearnsession": {
+        "domains": [
+            "learn.microsoft.com"
+        ]
+    },
+    "microsoftmedius": {
+        "domains": [
+            "medius.microsoft.com"
+        ]
+    },
+    "microsoftstream": {
+        "domains": [
+            "msit.microsoftstream.com",
+            "web.microsoftstream.com"
+        ]
+    },
+    "minds": {
+        "domains": [
+            "minds.com"
+        ]
+    },
+    "mir24.tv": {
+        "domains": [
+            "mir24.tv"
+        ]
+    },
+    "mirrativ": {
+        "domains": [
+            "mirrativ.com"
+        ]
+    },
+    "mirrorcouk": {
+        "domains": [
+            "mirror.co.uk"
+        ]
+    },
+    "mixch": {
+        "domains": [
+            "mixch.tv"
+        ]
+    },
+    "mixcloud": {
+        "domains": [
+            "beta.mixcloud.com",
+            "mixcloud.com"
+        ]
+    },
+    "mixlr": {
+        "domains": [
+            "brcountdown.mixlr.com",
+            "suncity-104-9fm.mixlr.com"
+        ]
+    },
+    "mixlrrecoring": {
+        "domains": [
+            "biblewayng.mixlr.com"
+        ]
+    },
+    "mlb": {
+        "domains": [
+            "m.mlb.com",
+            "mlb.com",
+            "mlb.mlb.com"
+        ]
+    },
+    "mlbarticle": {
+        "domains": [
+            "mlb.com"
+        ]
+    },
+    "mlbtv": {
+        "domains": [
+            "mlb.com"
+        ]
+    },
+    "mlbvideo": {
+        "domains": [
+            "mlb.com"
+        ]
+    },
+    "mlssoccer": {
+        "domains": [
+            "atlutd.com",
+            "austinfc.com",
+            "cfmontreal.com",
+            "chicagofirefc.com",
+            "coloradorapids.com",
+            "columbuscrew.com",
+            "dcunited.com",
+            "fccincinnati.com",
+            "fcdallas.com",
+            "houstondynamofc.com",
+            "intermiamicf.com",
+            "lafc.com",
+            "lagalaxy.com",
+            "mlssoccer.com",
+            "nashvillesc.com",
+            "newyorkredbulls.com",
+            "nycfc.com",
+            "orlandocitysc.com",
+            "philadelphiaunion.com",
+            "revolutionsoccer.net",
+            "rsl.com",
+            "sjearthquakes.com",
+            "soundersfc.com",
+            "sportingkc.com",
+            "timbers.com",
+            "torontofc.ca",
+            "whitecapsfc.com"
+        ]
+    },
+    "mms": {
+        "domains": [
+            "kentro.kaist.ac.kr"
+        ]
+    },
+    "mnettv": {
+        "domains": [
+            "tvplus.m-net.de"
+        ]
+    },
+    "mnettvlive": {
+        "domains": [
+            "tvplus.m-net.de"
+        ]
+    },
+    "mnettvrecordings": {
+        "domains": [
+            "tvplus.m-net.de"
+        ]
+    },
+    "mochavideo": {
+        "domains": [
+            "video.mocha.com.vn"
+        ]
+    },
+    "mojevideo": {
+        "domains": [
+            "mojevideo.sk"
+        ]
+    },
+    "mojvideo": {
+        "domains": [
+            "mojvideo.com"
+        ]
+    },
+    "monstercat": {
+        "domains": [
+            "monstercat.com"
+        ]
+    },
+    "monstersiren": {
+        "domains": [
+            "monster-siren.hypergryph.com"
+        ]
+    },
+    "motherless": {
+        "domains": [
+            "motherless.com"
+        ]
+    },
+    "motherlessgallery": {
+        "domains": [
+            "motherless.com"
+        ]
+    },
+    "motherlessgroup": {
+        "domains": [
+            "motherless.com"
+        ]
+    },
+    "motherlessuploader": {
+        "domains": [
+            "motherless.com"
+        ]
+    },
+    "motorsport": {
+        "domains": [
+            "motorsport.com"
+        ]
+    },
+    "moviefap": {
+        "domains": [
+            "moviefap.com"
+        ]
+    },
+    "moviepilot": {
+        "domains": [
+            "moviepilot.de"
+        ]
+    },
+    "moviewplay": {
+        "domains": [
+            "moview.id"
+        ]
+    },
+    "moviezine": {
+        "domains": [
+            "moviezine.se"
+        ]
+    },
+    "movingimage": {
+        "domains": [
+            "movingimage.nls.uk"
+        ]
+    },
+    "msn": {
+        "domains": [
+            "msn.com"
+        ]
+    },
+    "mtg": {
+        "domains": [
+            "play.tv3.lt",
+            "tv3play.ee",
+            "tv3play.tv3.ee",
+            "tvplay.lv",
+            "tvplay.skaties.lv"
+        ]
+    },
+    "mtv": {
+        "domains": [
+            "mtv.com"
+        ]
+    },
+    "mtvuutisetarticle": {
+        "domains": [
+            "mtvuutiset.fi"
+        ]
+    },
+    "muenchentv": {
+        "domains": [
+            "muenchen.tv"
+        ]
+    },
+    "mujrozhlas": {
+        "domains": [
+            "mujrozhlas.cz"
+        ]
+    },
+    "murrtube": {
+        "domains": [
+            "murrtube.net"
+        ]
+    },
+    "murrtubeuser": {
+        "domains": [
+            "murrtube.net"
+        ]
+    },
+    "museai": {
+        "domains": [
+            "muse.ai"
+        ]
+    },
+    "musescore": {
+        "domains": [
+            "musescore.com"
+        ]
+    },
+    "musicdexalbum": {
+        "domains": [
+            "musicdex.org"
+        ]
+    },
+    "musicdexartist": {
+        "domains": [
+            "musicdex.org"
+        ]
+    },
+    "musicdexplaylist": {
+        "domains": [
+            "musicdex.org"
+        ]
+    },
+    "musicdexsong": {
+        "domains": [
+            "musicdex.org"
+        ]
+    },
+    "mux": {
+        "domains": [
+            "player.mux.com",
+            "stream.new"
+        ]
+    },
+    "mx3": {
+        "domains": [
+            "mx3.ch"
+        ]
+    },
+    "mx3neo": {
+        "domains": [
+            "neo.mx3.ch"
+        ]
+    },
+    "mx3volksmusik": {
+        "domains": [
+            "volksmusik.mx3.ch"
+        ]
+    },
+    "mxplayer": {
+        "domains": [
+            "mxplayer.in"
+        ]
+    },
+    "mxplayershow": {
+        "domains": [
+            "mxplayer.in"
+        ]
+    },
+    "myspace": {
+        "domains": [
+            "myspace.com"
+        ]
+    },
+    "myspass": {
+        "domains": [
+            "myspass.de"
+        ]
+    },
+    "myvideoge": {
+        "domains": [
+            "myvideo.ge"
+        ]
+    },
+    "myvidster": {
+        "domains": [
+            "myvidster.com"
+        ]
+    },
+    "mzaalo": {
+        "domains": [
+            "mzaalo.com"
+        ]
+    },
+    "n-tv.de": {
+        "domains": [
+            "n-tv.de"
+        ]
+    },
+    "n1info": {
+        "domains": [
+            "hr.n1info.com",
+            "n1info.rs",
+            "n1info.si",
+            "nova.rs",
+            "sportklub.n1info.rs"
+        ]
+    },
+    "n1infoasset": {
+        "domains": [
+            "best-vod.umn.cdn.united.cloud"
+        ]
+    },
+    "nascarclassics": {
+        "domains": [
+            "classics.nascar.com"
+        ]
+    },
+    "nate": {
+        "domains": [
+            "tv.nate.com"
+        ]
+    },
+    "nateprogram": {
+        "domains": [
+            "tv.nate.com"
+        ]
+    },
+    "natgeo": {
+        "domains": [
+            "video.nationalgeographic.com"
+        ]
+    },
+    "nationalgeographictv": {
+        "domains": [
+            "nationalgeographic.com"
+        ]
+    },
+    "naver": {
+        "domains": [
+            "tv.naver.com",
+            "tvcast.naver.com"
+        ]
+    },
+    "navernow": {
+        "domains": [
+            "now.naver.com"
+        ]
+    },
+    "nba": {
+        "domains": [
+            "nba.com",
+            "secure.nba.com",
+            "watch.nba.com"
+        ]
+    },
+    "nbc": {
+        "domains": [
+            "nbc.com"
+        ]
+    },
+    "nbcnews": {
+        "domains": [
+            "msnbc.com",
+            "nbcnews.com",
+            "today.com"
+        ]
+    },
+    "nbcolympics": {
+        "domains": [
+            "nbcolympics.com",
+            "stream.nbcolympics.com"
+        ]
+    },
+    "nbcsports": {
+        "domains": [
+            "nbcsports.com"
+        ]
+    },
+    "nbcsportsstream": {
+        "domains": [
+            "stream.nbcsports.com"
+        ]
+    },
+    "nbcsportsvplayer": {
+        "domains": [
+            "nbcsports.com",
+            "vplayer.nbcsports.com"
+        ]
+    },
+    "nbcstations": {
+        "domains": [
+            "nbcboston.com",
+            "nbclosangeles.com",
+            "telemundoarizona.com"
+        ]
+    },
+    "ndr": {
+        "domains": [
+            "ndr.de"
+        ]
+    },
+    "ndtv": {
+        "domains": [
+            "auto.ndtv.com",
+            "doctor.ndtv.com",
+            "food.ndtv.com",
+            "gadgets.ndtv.com",
+            "khabar.ndtv.com",
+            "movies.ndtv.com",
+            "ndtv.com",
+            "profit.ndtv.com",
+            "sports.ndtv.com",
+            "swirlster.ndtv.com"
+        ]
+    },
+    "nebula": {
+        "domains": [
+            "beta.nebula.tv",
+            "nebula.tv",
+            "watchnebula.com"
+        ]
+    },
+    "nekohacker": {
+        "domains": [
+            "nekohacker.com"
+        ]
+    },
+    "nerdcubedfeed": {
+        "domains": [
+            "nerdcubed.co.uk"
+        ]
+    },
+    "nest": {
+        "domains": [
+            "video.nest.com"
+        ]
+    },
+    "nestclip": {
+        "domains": [
+            "video.nest.com"
+        ]
+    },
+    "netappcollection": {
+        "domains": [
+            "media.netapp.com"
+        ]
+    },
+    "netappvideo": {
+        "domains": [
+            "media.netapp.com"
+        ]
+    },
+    "netease": {
+        "domains": [
+            "music.163.com",
+            "y.music.163.com"
+        ]
+    },
+    "netplustv": {
+        "domains": [
+            "netplus.tv"
+        ]
+    },
+    "netplustvlive": {
+        "domains": [
+            "netplus.tv"
+        ]
+    },
+    "netplustvrecordings": {
+        "domains": [
+            "netplus.tv"
+        ]
+    },
+    "netverse": {
+        "domains": [
+            "netverse.id"
+        ]
+    },
+    "netverseplaylist": {
+        "domains": [
+            "netverse.id"
+        ]
+    },
+    "netzkino": {
+        "domains": [
+            "netzkino.de"
+        ]
+    },
+    "newgrounds": {
+        "domains": [
+            "brian-beaton.newgrounds.com",
+            "burn7.newgrounds.com",
+            "newgrounds.com"
+        ]
+    },
+    "newspicks": {
+        "domains": [
+            "newspicks.com"
+        ]
+    },
+    "newsy": {
+        "domains": [
+            "newsy.com"
+        ]
+    },
+    "nexx": {
+        "domains": [
+            "api.nexx.cloud",
+            "api.nexxcdn.com",
+            "arc.nexx.cloud"
+        ]
+    },
+    "nexxembed": {
+        "domains": [
+            "embed.nexx.cloud"
+        ]
+    },
+    "nfb": {
+        "domains": [
+            "nfb.ca",
+            "onf.ca"
+        ]
+    },
+    "nfhsnetwork": {
+        "domains": [
+            "nfhsnetwork.com"
+        ]
+    },
+    "nfl.com": {
+        "domains": [
+            "buffalobills.com",
+            "chiefs.com",
+            "nfl.com",
+            "raiders.com"
+        ]
+    },
+    "nhkforschoolbangumi": {
+        "domains": [
+            "www2.nhk.or.jp"
+        ]
+    },
+    "nhkforschoolprogramlist": {
+        "domains": [
+            "nhk.or.jp"
+        ]
+    },
+    "nhkforschoolsubject": {
+        "domains": [
+            "nhk.or.jp"
+        ]
+    },
+    "nhkradionewspage": {
+        "domains": [
+            "nhk.or.jp"
+        ]
+    },
+    "nhkradiru": {
+        "domains": [
+            "nhk.or.jp"
+        ]
+    },
+    "nhkradirulive": {
+        "domains": [
+            "nhk.or.jp"
+        ]
+    },
+    "nhkvod": {
+        "domains": [
+            "www3.nhk.or.jp"
+        ]
+    },
+    "nhkvodprogram": {
+        "domains": [
+            "www3.nhk.or.jp"
+        ]
+    },
+    "nhl.com": {
+        "domains": [
+            "nhl.com",
+            "wch2016.com"
+        ]
+    },
+    "nick.com": {
+        "domains": [
+            "nick.com"
+        ]
+    },
+    "niconico": {
+        "domains": [
+            "live.nicovideo.jp",
+            "nico.ms",
+            "nicovideo.jp",
+            "sp.nicovideo.jp"
+        ]
+    },
+    "niconicochannelplus": {
+        "domains": [
+            "nicochannel.jp"
+        ]
+    },
+    "niconicouser": {
+        "domains": [
+            "nicovideo.jp"
+        ]
+    },
+    "nicovideo": {
+        "domains": [
+            "nicovideo.jp"
+        ]
+    },
+    "ninaprotocol": {
+        "domains": [
+            "ninaprotocol.com"
+        ]
+    },
+    "nintendo": {
+        "domains": [
+            "nintendo.com"
+        ]
+    },
+    "nitter": {
+        "domains": [
+            "nitter.privacy.com.de"
+        ]
+    },
+    "njoy": {
+        "domains": [
+            "n-joy.de"
+        ]
+    },
+    "nobelprize": {
+        "domains": [
+            "mediaplayer.nobelprize.org",
+            "nobelprize.org"
+        ]
+    },
+    "noicepodcast": {
+        "domains": [
+            "open.noice.id"
+        ]
+    },
+    "nonktube": {
+        "domains": [
+            "nonktube.com"
+        ]
+    },
+    "noodlemagazine": {
+        "domains": [
+            "adult.noodlemagazine.com"
+        ]
+    },
+    "nosnlarticle": {
+        "domains": [
+            "nos.nl"
+        ]
+    },
+    "nova": {
+        "domains": [
+            "doma.nova.cz",
+            "fanda.nova.cz",
+            "novaplus.nova.cz",
+            "prask.nova.cz",
+            "sport.tn.nova.cz",
+            "tn.nova.cz",
+            "tv.nova.cz"
+        ]
+    },
+    "novaembed": {
+        "domains": [
+            "media.cms.nova.cz",
+            "mediatn.cms.nova.cz"
+        ]
+    },
+    "novaplay": {
+        "domains": [
+            "play.nova.bg"
+        ]
+    },
+    "nowcanal": {
+        "domains": [
+            "nowcanal.pt"
+        ]
+    },
+    "nowness": {
+        "domains": [
+            "cn.nowness.com",
+            "nowness.com"
+        ]
+    },
+    "noz": {
+        "domains": [
+            "noz.de"
+        ]
+    },
+    "npo": {
+        "domains": [
+            "npo.nl",
+            "npo3.nl",
+            "npostart.nl",
+            "ntr.nl",
+            "omroepwnl.nl",
+            "zapp.nl"
+        ]
+    },
+    "npo.nl": {
+        "domains": [
+            "npo.nl",
+            "npostart.nl"
+        ]
+    },
+    "npr": {
+        "domains": [
+            "npr.org"
+        ]
+    },
+    "nrk": {
+        "domains": [
+            "nrk.no",
+            "v8-psapi.nrk.no"
+        ]
+    },
+    "nrkplaylist": {
+        "domains": [
+            "nrk.no"
+        ]
+    },
+    "nrkradiopodkast": {
+        "domains": [
+            "radio.nrk.no"
+        ]
+    },
+    "nrkskole": {
+        "domains": [
+            "nrk.no"
+        ]
+    },
+    "nrktv": {
+        "domains": [
+            "radio.nrk.no",
+            "tv.nrk.no"
+        ]
+    },
+    "nrktvdirekte": {
+        "domains": [
+            "radio.nrk.no",
+            "tv.nrk.no"
+        ]
+    },
+    "nrktvepisode": {
+        "domains": [
+            "tv.nrk.no"
+        ]
+    },
+    "nrktvepisodes": {
+        "domains": [
+            "tv.nrk.no"
+        ]
+    },
+    "nrktvseason": {
+        "domains": [
+            "radio.nrk.no",
+            "tv.nrk.no"
+        ]
+    },
+    "nrktvseries": {
+        "domains": [
+            "nrksuper.no",
+            "radio.nrk.no",
+            "tv.nrk.no",
+            "tv.nrksuper.no"
+        ]
+    },
+    "nrltv": {
+        "domains": [
+            "nrl.com"
+        ]
+    },
+    "nts.live": {
+        "domains": [
+            "nts.live"
+        ]
+    },
+    "ntv.ru": {
+        "domains": [
+            "ntv.ru"
+        ]
+    },
+    "nubilesporn": {
+        "domains": [
+            "members.nubiles-porn.com"
+        ]
+    },
+    "nuum": {
+        "domains": [
+            "nuum.ru"
+        ]
+    },
+    "nuvid": {
+        "domains": [
+            "m.nuvid.com",
+            "nuvid.com"
+        ]
+    },
+    "nytimes": {
+        "domains": [
+            "nytimes.com"
+        ]
+    },
+    "nytimesarticle": {
+        "domains": [
+            "nytimes.com"
+        ]
+    },
+    "nytimescookingguide": {
+        "domains": [
+            "cooking.nytimes.com"
+        ]
+    },
+    "nytimescookingrecipe": {
+        "domains": [
+            "cooking.nytimes.com"
+        ]
+    },
+    "nzherald": {
+        "domains": [
+            "nzherald.co.nz"
+        ]
+    },
+    "nzonscreen": {
+        "domains": [
+            "nzonscreen.com"
+        ]
+    },
+    "nzz": {
+        "domains": [
+            "nzz.ch"
+        ]
+    },
+    "ocw.mit.edu": {
+        "domains": [
+            "ocw.mit.edu"
+        ]
+    },
+    "odnoklassniki": {
+        "domains": [
+            "m.ok.ru",
+            "mobile.ok.ru",
+            "ok.ru"
+        ]
+    },
+    "oftv": {
+        "domains": [
+            "of.tv"
+        ]
+    },
+    "oftvplaylist": {
+        "domains": [
+            "of.tv"
+        ]
+    },
+    "oktoberfesttv": {
+        "domains": [
+            "oktoberfest-tv.de"
+        ]
+    },
+    "olympicsreplay": {
+        "domains": [
+            "olympics.com"
+        ]
+    },
+    "on24": {
+        "domains": [
+            "event.on24.com"
+        ]
+    },
+    "ondemandchinaepisode": {
+        "domains": [
+            "ondemandchina.com"
+        ]
+    },
+    "ondemandkorea": {
+        "domains": [
+            "ondemandkorea.com"
+        ]
+    },
+    "ondemandkoreaprogram": {
+        "domains": [
+            "ondemandkorea.com"
+        ]
+    },
+    "onefootball": {
+        "domains": [
+            "onefootball.com"
+        ]
+    },
+    "oneplacepodcast": {
+        "domains": [
+            "oneplace.com"
+        ]
+    },
+    "onet.pl": {
+        "domains": [
+            "businessinsider.com.pl",
+            "eurosport.onet.pl",
+            "film.onet.pl",
+            "moto.onet.pl",
+            "plejada.pl"
+        ]
+    },
+    "onet.tv": {
+        "domains": [
+            "onet.tv",
+            "onet100.vod.pl"
+        ]
+    },
+    "onionstudios": {
+        "domains": [
+            "onionstudios.com"
+        ]
+    },
+    "onsen": {
+        "domains": [
+            "onsen.ag",
+            "share.onsen.ag"
+        ]
+    },
+    "opencast": {
+        "domains": [
+            "oc-video1.ruhr-uni-bochum.de"
+        ]
+    },
+    "opencastplaylist": {
+        "domains": [
+            "electures.uni-muenster.de",
+            "oc-video1.ruhr-uni-bochum.de"
+        ]
+    },
+    "openrec": {
+        "domains": [
+            "openrec.tv"
+        ]
+    },
+    "oratv": {
+        "domains": [
+            "ora.tv",
+            "unsafespeech.com"
+        ]
+    },
+    "orf": {
+        "domains": [
+            "burgenland.orf.at",
+            "fm4.orf.at",
+            "iptv.orf.at",
+            "kaernten.orf.at",
+            "noe.orf.at",
+            "oe1.orf.at",
+            "oe3.orf.at",
+            "on.orf.at",
+            "ooe.orf.at",
+            "radiothek.orf.at",
+            "salzburg.orf.at",
+            "sound.orf.at",
+            "steiermark.orf.at",
+            "tirol.orf.at",
+            "vorarlberg.orf.at",
+            "wien.orf.at"
+        ]
+    },
+    "osnateltv": {
+        "domains": [
+            "tvonline.osnatel.de"
+        ]
+    },
+    "osnateltvlive": {
+        "domains": [
+            "tvonline.osnatel.de"
+        ]
+    },
+    "osnateltvrecordings": {
+        "domains": [
+            "tvonline.osnatel.de"
+        ]
+    },
+    "outsidetv": {
+        "domains": [
+            "outsidetv.com"
+        ]
+    },
+    "owncloud": {
+        "domains": [
+            "ruhr-uni-bochum.sciebo.de"
+        ]
+    },
+    "packtpub": {
+        "domains": [
+            "packtpub.com",
+            "subscription.packtpub.com"
+        ]
+    },
+    "packtpubcourse": {
+        "domains": [
+            "packtpub.com",
+            "subscription.packtpub.com"
+        ]
+    },
+    "palcomp3": {
+        "domains": [
+            "palcomp3.com",
+            "palcomp3.com.br"
+        ]
+    },
+    "pandatv": {
+        "domains": [
+            "pandalive.co.kr"
+        ]
+    },
+    "panopto": {
+        "domains": [
+            "brown.hosted.panopto.com",
+            "demo.hosted.panopto.com",
+            "howtovideos.hosted.panopto.com",
+            "na-training-1.hosted.panopto.com",
+            "ucc.cloud.panopto.eu",
+            "unisa.au.panopto.com"
+        ]
+    },
+    "panoptolist": {
+        "domains": [
+            "demo.hosted.panopto.com",
+            "howtovideos.hosted.panopto.com"
+        ]
+    },
+    "panoptoplaylist": {
+        "domains": [
+            "howtovideos.hosted.panopto.com",
+            "utsa.hosted.panopto.com"
+        ]
+    },
+    "paramountpressexpress": {
+        "domains": [
+            "paramountpressexpress.com"
+        ]
+    },
+    "parler": {
+        "domains": [
+            "parler.com"
+        ]
+    },
+    "parliamentlive.tv": {
+        "domains": [
+            "parliamentlive.tv"
+        ]
+    },
+    "parlview": {
+        "domains": [
+            "aph.gov.au"
+        ]
+    },
+    "parti": {
+        "domains": [
+            "parti.com"
+        ]
+    },
+    "patreon": {
+        "domains": [
+            "patreon.com"
+        ]
+    },
+    "pbs": {
+        "domains": [
+            "pbs.org",
+            "pbssocal.org",
+            "player.pbs.org",
+            "thirteen.org",
+            "watch.knpb.org"
+        ]
+    },
+    "pbskids": {
+        "domains": [
+            "pbskids.org"
+        ]
+    },
+    "pearvideo": {
+        "domains": [
+            "pearvideo.com"
+        ]
+    },
+    "peekvids": {
+        "domains": [
+            "peekvids.com"
+        ]
+    },
+    "peer.tv": {
+        "domains": [
+            "peer.tv"
+        ]
+    },
+    "peertube": {
+        "domains": [
+            "framatube.org",
+            "instances.joinpeertube.org",
+            "peertube.debian.social",
+            "peertube.tv",
+            "peertube2.cpy.re",
+            "vod.ksite.de"
+        ]
+    },
+    "peloton": {
+        "domains": [
+            "members.onepeloton.com"
+        ]
+    },
+    "performgroup": {
+        "domains": [
+            "player.performgroup.com"
+        ]
+    },
+    "periscope": {
+        "domains": [
+            "periscope.tv"
+        ]
+    },
+    "pgatour": {
+        "domains": [
+            "pgatour.com"
+        ]
+    },
+    "philharmoniedeparis": {
+        "domains": [
+            "live.philharmoniedeparis.fr",
+            "otoplayer.philharmoniedeparis.fr",
+            "philharmoniedeparis.fr"
+        ]
+    },
+    "phoenix.de": {
+        "domains": [
+            "phoenix.de"
+        ]
+    },
+    "photobucket": {
+        "domains": [
+            "media.photobucket.com"
+        ]
+    },
+    "pialive": {
+        "domains": [
+            "player.pia-live.jp"
+        ]
+    },
+    "piapro": {
+        "domains": [
+            "piapro.jp"
+        ]
+    },
+    "picarto": {
+        "domains": [
+            "picarto.tv"
+        ]
+    },
+    "piksel": {
+        "domains": [
+            "player.piksel.com",
+            "player.piksel.tech"
+        ]
+    },
+    "pinkbike": {
+        "domains": [
+            "es.pinkbike.org",
+            "pinkbike.com"
+        ]
+    },
+    "pinterest": {
+        "domains": [
+            "co.pinterest.com",
+            "pinterest.ca",
+            "pinterest.com"
+        ]
+    },
+    "pinterestcollection": {
+        "domains": [
+            "pinterest.ca"
+        ]
+    },
+    "piracy": {
+        "domains": [
+            "dood.to",
+            "thisav.com"
+        ]
+    },
+    "piramidetv": {
+        "domains": [
+            "piramide.tv"
+        ]
+    },
+    "piramidetvchannel": {
+        "domains": [
+            "piramide.tv"
+        ]
+    },
+    "planetmarathi": {
+        "domains": [
+            "planetmarathi.com"
+        ]
+    },
+    "platzi": {
+        "domains": [
+            "courses.platzi.com",
+            "platzi.com"
+        ]
+    },
+    "platzicourse": {
+        "domains": [
+            "courses.platzi.com",
+            "platzi.com"
+        ]
+    },
+    "play.tv": {
+        "domains": [
+            "play.tv"
+        ]
+    },
+    "playerfm": {
+        "domains": [
+            "player.fm"
+        ]
+    },
+    "playeur": {
+        "domains": [
+            "playeur.com",
+            "utreon.com"
+        ]
+    },
+    "playplustv": {
+        "domains": [
+            "playplus.tv"
+        ]
+    },
+    "playsuisse": {
+        "domains": [
+            "playsuisse.ch"
+        ]
+    },
+    "playtvak": {
+        "domains": [
+            "lidovky.cz",
+            "metro.cz",
+            "playtvak.cz",
+            "slowtv.playtvak.cz",
+            "zpravy.idnes.cz"
+        ]
+    },
+    "playvids": {
+        "domains": [
+            "playvids.com"
+        ]
+    },
+    "playwire": {
+        "domains": [
+            "cdn.playwire.com",
+            "config.playwire.com"
+        ]
+    },
+    "pluralsight": {
+        "domains": [
+            "app.pluralsight.com",
+            "pluralsight.com"
+        ]
+    },
+    "plutotv": {
+        "domains": [
+            "pluto.tv"
+        ]
+    },
+    "plvideo": {
+        "domains": [
+            "plvideo.ru"
+        ]
+    },
+    "podbayfm": {
+        "domains": [
+            "podbay.fm"
+        ]
+    },
+    "podbayfmchannel": {
+        "domains": [
+            "podbay.fm"
+        ]
+    },
+    "podchaser": {
+        "domains": [
+            "podchaser.com"
+        ]
+    },
+    "podomatic": {
+        "domains": [
+            "ostbahnhof.podomatic.com",
+            "podomatic.com",
+            "scienceteachingtips.podomatic.com"
+        ]
+    },
+    "pokergo": {
+        "domains": [
+            "pokergo.com"
+        ]
+    },
+    "pokergocollection": {
+        "domains": [
+            "pokergo.com"
+        ]
+    },
+    "polsatgo": {
+        "domains": [
+            "polsatgo.pl"
+        ]
+    },
+    "polskieradio": {
+        "domains": [
+            "jedynka.polskieradio.pl",
+            "player.polskieradio.pl",
+            "podcasty.polskieradio.pl",
+            "polskieradio.pl",
+            "polskieradio24.pl",
+            "radiokierowcow.pl",
+            "trojka.polskieradio.pl"
+        ]
+    },
+    "popcorntimes": {
+        "domains": [
+            "popcorntimes.tv"
+        ]
+    },
+    "popcorntv": {
+        "domains": [
+            "animemanga.popcorntv.it",
+            "cinema.popcorntv.it"
+        ]
+    },
+    "pornbox": {
+        "domains": [
+            "pornbox.com"
+        ]
+    },
+    "pornerbros": {
+        "domains": [
+            "m.pornerbros.com",
+            "pornerbros.com"
+        ]
+    },
+    "pornflip": {
+        "domains": [
+            "pornflip.com"
+        ]
+    },
+    "pornhub": {
+        "domains": [
+            "fr.pornhub.com",
+            "pornhub.com",
+            "pornhub.net",
+            "pornhub.org",
+            "pornhubpremium.com",
+            "pornhubvybmsymdol4iibwgwtkpwmeyd6luq2gxajgjzfjvotyt5zhyd.onion",
+            "thumbzilla.com"
+        ]
+    },
+    "pornhubpagedvideolist": {
+        "domains": [
+            "pornhub.com",
+            "pornhubvybmsymdol4iibwgwtkpwmeyd6luq2gxajgjzfjvotyt5zhyd.onion"
+        ]
+    },
+    "pornhubplaylist": {
+        "domains": [
+            "de.pornhub.com",
+            "pornhub.com"
+        ]
+    },
+    "pornhubuser": {
+        "domains": [
+            "pornhub.com",
+            "pornhubpremium.com",
+            "pornhubvybmsymdol4iibwgwtkpwmeyd6luq2gxajgjzfjvotyt5zhyd.onion"
+        ]
+    },
+    "pornhubuservideosupload": {
+        "domains": [
+            "pornhub.com",
+            "pornhubvybmsymdol4iibwgwtkpwmeyd6luq2gxajgjzfjvotyt5zhyd.onion"
+        ]
+    },
+    "pornotube": {
+        "domains": [
+            "pornotube.com"
+        ]
+    },
+    "pornovoisines": {
+        "domains": [
+            "pornovoisines.com"
+        ]
+    },
+    "pornoxo": {
+        "domains": [
+            "pornoxo.com"
+        ]
+    },
+    "porntop": {
+        "domains": [
+            "porntop.com"
+        ]
+    },
+    "porntube": {
+        "domains": [
+            "m.porntube.com",
+            "porntube.com"
+        ]
+    },
+    "pr0gramm": {
+        "domains": [
+            "pr0gramm.com"
+        ]
+    },
+    "prankcast": {
+        "domains": [
+            "prankcast.com"
+        ]
+    },
+    "prankcastpost": {
+        "domains": [
+            "prankcast.com"
+        ]
+    },
+    "premiershiprugby": {
+        "domains": [
+            "premiershiprugby.com"
+        ]
+    },
+    "presstv": {
+        "domains": [
+            "presstv.ir"
+        ]
+    },
+    "projectveritas": {
+        "domains": [
+            "projectveritas.com"
+        ]
+    },
+    "prosiebensat1": {
+        "domains": [
+            "advopedia.de",
+            "fem.com",
+            "galileo.tv",
+            "kabeleins.de",
+            "kabeleinsdoku.de",
+            "prosieben.de",
+            "prosiebenmaxx.de",
+            "ran.de",
+            "sat1.de",
+            "sat1gold.de",
+            "sixx.de",
+            "the-voice-of-germany.de"
+        ]
+    },
+    "prxaccount": {
+        "domains": [
+            "beta.prx.org",
+            "prx.org"
+        ]
+    },
+    "prxseries": {
+        "domains": [
+            "beta.prx.org",
+            "prx.org"
+        ]
+    },
+    "prxstory": {
+        "domains": [
+            "beta.prx.org",
+            "listen.prx.org",
+            "prx.org"
+        ]
+    },
+    "puhutv": {
+        "domains": [
+            "puhutv.com"
+        ]
+    },
+    "puls4": {
+        "domains": [
+            "puls4.com"
+        ]
+    },
+    "pyvideo": {
+        "domains": [
+            "pyvideo.org"
+        ]
+    },
+    "qdance": {
+        "domains": [
+            "q-dance.com"
+        ]
+    },
+    "qingting": {
+        "domains": [
+            "m.qtfm.cn",
+            "qingting.fm"
+        ]
+    },
+    "qqmusic": {
+        "domains": [
+            "y.qq.com"
+        ]
+    },
+    "quantumtv": {
+        "domains": [
+            "quantum-tv.com"
+        ]
+    },
+    "quantumtvlive": {
+        "domains": [
+            "quantum-tv.com"
+        ]
+    },
+    "quantumtvrecordings": {
+        "domains": [
+            "quantum-tv.com"
+        ]
+    },
+    "r7": {
+        "domains": [
+            "esportes.r7.com",
+            "noticias.r7.com",
+            "player.r7.com",
+            "videos.r7.com"
+        ]
+    },
+    "r7article": {
+        "domains": [
+            "tv.r7.com"
+        ]
+    },
+    "radiko": {
+        "domains": [
+            "radiko.jp"
+        ]
+    },
+    "radikoradio": {
+        "domains": [
+            "radiko.jp"
+        ]
+    },
+    "radio.de": {
+        "domains": [
+            "ndr2.radio.de"
+        ]
+    },
+    "radio1be": {
+        "domains": [
+            "radio1.be"
+        ]
+    },
+    "radiocanada": {
+        "domains": [
+            "ici.radio-canada.ca"
+        ]
+    },
+    "radiocomercial": {
+        "domains": [
+            "radiocomercial.pt"
+        ]
+    },
+    "radiocomercialplaylist": {
+        "domains": [
+            "radiocomercial.pt"
+        ]
+    },
+    "radiofrance": {
+        "domains": [
+            "maison.radiofrance.fr"
+        ]
+    },
+    "radiofrancelive": {
+        "domains": [
+            "radiofrance.fr"
+        ]
+    },
+    "radiofrancepodcast": {
+        "domains": [
+            "radiofrance.fr"
+        ]
+    },
+    "radiofranceprofile": {
+        "domains": [
+            "radiofrance.fr"
+        ]
+    },
+    "radiofranceprogramschedule": {
+        "domains": [
+            "radiofrance.fr"
+        ]
+    },
+    "radiojavan": {
+        "domains": [
+            "radiojavan.com"
+        ]
+    },
+    "radiokapital": {
+        "domains": [
+            "radiokapital.pl"
+        ]
+    },
+    "radioradicale": {
+        "domains": [
+            "radioradicale.it"
+        ]
+    },
+    "radiozetpodcast": {
+        "domains": [
+            "player.radiozet.pl"
+        ]
+    },
+    "radlive": {
+        "domains": [
+            "rad.live"
+        ]
+    },
+    "rai": {
+        "domains": [
+            "rai.it",
+            "raisport.rai.it"
+        ]
+    },
+    "raicultura": {
+        "domains": [
+            "raicultura.it"
+        ]
+    },
+    "rainews": {
+        "domains": [
+            "rainews.it"
+        ]
+    },
+    "raiplay": {
+        "domains": [
+            "raiplay.it"
+        ]
+    },
+    "raiplaylive": {
+        "domains": [
+            "raiplay.it"
+        ]
+    },
+    "raiplayplaylist": {
+        "domains": [
+            "raiplay.it"
+        ]
+    },
+    "raiplaysound": {
+        "domains": [
+            "raiplaysound.it"
+        ]
+    },
+    "raiplaysoundlive": {
+        "domains": [
+            "raiplaysound.it"
+        ]
+    },
+    "raiplaysoundplaylist": {
+        "domains": [
+            "raiplaysound.it"
+        ]
+    },
+    "raisudtirol": {
+        "domains": [
+            "raibz.rai.it",
+            "raisudtirol.rai.it"
+        ]
+    },
+    "raywenderlich": {
+        "domains": [
+            "raywenderlich.com",
+            "videos.raywenderlich.com"
+        ]
+    },
+    "raywenderlichcourse": {
+        "domains": [
+            "raywenderlich.com"
+        ]
+    },
+    "rbgtum": {
+        "domains": [
+            "live.rbg.tum.de",
+            "tum.live"
+        ]
+    },
+    "rbgtumcourse": {
+        "domains": [
+            "live.rbg.tum.de",
+            "tum.live"
+        ]
+    },
+    "rbgtumnewcourse": {
+        "domains": [
+            "live.rbg.tum.de",
+            "tum.live"
+        ]
+    },
+    "rcs": {
+        "domains": [
+            "viaggi.corriere.it",
+            "video.corriere.it"
+        ]
+    },
+    "rcsembeds": {
+        "domains": [
+            "video.gazzanet.gazzetta.it",
+            "video.gazzetta.it",
+            "video.rcs.it"
+        ]
+    },
+    "rcsvarious": {
+        "domains": [
+            "amica.it",
+            "leitv.it",
+            "youreporter.it"
+        ]
+    },
+    "rctiplus": {
+        "domains": [
+            "rctiplus.com"
+        ]
+    },
+    "rctiplusseries": {
+        "domains": [
+            "rctiplus.com"
+        ]
+    },
+    "rctiplustv": {
+        "domains": [
+            "rctiplus.com"
+        ]
+    },
+    "rds": {
+        "domains": [
+            "rds.ca"
+        ]
+    },
+    "redbull": {
+        "domains": [
+            "redbull.com"
+        ]
+    },
+    "redbullembed": {
+        "domains": [
+            "redbull.com"
+        ]
+    },
+    "redbulltv": {
+        "domains": [
+            "redbull.com",
+            "redbull.tv"
+        ]
+    },
+    "redbulltvrrncontent": {
+        "domains": [
+            "redbull.com"
+        ]
+    },
+    "redcdnlivx": {
+        "domains": [
+            "n-25-12.dcs.redcdn.pl",
+            "r.dcs.redcdn.pl",
+            "redir.atmcdn.pl"
+        ]
+    },
+    "reddit": {
+        "domains": [
+            "nm.reddit.com",
+            "old.reddit.com",
+            "reddit.com",
+            "redditmedia.com"
+        ]
+    },
+    "redgifs": {
+        "domains": [
+            "redgifs.com",
+            "thumbs2.redgifs.com"
+        ]
+    },
+    "redgifsuser": {
+        "domains": [
+            "redgifs.com"
+        ]
+    },
+    "redtube": {
+        "domains": [
+            "embed.redtube.com",
+            "it.redtube.com",
+            "redtube.com",
+            "redtube.com.br"
+        ]
+    },
+    "rentv": {
+        "domains": [
+            "ren.tv"
+        ]
+    },
+    "rentvarticle": {
+        "domains": [
+            "ren.tv"
+        ]
+    },
+    "restudy": {
+        "domains": [
+            "portal.restudy.dk",
+            "restudy.dk"
+        ]
+    },
+    "reuters": {
+        "domains": [
+            "reuters.com"
+        ]
+    },
+    "reverbnation": {
+        "domains": [
+            "reverbnation.com"
+        ]
+    },
+    "rheinmaintv": {
+        "domains": [
+            "rheinmaintv.de"
+        ]
+    },
+    "ridehome": {
+        "domains": [
+            "ridehome.info"
+        ]
+    },
+    "rinsefm": {
+        "domains": [
+            "rinse.fm"
+        ]
+    },
+    "rinsefmartistplaylist": {
+        "domains": [
+            "rinse.fm"
+        ]
+    },
+    "rmcdecouverte": {
+        "domains": [
+            "rmcdecouverte.bfmtv.com"
+        ]
+    },
+    "rockstargames": {
+        "domains": [
+            "rockstargames.com"
+        ]
+    },
+    "rokfin": {
+        "domains": [
+            "rokfin.com"
+        ]
+    },
+    "roosterteeth": {
+        "domains": [
+            "achievementhunter.roosterteeth.com",
+            "funhaus.roosterteeth.com",
+            "roosterteeth.com",
+            "screwattack.roosterteeth.com",
+            "theknow.roosterteeth.com"
+        ]
+    },
+    "roosterteethseries": {
+        "domains": [
+            "roosterteeth.com"
+        ]
+    },
+    "rottentomatoes": {
+        "domains": [
+            "rottentomatoes.com"
+        ]
+    },
+    "royalive": {
+        "domains": [
+            "en.roya.tv",
+            "roya.tv"
+        ]
+    },
+    "rozhlas": {
+        "domains": [
+            "prehravac.rozhlas.cz"
+        ]
+    },
+    "rozhlasvltava": {
+        "domains": [
+            "dvojka.rozhlas.cz",
+            "wave.rozhlas.cz"
+        ]
+    },
+    "rtbf": {
+        "domains": [
+            "rtbf.be"
+        ]
+    },
+    "rtdocumentry": {
+        "domains": [
+            "rtd.rt.com"
+        ]
+    },
+    "rtdocumentryplaylist": {
+        "domains": [
+            "rtd.rt.com"
+        ]
+    },
+    "rte": {
+        "domains": [
+            "rte.ie"
+        ]
+    },
+    "rtl.lu": {
+        "domains": [
+            "5minutes.rtl.lu",
+            "rtl.lu",
+            "today.rtl.lu"
+        ]
+    },
+    "rtl.nl": {
+        "domains": [
+            "embed.rtl.nl",
+            "rtl.nl",
+            "rtlxl.nl",
+            "static.rtl.nl"
+        ]
+    },
+    "rtl2": {
+        "domains": [
+            "rtl2.de"
+        ]
+    },
+    "rtllulive": {
+        "domains": [
+            "rtl.lu"
+        ]
+    },
+    "rtlluradio": {
+        "domains": [
+            "rtl.lu"
+        ]
+    },
+    "rtmp": {
+        "domains": [
+            "cp44293.edgefcs.net",
+            "edge.live.hitbox.tv"
+        ]
+    },
+    "rtnews": {
+        "domains": [
+            "rt.com"
+        ]
+    },
+    "rtp": {
+        "domains": [
+            "rtp.pt"
+        ]
+    },
+    "rtrfm": {
+        "domains": [
+            "rtrfm.com.au"
+        ]
+    },
+    "rts": {
+        "domains": [
+            "pages.rts.ch",
+            "rts.ch"
+        ]
+    },
+    "rtvckaltura": {
+        "domains": [
+            "media.rtvc.gov.co"
+        ]
+    },
+    "rtvcplay": {
+        "domains": [
+            "rtvcplay.co"
+        ]
+    },
+    "rtvcplayembed": {
+        "domains": [
+            "rtvcplay.co"
+        ]
+    },
+    "rtve.es": {
+        "domains": [
+            "rtve.es"
+        ]
+    },
+    "rtvslo.si": {
+        "domains": [
+            "365.rtvslo.si",
+            "4d.rtvslo.si",
+            "rtvslo.si"
+        ]
+    },
+    "rudovideo": {
+        "domains": [
+            "rudo.video"
+        ]
+    },
+    "rule34video": {
+        "domains": [
+            "rule34video.com"
+        ]
+    },
+    "rumble": {
+        "domains": [
+            "rumble.com"
+        ]
+    },
+    "rumblechannel": {
+        "domains": [
+            "rumble.com"
+        ]
+    },
+    "rumbleembed": {
+        "domains": [
+            "rumble.com"
+        ]
+    },
+    "ruptly": {
+        "domains": [
+            "ruptly.tv"
+        ]
+    },
+    "rutube": {
+        "domains": [
+            "rutube.ru"
+        ]
+    },
+    "ruutu": {
+        "domains": [
+            "ruutu.fi",
+            "static.nelonenmedia.fi",
+            "supla.fi"
+        ]
+    },
+    "ruv": {
+        "domains": [
+            "ruv.is"
+        ]
+    },
+    "ruv.is": {
+        "domains": [
+            "ruv.is"
+        ]
+    },
+    "s4c": {
+        "domains": [
+            "s4c.cymru"
+        ]
+    },
+    "s4cseries": {
+        "domains": [
+            "s4c.cymru"
+        ]
+    },
+    "safari": {
+        "domains": [
+            "learning.oreilly.com",
+            "oreilly.com",
+            "safaribooksonline.com",
+            "techbus.safaribooksonline.com"
+        ]
+    },
+    "saitosan": {
+        "domains": [
+            "bview.html",
+            "saitosan.net"
+        ]
+    },
+    "saktv": {
+        "domains": [
+            "saktv.ch"
+        ]
+    },
+    "saktvlive": {
+        "domains": [
+            "saktv.ch"
+        ]
+    },
+    "saktvrecordings": {
+        "domains": [
+            "saktv.ch"
+        ]
+    },
+    "salttv": {
+        "domains": [
+            "tv.salt.ch"
+        ]
+    },
+    "salttvlive": {
+        "domains": [
+            "tv.salt.ch"
+        ]
+    },
+    "salttvrecordings": {
+        "domains": [
+            "tv.salt.ch"
+        ]
+    },
+    "samplefocus": {
+        "domains": [
+            "samplefocus.com"
+        ]
+    },
+    "sangiin": {
+        "domains": [
+            "webtv.sangiin.go.jp"
+        ]
+    },
+    "sapo": {
+        "domains": [
+            "v2.videos.sapo.pt",
+            "videos.sapo.pt"
+        ]
+    },
+    "sauceplus": {
+        "domains": [
+            "sauceplus.com"
+        ]
+    },
+    "saucepluschannel": {
+        "domains": [
+            "sauceplus.com"
+        ]
+    },
+    "sbs": {
+        "domains": [
+            "sbs.com.au"
+        ]
+    },
+    "sbs.co.kr": {
+        "domains": [
+            "allvod.sbs.co.kr",
+            "programs.sbs.co.kr"
+        ]
+    },
+    "schooltv": {
+        "domains": [
+            "schooltv.nl"
+        ]
+    },
+    "sciencechannel": {
+        "domains": [
+            "sciencechannel.com"
+        ]
+    },
+    "screen9": {
+        "domains": [
+            "api.screen9.com",
+            "folkhogskolekanalen.screen9.tv",
+            "play.su.se"
+        ]
+    },
+    "screencast": {
+        "domains": [
+            "screencast.com"
+        ]
+    },
+    "screencastify": {
+        "domains": [
+            "app.screencastify.com",
+            "watch.screencastify.com"
+        ]
+    },
+    "screencastomatic": {
+        "domains": [
+            "screencast-o-matic.com"
+        ]
+    },
+    "screenrec": {
+        "domains": [
+            "screenrec.com"
+        ]
+    },
+    "scrippsnetworks": {
+        "domains": [
+            "cookingchanneltv.com",
+            "discovery.com",
+            "diynetwork.com",
+            "foodnetwork.com",
+            "hgtv.com",
+            "travelchannel.com",
+            "watch.geniuskitchen.com"
+        ]
+    },
+    "scrolller": {
+        "domains": [
+            "scrolller.com"
+        ]
+    },
+    "sejm": {
+        "domains": [
+            "sejm-embed.redcdn.pl",
+            "sejm.gov.pl"
+        ]
+    },
+    "sen": {
+        "domains": [
+            "sen.com"
+        ]
+    },
+    "senalcolombialive": {
+        "domains": [
+            "senalcolombia.tv"
+        ]
+    },
+    "senate.gov": {
+        "domains": [
+            "aging.senate.gov",
+            "agriculture.senate.gov",
+            "appropriations.senate.gov",
+            "banking.senate.gov",
+            "budget.senate.gov",
+            "commerce.senate.gov",
+            "energy.senate.gov",
+            "epw.senate.gov",
+            "foreign.senate.gov",
+            "help.senate.gov",
+            "inaugural.senate.gov",
+            "intelligence.senate.gov",
+            "rules.senate.gov",
+            "sbc.senate.gov",
+            "senate.gov",
+            "veterans.senate.gov"
+        ]
+    },
+    "sendtonews": {
+        "domains": [
+            "embed.sendtonews.com"
+        ]
+    },
+    "servus": {
+        "domains": [
+            "pm-wissen.com",
+            "servus.com",
+            "servustv.com"
+        ]
+    },
+    "sexu": {
+        "domains": [
+            "sexu.com"
+        ]
+    },
+    "seznamzpravy": {
+        "domains": [
+            "seznamzpravy.cz"
+        ]
+    },
+    "seznamzpravyarticle": {
+        "domains": [
+            "seznam.cz",
+            "seznamzpravy.cz"
+        ]
+    },
+    "shahid": {
+        "domains": [
+            "shahid.mbc.net"
+        ]
+    },
+    "shahidshow": {
+        "domains": [
+            "shahid.mbc.net"
+        ]
+    },
+    "sharepoint": {
+        "domains": [
+            "epam-my.sharepoint.com",
+            "greaternyace.sharepoint.com",
+            "izoobasisschool.sharepoint.com",
+            "lut-my.sharepoint.com",
+            "microsoft.sharepoint.com",
+            "uskudaredutr-my.sharepoint.com"
+        ]
+    },
+    "shemaroome": {
+        "domains": [
+            "shemaroome.com"
+        ]
+    },
+    "shiey": {
+        "domains": [
+            "shiey.com"
+        ]
+    },
+    "showroomlive": {
+        "domains": [
+            "showroom-live.com"
+        ]
+    },
+    "shugiinitvlive": {
+        "domains": [
+            "shugiintv.go.jp"
+        ]
+    },
+    "shugiinitvliveroom": {
+        "domains": [
+            "shugiintv.go.jp"
+        ]
+    },
+    "shugiinitvvod": {
+        "domains": [
+            "shugiintv.go.jp"
+        ]
+    },
+    "simplecast": {
+        "domains": [
+            "api.simplecast.com",
+            "player.simplecast.com",
+            "the-re-bind-io-podcast.simplecast.com"
+        ]
+    },
+    "sina": {
+        "domains": [
+            "outplay.php",
+            "video.sina.com.cn"
+        ]
+    },
+    "skeb": {
+        "domains": [
+            "skeb.jp"
+        ]
+    },
+    "sky": {
+        "domains": [
+            "news.sky.com",
+            "skysports.com"
+        ]
+    },
+    "sky.it": {
+        "domains": [
+            "sport.sky.it",
+            "tg24.sky.it"
+        ]
+    },
+    "skylinewebcams": {
+        "domains": [
+            "skylinewebcams.com"
+        ]
+    },
+    "skynewsarabia": {
+        "domains": [
+            "skynewsarabia.com"
+        ]
+    },
+    "skynewsau": {
+        "domains": [
+            "skynews.com.au"
+        ]
+    },
+    "slideshare": {
+        "domains": [
+            "slideshare.net"
+        ]
+    },
+    "slideslive": {
+        "domains": [
+            "slideslive.com"
+        ]
+    },
+    "slutload": {
+        "domains": [
+            "mobile.slutload.com",
+            "slutload.com"
+        ]
+    },
+    "smotrim": {
+        "domains": [
+            "player.smotrim.ru",
+            "smotrim.ru",
+            "testplayer.vgtrk.com"
+        ]
+    },
+    "snapchatspotlight": {
+        "domains": [
+            "snapchat.com"
+        ]
+    },
+    "snotr": {
+        "domains": [
+            "snotr.com"
+        ]
+    },
+    "softwhiteunderbelly": {
+        "domains": [
+            "softwhiteunderbelly.com"
+        ]
+    },
+    "sohu": {
+        "domains": [
+            "my.tv.sohu.com",
+            "tv.sohu.com"
+        ]
+    },
+    "sohuv": {
+        "domains": [
+            "tv.sohu.com"
+        ]
+    },
+    "sonyliv": {
+        "domains": [
+            "sonyliv.com"
+        ]
+    },
+    "sonylivseries": {
+        "domains": [
+            "sonyliv.com"
+        ]
+    },
+    "soop": {
+        "domains": [
+            "ch.sooplive.co.kr",
+            "play.sooplive.co.kr",
+            "vod.sooplive.co.kr"
+        ]
+    },
+    "soundcloud": {
+        "domains": [
+            "api.soundcloud.com",
+            "soundcloud.com"
+        ]
+    },
+    "soundcloudembed": {
+        "domains": [
+            "w.soundcloud.com"
+        ]
+    },
+    "soundgasm": {
+        "domains": [
+            "soundgasm.net"
+        ]
+    },
+    "southpark.cc.com": {
+        "domains": [
+            "southpark.cc.com",
+            "southparkstudios.com"
+        ]
+    },
+    "southpark.de": {
+        "domains": [
+            "southpark.de"
+        ]
+    },
+    "southpark.lat": {
+        "domains": [
+            "southpark.lat"
+        ]
+    },
+    "southparkstudios.co.uk": {
+        "domains": [
+            "southparkstudios.co.uk"
+        ]
+    },
+    "southparkstudios.com.br": {
+        "domains": [
+            "southparkstudios.com.br"
+        ]
+    },
+    "southparkstudios.nu": {
+        "domains": [
+            "southparkstudios.nu"
+        ]
+    },
+    "sovietscloset": {
+        "domains": [
+            "sovietscloset.com"
+        ]
+    },
+    "sovietsclosetplaylist": {
+        "domains": [
+            "sovietscloset.com"
+        ]
+    },
+    "spankbang": {
+        "domains": [
+            "m.spankbang.com",
+            "spankbang.com"
+        ]
+    },
+    "spankbangplaylist": {
+        "domains": [
+            "spankbang.com"
+        ]
+    },
+    "spiegel": {
+        "domains": [
+            "spiegel.de"
+        ]
+    },
+    "sport5": {
+        "domains": [
+            "sport5.co.il",
+            "vod.sport5.co.il"
+        ]
+    },
+    "sportbox": {
+        "domains": [
+            "matchtv.ru",
+            "news.sportbox.ru"
+        ]
+    },
+    "sporteurope": {
+        "domains": [
+            "player.sporteurope.tv",
+            "sporteurope.tv"
+        ]
+    },
+    "spreaker": {
+        "domains": [
+            "api.spreaker.com",
+            "spreaker.com"
+        ]
+    },
+    "spreakershow": {
+        "domains": [
+            "api.spreaker.com",
+            "spreaker.com"
+        ]
+    },
+    "springboardplatform": {
+        "domains": [
+            "cms.springboardplatform.com"
+        ]
+    },
+    "sproutvideo": {
+        "domains": [
+            "videos.sproutvideo.com"
+        ]
+    },
+    "sr": {
+        "domains": [
+            "sr-mediathek.de"
+        ]
+    },
+    "srgssrplay": {
+        "domains": [
+            "play.swissinfo.ch",
+            "rtr.ch",
+            "rts.ch",
+            "srf.ch"
+        ]
+    },
+    "stacommulive": {
+        "domains": [
+            "stacommu.jp"
+        ]
+    },
+    "stacommuvod": {
+        "domains": [
+            "stacommu.jp"
+        ]
+    },
+    "stageplusvodconcert": {
+        "domains": [
+            "stage-plus.com"
+        ]
+    },
+    "stanfordoc": {
+        "domains": [
+            "openclassroom.stanford.edu"
+        ]
+    },
+    "startrek": {
+        "domains": [
+            "startrek.com"
+        ]
+    },
+    "startv": {
+        "domains": [
+            "startv.com.tr"
+        ]
+    },
+    "steam": {
+        "domains": [
+            "store.steampowered.com"
+        ]
+    },
+    "steamcommunity": {
+        "domains": [
+            "steamcommunity.com"
+        ]
+    },
+    "steamcommunitybroadcast": {
+        "domains": [
+            "steamcommunity.com"
+        ]
+    },
+    "stitcher": {
+        "domains": [
+            "stitcher.com"
+        ]
+    },
+    "stitchershow": {
+        "domains": [
+            "stitcher.com"
+        ]
+    },
+    "storyfire": {
+        "domains": [
+            "storyfire.com"
+        ]
+    },
+    "storyfireseries": {
+        "domains": [
+            "storyfire.com"
+        ]
+    },
+    "storyfireuser": {
+        "domains": [
+            "storyfire.com"
+        ]
+    },
+    "streaks": {
+        "domains": [
+            "playback.api.streaks.jp",
+            "players.streaks.jp"
+        ]
+    },
+    "streamable": {
+        "domains": [
+            "streamable.com"
+        ]
+    },
+    "streamcz": {
+        "domains": [
+            "stream.cz",
+            "televizeseznam.cz"
+        ]
+    },
+    "streetvoice": {
+        "domains": [
+            "streetvoice.com",
+            "tw.streetvoice.com"
+        ]
+    },
+    "stretchinternet": {
+        "domains": [
+            "portal.stretchinternet.com"
+        ]
+    },
+    "stripchat": {
+        "domains": [
+            "stripchat.com"
+        ]
+    },
+    "stv": {
+        "domains": [
+            "player.stv.tv"
+        ]
+    },
+    "stvr": {
+        "domains": [
+            "rtvs.sk",
+            "stvr.sk"
+        ]
+    },
+    "subsplash": {
+        "domains": [
+            "prophecywatchers.subspla.sh",
+            "subsplash.com"
+        ]
+    },
+    "substack": {
+        "domains": [
+            "andrewzimmern.substack.com",
+            "haleynahman.substack.com",
+            "persuasion1.substack.com"
+        ]
+    },
+    "sunporno": {
+        "domains": [
+            "embeds.sunporno.com",
+            "sunporno.com"
+        ]
+    },
+    "sverigesradio": {
+        "domains": [
+            "sverigesradio.se"
+        ]
+    },
+    "svt": {
+        "domains": [
+            "oppetarkiv.se",
+            "svt.se",
+            "svtplay.se"
+        ]
+    },
+    "swearnetepisode": {
+        "domains": [
+            "swearnet.com"
+        ]
+    },
+    "syfy": {
+        "domains": [
+            "syfy.com"
+        ]
+    },
+    "syvdk": {
+        "domains": [
+            "24syv.dk"
+        ]
+    },
+    "sztvhu": {
+        "domains": [
+            "sztv.hu"
+        ]
+    },
+    "t-online.de": {
+        "domains": [
+            "t-online.de"
+        ]
+    },
+    "tagesschau": {
+        "domains": [
+            "tagesschau.de"
+        ]
+    },
+    "taptapapp": {
+        "domains": [
+            "taptap.cn"
+        ]
+    },
+    "taptapappintl": {
+        "domains": [
+            "taptap.io"
+        ]
+    },
+    "taptapmoment": {
+        "domains": [
+            "taptap.cn"
+        ]
+    },
+    "taptappostintl": {
+        "domains": [
+            "taptap.io"
+        ]
+    },
+    "tarangplus": {
+        "domains": [
+            "tarangplus.in"
+        ]
+    },
+    "tass": {
+        "domains": [
+            "itar-tass.com",
+            "tass.ru"
+        ]
+    },
+    "tbs": {
+        "domains": [
+            "tbs.com",
+            "tntdrama.com",
+            "trutv.com"
+        ]
+    },
+    "tbsjpepisode": {
+        "domains": [
+            "cu.tbs.co.jp"
+        ]
+    },
+    "tbsjpplaylist": {
+        "domains": [
+            "cu.tbs.co.jp"
+        ]
+    },
+    "tbsjpprogram": {
+        "domains": [
+            "cu.tbs.co.jp"
+        ]
+    },
+    "teachable": {
+        "domains": [
+            "gns3.teachable.com",
+            "v1.upskillcourses.com"
+        ]
+    },
+    "teachablecourse": {
+        "domains": [
+            "gns3.teachable.com",
+            "v1.upskillcourses.com"
+        ]
+    },
+    "teachertube": {
+        "domains": [
+            "teachertube.com"
+        ]
+    },
+    "teachingchannel": {
+        "domains": [
+            "teachingchannel.org"
+        ]
+    },
+    "teamcoco": {
+        "domains": [
+            "teamcoco.com"
+        ]
+    },
+    "teamtreehouse": {
+        "domains": [
+            "teamtreehouse.com"
+        ]
+    },
+    "techtv.mit.edu": {
+        "domains": [
+            "techtv.mit.edu"
+        ]
+    },
+    "tedembed": {
+        "domains": [
+            "embed.ted.com"
+        ]
+    },
+    "tedplaylist": {
+        "domains": [
+            "ted.com"
+        ]
+    },
+    "tedseries": {
+        "domains": [
+            "ted.com"
+        ]
+    },
+    "tedtalk": {
+        "domains": [
+            "ted.com"
+        ]
+    },
+    "tele13": {
+        "domains": [
+            "t13.cl"
+        ]
+    },
+    "tele5": {
+        "domains": [
+            "tele5.de"
+        ]
+    },
+    "telebruxelles": {
+        "domains": [
+            "bx1.be"
+        ]
+    },
+    "telecaribeplay": {
+        "domains": [
+            "play.telecaribe.co"
+        ]
+    },
+    "telecinco": {
+        "domains": [
+            "cuatro.com",
+            "mediaset.es",
+            "telecinco.es"
+        ]
+    },
+    "telegraaf": {
+        "domains": [
+            "telegraaf.nl"
+        ]
+    },
+    "telegram": {
+        "domains": [
+            "t.me"
+        ]
+    },
+    "telemb": {
+        "domains": [
+            "telemb.be"
+        ]
+    },
+    "telemundo": {
+        "domains": [
+            "telemundo.com"
+        ]
+    },
+    "telequebec": {
+        "domains": [
+            "coucou.telequebec.tv",
+            "zonevideo.telequebec.tv"
+        ]
+    },
+    "telequebecemission": {
+        "domains": [
+            "bancpublic.telequebec.tv",
+            "lindicemcsween.telequebec.tv",
+            "telequebec.tv"
+        ]
+    },
+    "telequebeclive": {
+        "domains": [
+            "zonevideo.telequebec.tv"
+        ]
+    },
+    "telequebecsquat": {
+        "domains": [
+            "squat.telequebec.tv"
+        ]
+    },
+    "telequebecvideo": {
+        "domains": [
+            "video.telequebec.tv"
+        ]
+    },
+    "teletask": {
+        "domains": [
+            "tele-task.de"
+        ]
+    },
+    "telewebion": {
+        "domains": [
+            "telewebion.com"
+        ]
+    },
+    "tempo": {
+        "domains": [
+            "video.tempo.co"
+        ]
+    },
+    "tennistv": {
+        "domains": [
+            "tennistv.com"
+        ]
+    },
+    "tf1": {
+        "domains": [
+            "tf1.fr"
+        ]
+    },
+    "tfo": {
+        "domains": [
+            "tfo.org"
+        ]
+    },
+    "theatercomplextown": {
+        "domains": [
+            "theater-complex.town"
+        ]
+    },
+    "thechosen": {
+        "domains": [
+            "watch.thechosen.tv"
+        ]
+    },
+    "thechosengroup": {
+        "domains": [
+            "watch.thechosen.tv"
+        ]
+    },
+    "theguardianpodcast": {
+        "domains": [
+            "theguardian.com"
+        ]
+    },
+    "theguardianpodcastplaylist": {
+        "domains": [
+            "theguardian.com"
+        ]
+    },
+    "thehighwire": {
+        "domains": [
+            "thehighwire.com"
+        ]
+    },
+    "theholetv": {
+        "domains": [
+            "the-hole.tv"
+        ]
+    },
+    "theintercept": {
+        "domains": [
+            "theintercept.com"
+        ]
+    },
+    "theplatform": {
+        "domains": [
+            "link.theplatform.com",
+            "player.theplatform.com"
+        ]
+    },
+    "theplatformfeed": {
+        "domains": [
+            "feed.theplatform.com"
+        ]
+    },
+    "thestar": {
+        "domains": [
+            "thestar.com"
+        ]
+    },
+    "thesun": {
+        "domains": [
+            "the-sun.com",
+            "thesun.co.uk"
+        ]
+    },
+    "theweatherchannel": {
+        "domains": [
+            "weather.com"
+        ]
+    },
+    "thisamericanlife": {
+        "domains": [
+            "thisamericanlife.org"
+        ]
+    },
+    "thisoldhouse": {
+        "domains": [
+            "thisoldhouse.com"
+        ]
+    },
+    "thisvid": {
+        "domains": [
+            "thisvid.com"
+        ]
+    },
+    "thisvidmember": {
+        "domains": [
+            "thisvid.com"
+        ]
+    },
+    "thisvidplaylist": {
+        "domains": [
+            "thisvid.com"
+        ]
+    },
+    "threespeak": {
+        "domains": [
+            "3speak.tv"
+        ]
+    },
+    "threespeakuser": {
+        "domains": [
+            "3speak.tv"
+        ]
+    },
+    "tiktok": {
+        "domains": [
+            "m.tiktok.com",
+            "tiktok.com"
+        ]
+    },
+    "tlc": {
+        "domains": [
+            "go.tlc.com"
+        ]
+    },
+    "tmz": {
+        "domains": [
+            "tmz.com"
+        ]
+    },
+    "tnaflix": {
+        "domains": [
+            "tnaflix.com"
+        ]
+    },
+    "tnaflixnetworkembed": {
+        "domains": [
+            "player.empflix.com",
+            "player.tnaflix.com"
+        ]
+    },
+    "toggle": {
+        "domains": [
+            "mewatch.sg",
+            "video.toggle.sg"
+        ]
+    },
+    "toggo": {
+        "domains": [
+            "toggo.de"
+        ]
+    },
+    "tokfm": {
+        "domains": [
+            "audycje.tokfm.pl"
+        ]
+    },
+    "toongoggles": {
+        "domains": [
+            "toongoggles.com"
+        ]
+    },
+    "tou.tv": {
+        "domains": [
+            "ici.tou.tv"
+        ]
+    },
+    "toutiao": {
+        "domains": [
+            "toutiao.com"
+        ]
+    },
+    "toypics": {
+        "domains": [
+            "videos.toypics.net"
+        ]
+    },
+    "toypicsuser": {
+        "domains": [
+            "videos.toypics.net"
+        ]
+    },
+    "traileraddict": {
+        "domains": [
+            "traileraddict.com"
+        ]
+    },
+    "travelchannel": {
+        "domains": [
+            "watch.travelchannel.com"
+        ]
+    },
+    "triller": {
+        "domains": [
+            "triller.co"
+        ]
+    },
+    "trillershort": {
+        "domains": [
+            "v.triller.co"
+        ]
+    },
+    "trilleruser": {
+        "domains": [
+            "triller.co"
+        ]
+    },
+    "trovo": {
+        "domains": [
+            "trovo.live"
+        ]
+    },
+    "trovovod": {
+        "domains": [
+            "trovo.live"
+        ]
+    },
+    "trtcocukvideo": {
+        "domains": [
+            "trtcocuk.net.tr"
+        ]
+    },
+    "trtworld": {
+        "domains": [
+            "trtworld.com"
+        ]
+    },
+    "trueid": {
+        "domains": [
+            "trueid.id",
+            "trueid.ph",
+            "vn.trueid.net"
+        ]
+    },
+    "trunews": {
+        "domains": [
+            "trunews.com"
+        ]
+    },
+    "truth": {
+        "domains": [
+            "truthsocial.com"
+        ]
+    },
+    "ttinglive": {
+        "domains": [
+            "flextv.co.kr"
+        ]
+    },
+    "tube8": {
+        "domains": [
+            "tube8.com"
+        ]
+    },
+    "tubetugraz": {
+        "domains": [
+            "tube.tugraz.at"
+        ]
+    },
+    "tubetugrazseries": {
+        "domains": [
+            "tube.tugraz.at"
+        ]
+    },
+    "tubitv": {
+        "domains": [
+            "tubitv.com"
+        ]
+    },
+    "tumblr": {
+        "domains": [
+            "afloweroutofstone.tumblr.com",
+            "bartlebyshop.tumblr.com",
+            "dominustempori.tumblr.com",
+            "fansofcolor.tumblr.com",
+            "jujanon.tumblr.com",
+            "maskofthedragon.tumblr.com",
+            "patricia-taxxon.tumblr.com",
+            "prozdvoices.tumblr.com",
+            "shieldfoss.tumblr.com",
+            "silami.tumblr.com",
+            "silverfoxstole.tumblr.com",
+            "tatianamaslanydaily.tumblr.com",
+            "tumblr.com"
+        ]
+    },
+    "tunein": {
+        "domains": [
+            "tun.in",
+            "tunein.com"
+        ]
+    },
+    "tv.dfb.de": {
+        "domains": [
+            "tv.dfb.de"
+        ]
+    },
+    "tv2": {
+        "domains": [
+            "tv2.no"
+        ]
+    },
+    "tv2article": {
+        "domains": [
+            "tv2.no"
+        ]
+    },
+    "tv2dk": {
+        "domains": [
+            "tv2east.dk",
+            "tv2fyn.dk",
+            "tv2kosmopol.dk",
+            "tv2lorry.dk",
+            "tv2nord.dk",
+            "tv2ostjylland.dk",
+            "tvmidtvest.dk",
+            "tvsyd.dk"
+        ]
+    },
+    "tv2dkbornholmplay": {
+        "domains": [
+            "play.tv2bornholm.dk"
+        ]
+    },
+    "tv2play.hu": {
+        "domains": [
+            "tv2play.hu"
+        ]
+    },
+    "tv2playseries.hu": {
+        "domains": [
+            "tv2play.hu"
+        ]
+    },
+    "tv4": {
+        "domains": [
+            "tv4.se",
+            "tv4play.se"
+        ]
+    },
+    "tv5monde": {
+        "domains": [
+            "tv5monde.com"
+        ]
+    },
+    "tv5unis": {
+        "domains": [
+            "tv5unis.ca"
+        ]
+    },
+    "tv8.it": {
+        "domains": [
+            "tv8.it"
+        ]
+    },
+    "tvanouvelles": {
+        "domains": [
+            "tvanouvelles.ca"
+        ]
+    },
+    "tvanouvellesarticle": {
+        "domains": [
+            "tvanouvelles.ca"
+        ]
+    },
+    "tvaplus": {
+        "domains": [
+            "tvaplus.ca"
+        ]
+    },
+    "tvc": {
+        "domains": [
+            "tvc.ru"
+        ]
+    },
+    "tvcarticle": {
+        "domains": [
+            "tvc.ru"
+        ]
+    },
+    "tver": {
+        "domains": [
+            "tver.jp"
+        ]
+    },
+    "tvigle": {
+        "domains": [
+            "cloud.tvigle.ru",
+            "tvigle.ru"
+        ]
+    },
+    "tviplayer": {
+        "domains": [
+            "tviplayer.iol.pt"
+        ]
+    },
+    "tvn24": {
+        "domains": [
+            "fakty.tvn24.pl",
+            "sport.tvn24.pl",
+            "tvn24.pl",
+            "tvn24bis.pl",
+            "tvnmeteo.tvn24.pl"
+        ]
+    },
+    "tvnoe": {
+        "domains": [
+            "tvnoe.cz"
+        ]
+    },
+    "tvo": {
+        "domains": [
+            "tvo.org"
+        ]
+    },
+    "tvopengr": {
+        "domains": [
+            "cdn.ethnos.gr",
+            "ethnos.gr",
+            "tvopen.gr"
+        ]
+    },
+    "tvp": {
+        "domains": [
+            "abc.tvp.pl",
+            "jp2.tvp.pl",
+            "krakow.tvp.pl",
+            "opole.tvp.pl",
+            "sport.tvp.pl",
+            "stream.tvp.pl",
+            "swipeto.pl",
+            "teleexpress.tvp.pl",
+            "tvp.info",
+            "tvp.pl",
+            "tvpparlament.pl",
+            "tvpstream.vod.tvp.pl",
+            "tvpworld.com",
+            "vod.tvp.pl",
+            "warszawa.tvp.pl",
+            "wiadomosci.tvp.pl"
+        ]
+    },
+    "tvplayer": {
+        "domains": [
+            "tvplayer.com"
+        ]
+    },
+    "tvplayhome": {
+        "domains": [
+            "play.tv3.ee",
+            "play.tv3.lt",
+            "tv3play.skaties.lv"
+        ]
+    },
+    "tvw": {
+        "domains": [
+            "tvw.org"
+        ]
+    },
+    "tweakers": {
+        "domains": [
+            "tweakers.net"
+        ]
+    },
+    "twitcasting": {
+        "domains": [
+            "twitcasting.tv"
+        ]
+    },
+    "twitcastinglive": {
+        "domains": [
+            "twitcasting.tv"
+        ]
+    },
+    "twitcastinguser": {
+        "domains": [
+            "twitcasting.tv"
+        ]
+    },
+    "twitch": {
+        "domains": [
+            "clips.twitch.tv",
+            "go.twitch.tv",
+            "m.twitch.tv",
+            "player.twitch.tv",
+            "twitch.tv"
+        ]
+    },
+    "twitter": {
+        "domains": [
+            "amp.twimg.com",
+            "twitter.com",
+            "twitter3e4tixl4xyajtrzo62zg5vztmjuricljdp2c5kshju4avyoid.onion",
+            "x.com"
+        ]
+    },
+    "txxx": {
+        "domains": [
+            "hclips.com",
+            "hdzog.com",
+            "hdzog.tube",
+            "hotmovs.com",
+            "hotmovs.tube",
+            "inporn.com",
+            "privatehomeclips.com",
+            "tubepornclassic.com",
+            "txxx.com",
+            "txxx.tube",
+            "upornia.com",
+            "upornia.tube",
+            "vjav.com",
+            "vjav.tube",
+            "voyeurhit.com",
+            "voyeurhit.tube",
+            "vxxx.com"
+        ]
+    },
+    "udemy": {
+        "domains": [
+            "udemy.com",
+            "wipro.udemy.com"
+        ]
+    },
+    "udnembed": {
+        "domains": [
+            "video.udn.com"
+        ]
+    },
+    "ukcolumn": {
+        "domains": [
+            "ukcolumn.org"
+        ]
+    },
+    "uktvplay": {
+        "domains": [
+            "uktvplay.co.uk",
+            "uktvplay.uktv.co.uk"
+        ]
+    },
+    "ulizaplayer": {
+        "domains": [
+            "player-api.p.uliza.jp"
+        ]
+    },
+    "ulizaportal": {
+        "domains": [
+            "ulizaportal.jp"
+        ]
+    },
+    "umg": {
+        "domains": [
+            "universal-music.de"
+        ]
+    },
+    "unistra": {
+        "domains": [
+            "utv.unistra.fr"
+        ]
+    },
+    "unitednationswebtv": {
+        "domains": [
+            "webtv.un.org"
+        ]
+    },
+    "unity": {
+        "domains": [
+            "unity3d.com"
+        ]
+    },
+    "uol.com.br": {
+        "domains": [
+            "mais.uol.com.br",
+            "noticias.band.uol.com.br",
+            "noticias.uol.com.br",
+            "player.mais.uol.com.br",
+            "tvuol.uol.com.br",
+            "videos.band.uol.com.br"
+        ]
+    },
+    "uplynk": {
+        "domains": [
+            "content.uplynk.com"
+        ]
+    },
+    "urort": {
+        "domains": [
+            "urort.p3.no"
+        ]
+    },
+    "urplay": {
+        "domains": [
+            "urplay.se",
+            "urskola.se"
+        ]
+    },
+    "usanetwork": {
+        "domains": [
+            "usanetwork.com"
+        ]
+    },
+    "usatoday": {
+        "domains": [
+            "usatoday.com"
+        ]
+    },
+    "ustream": {
+        "domains": [
+            "ustream.tv",
+            "video.ibm.com"
+        ]
+    },
+    "ustudio": {
+        "domains": [
+            "app.ustudio.com",
+            "ustudio.com"
+        ]
+    },
+    "varzesh3": {
+        "domains": [
+            "video.varzesh3.com"
+        ]
+    },
+    "vbox7": {
+        "domains": [
+            "i49.vbox7.com",
+            "vbox7.com"
+        ]
+    },
+    "veo": {
+        "domains": [
+            "app.veo.co"
+        ]
+    },
+    "vevo": {
+        "domains": [
+            "embed.vevo.com",
+            "tv.vevo.com",
+            "vevo.com"
+        ]
+    },
+    "vevoplaylist": {
+        "domains": [
+            "vevo.com"
+        ]
+    },
+    "vgtv": {
+        "domains": [
+            "aftenbladet.no",
+            "aftenposten.no",
+            "aftonbladet.se",
+            "ap.vgtv.no",
+            "bt.no",
+            "fvn.no",
+            "tv.aftonbladet.se",
+            "tv.vg.no",
+            "vgtv.no"
+        ]
+    },
+    "vh1.com": {
+        "domains": [
+            "vh1.com"
+        ]
+    },
+    "vice": {
+        "domains": [
+            "vice.com",
+            "viceland.com",
+            "vicetv.com",
+            "video.vice.com",
+            "vms.vice.com"
+        ]
+    },
+    "viddler": {
+        "domains": [
+            "viddler.com"
+        ]
+    },
+    "videa": {
+        "domains": [
+            "videa.hu",
+            "videakid.hu"
+        ]
+    },
+    "video.arnes.si": {
+        "domains": [
+            "video.arnes.si"
+        ]
+    },
+    "video.sky.it": {
+        "domains": [
+            "masterchef.sky.it",
+            "video.sky.it",
+            "xfactor.sky.it"
+        ]
+    },
+    "videodetective": {
+        "domains": [
+            "videodetective.com"
+        ]
+    },
+    "videofy.me": {
+        "domains": [
+            "videofy.me"
+        ]
+    },
+    "videoken": {
+        "domains": [
+            "videos.cncf.io",
+            "videos.icts.res.in",
+            "videos.neurips.cc"
+        ]
+    },
+    "videokencategory": {
+        "domains": [
+            "videos.cncf.io",
+            "videos.icts.res.in",
+            "videos.neurips.cc"
+        ]
+    },
+    "videokenplayer": {
+        "domains": [
+            "player.videoken.com"
+        ]
+    },
+    "videokenplaylist": {
+        "domains": [
+            "videos.icts.res.in"
+        ]
+    },
+    "videokentopic": {
+        "domains": [
+            "videos.cncf.io",
+            "videos.icts.res.in",
+            "videos.neurips.cc"
+        ]
+    },
+    "videomore": {
+        "domains": [
+            "more.tv",
+            "odysseus.more.tv",
+            "player.videomore.ru",
+            "siren.more.tv",
+            "videomore.ru"
+        ]
+    },
+    "videopress": {
+        "domains": [
+            "video.wordpress.com",
+            "videopress.com"
+        ]
+    },
+    "vidflex": {
+        "domains": [
+            "albertalacrossetv.com",
+            "figureitoutbaseball.com",
+            "jphl.vidflex.tv",
+            "myfbcgreenville.vidflex.tv",
+            "silenticetv.com",
+            "tuffhedemantv.com",
+            "video.hockeycanada.ca",
+            "videos.telusworldofscienceedmonton.ca"
+        ]
+    },
+    "vidio": {
+        "domains": [
+            "vidio.com"
+        ]
+    },
+    "vidiolive": {
+        "domains": [
+            "vidio.com"
+        ]
+    },
+    "vidiopremier": {
+        "domains": [
+            "vidio.com"
+        ]
+    },
+    "vidlii": {
+        "domains": [
+            "vidlii.com"
+        ]
+    },
+    "vidly": {
+        "domains": [
+            "s.vid.ly",
+            "vid.ly"
+        ]
+    },
+    "vids.io": {
+        "domains": [
+            "how-to-video.vids.io"
+        ]
+    },
+    "vidyard": {
+        "domains": [
+            "embed.vidyard.com",
+            "play.vidyard.com",
+            "salesforce.vidyard.com",
+            "share.vidyard.com",
+            "thelink.hubs.vidyard.com",
+            "vyexample03.hubs.vidyard.com"
+        ]
+    },
+    "viewlift": {
+        "domains": [
+            "chorki.com",
+            "embed.snagfilms.com",
+            "hoichoi.tv",
+            "main.snagfilms.com",
+            "marquee.tv",
+            "monumentalsportsnetwork.com",
+            "snagfilms.com",
+            "winnersview.com"
+        ]
+    },
+    "viidea": {
+        "domains": [
+            "hekovnik.com",
+            "videolectures.net"
+        ]
+    },
+    "vimeo": {
+        "domains": [
+            "player.vimeo.com",
+            "vimeo.com",
+            "vimeopro.com"
+        ]
+    },
+    "vimm": {
+        "domains": [
+            "vimm.tv"
+        ]
+    },
+    "vimp": {
+        "domains": [
+            "hsbi.de",
+            "videocampus.sachsen.de",
+            "vimp.oth-regensburg.de",
+            "vimp.weka-fachmedien.de",
+            "www2.univ-sba.dz"
+        ]
+    },
+    "viqeo": {
+        "domains": [
+            "api.viqeo.tv",
+            "cdn.viqeo.tv"
+        ]
+    },
+    "visir": {
+        "domains": [
+            "visir.is"
+        ]
+    },
+    "viu": {
+        "domains": [
+            "india.viu.com",
+            "viu.com"
+        ]
+    },
+    "viuottindonesia": {
+        "domains": [
+            "viu.com"
+        ]
+    },
+    "vk": {
+        "domains": [
+            "m.vk.com",
+            "new.vk.com",
+            "vk.com",
+            "vk.ru",
+            "vksport.vkvideo.ru",
+            "vkvideo.ru"
+        ]
+    },
+    "vkplay": {
+        "domains": [
+            "live.vkplay.ru",
+            "live.vkvideo.ru",
+            "vkplay.live"
+        ]
+    },
+    "vkplaylive": {
+        "domains": [
+            "live.vkplay.ru",
+            "live.vkvideo.ru",
+            "vkplay.live"
+        ]
+    },
+    "vm.tiktok": {
+        "domains": [
+            "tiktok.com",
+            "vm.tiktok.com",
+            "vt.tiktok.com"
+        ]
+    },
+    "vocaroo": {
+        "domains": [
+            "voca.ro",
+            "vocaroo.com"
+        ]
+    },
+    "vodpl": {
+        "domains": [
+            "vod.pl"
+        ]
+    },
+    "vodplatform": {
+        "domains": [
+            "embed.kwikmotion.com",
+            "vod-platform.net"
+        ]
+    },
+    "voicy": {
+        "domains": [
+            "voicy.jp"
+        ]
+    },
+    "volejtv": {
+        "domains": [
+            "volej.tv"
+        ]
+    },
+    "voxmedia": {
+        "domains": [
+            "sbnation.com",
+            "theverge.com",
+            "vox.com"
+        ]
+    },
+    "vpro": {
+        "domains": [
+            "2doc.nl",
+            "tegenlicht.vpro.nl",
+            "vpro.nl"
+        ]
+    },
+    "vqq": {
+        "domains": [
+            "v.qq.com"
+        ]
+    },
+    "vrsquare": {
+        "domains": [
+            "livr.jp"
+        ]
+    },
+    "vrt": {
+        "domains": [
+            "sporza.be",
+            "vrt.be"
+        ]
+    },
+    "vrtmax": {
+        "domains": [
+            "vrt.be"
+        ]
+    },
+    "vtm": {
+        "domains": [
+            "vtm.be"
+        ]
+    },
+    "vtv": {
+        "domains": [
+            "vtv.vn"
+        ]
+    },
+    "vtvgo": {
+        "domains": [
+            "vtvgo.vn"
+        ]
+    },
+    "vtxtv": {
+        "domains": [
+            "vtxtv.ch"
+        ]
+    },
+    "vtxtvlive": {
+        "domains": [
+            "vtxtv.ch"
+        ]
+    },
+    "vtxtvrecordings": {
+        "domains": [
+            "vtxtv.ch"
+        ]
+    },
+    "vuclip": {
+        "domains": [
+            "m.vuclip.com"
+        ]
+    },
+    "vvvvid": {
+        "domains": [
+            "vvvvid.it"
+        ]
+    },
+    "vvvvidshow": {
+        "domains": [
+            "vvvvid.it"
+        ]
+    },
+    "walla": {
+        "domains": [
+            "vod.walla.co.il"
+        ]
+    },
+    "walytv": {
+        "domains": [
+            "player.waly.tv"
+        ]
+    },
+    "walytvlive": {
+        "domains": [
+            "player.waly.tv"
+        ]
+    },
+    "walytvrecordings": {
+        "domains": [
+            "player.waly.tv"
+        ]
+    },
+    "washingtonpost": {
+        "domains": [
+            "washingtonpost.com"
+        ]
+    },
+    "wat.tv": {
+        "domains": [
+            "wat.tv"
+        ]
+    },
+    "watchespn": {
+        "domains": [
+            "espn.com"
+        ]
+    },
+    "wdr": {
+        "domains": [
+            "deviceids-medp.wdr.de",
+            "mobile-ondemand.wdr.de"
+        ]
+    },
+    "wdrelefant": {
+        "domains": [
+            "wdrmaus.de"
+        ]
+    },
+    "wdrpage": {
+        "domains": [
+            "kinder.wdr.de",
+            "sportschau.de",
+            "wdrmaus.de",
+            "www1.wdr.de"
+        ]
+    },
+    "web.archive": {
+        "domains": [
+            "web.archive.org"
+        ]
+    },
+    "webcamerapl": {
+        "domains": [
+            "gdansk-stare-miasto.webcamera.pl",
+            "warszawa-plac-zamkowy.webcamera.pl"
+        ]
+    },
+    "webcaster": {
+        "domains": [
+            "bl.webcaster.pro"
+        ]
+    },
+    "webcasterfeed": {
+        "domains": [
+            "bl.webcaster.pro"
+        ]
+    },
+    "webofstories": {
+        "domains": [
+            "webofstories.com"
+        ]
+    },
+    "webofstoriesplaylist": {
+        "domains": [
+            "webofstories.com"
+        ]
+    },
+    "weibo": {
+        "domains": [
+            "m.weibo.cn",
+            "weibo.com"
+        ]
+    },
+    "weibouser": {
+        "domains": [
+            "weibo.com"
+        ]
+    },
+    "weibovideo": {
+        "domains": [
+            "video.weibo.com",
+            "weibo.com"
+        ]
+    },
+    "weiqitv": {
+        "domains": [
+            "weiqitv.com"
+        ]
+    },
+    "wetv": {
+        "domains": [
+            "wetv.vip"
+        ]
+    },
+    "wetvseries": {
+        "domains": [
+            "wetv.vip"
+        ]
+    },
+    "weverse": {
+        "domains": [
+            "weverse.io"
+        ]
+    },
+    "weverselive": {
+        "domains": [
+            "weverse.io"
+        ]
+    },
+    "weverselivetab": {
+        "domains": [
+            "weverse.io"
+        ]
+    },
+    "weversemedia": {
+        "domains": [
+            "weverse.io"
+        ]
+    },
+    "weversemediatab": {
+        "domains": [
+            "weverse.io"
+        ]
+    },
+    "weversemoment": {
+        "domains": [
+            "weverse.io"
+        ]
+    },
+    "wevidi": {
+        "domains": [
+            "wevidi.net"
+        ]
+    },
+    "weyyak": {
+        "domains": [
+            "weyyak.com"
+        ]
+    },
+    "whowatch": {
+        "domains": [
+            "whowatch.tv"
+        ]
+    },
+    "whyp": {
+        "domains": [
+            "whyp.it"
+        ]
+    },
+    "wikimedia.org": {
+        "domains": [
+            "commons.wikimedia.org"
+        ]
+    },
+    "wimbledon": {
+        "domains": [
+            "wimbledon.com"
+        ]
+    },
+    "wimtv": {
+        "domains": [
+            "platform.wim.tv"
+        ]
+    },
+    "winsportsvideo": {
+        "domains": [
+            "winsports.co"
+        ]
+    },
+    "wistia": {
+        "domains": [
+            "fast.wistia.com",
+            "fast.wistia.net"
+        ]
+    },
+    "wistiachannel": {
+        "domains": [
+            "fast.wistia.net"
+        ]
+    },
+    "wistiaplaylist": {
+        "domains": [
+            "fast.wistia.net"
+        ]
+    },
+    "wnl": {
+        "domains": [
+            "omroepwnl.nl"
+        ]
+    },
+    "worldstarhiphop": {
+        "domains": [
+            "m.worldstarhiphop.com",
+            "worldstarhiphop.com"
+        ]
+    },
+    "wppilot": {
+        "domains": [
+            "pilot.wp.pl"
+        ]
+    },
+    "wrestleuniverseppv": {
+        "domains": [
+            "wrestle-universe.com"
+        ]
+    },
+    "wrestleuniversevod": {
+        "domains": [
+            "wrestle-universe.com"
+        ]
+    },
+    "wsj": {
+        "domains": [
+            "barrons.com",
+            "video-api.wsj.com",
+            "wsj.com"
+        ]
+    },
+    "wsjarticle": {
+        "domains": [
+            "wsj.com"
+        ]
+    },
+    "wwe": {
+        "domains": [
+            "de.wwe.com",
+            "wwe.com"
+        ]
+    },
+    "wyborcza": {
+        "domains": [
+            "wyborcza.pl"
+        ]
+    },
+    "wyborczapodcast": {
+        "domains": [
+            "wyborcza.pl",
+            "wysokieobcasy.pl"
+        ]
+    },
+    "wykop": {
+        "domains": [
+            "wykop.pl"
+        ]
+    },
+    "xboxclips": {
+        "domains": [
+            "gameclips.io",
+            "xboxclips.com"
+        ]
+    },
+    "xhamster": {
+        "domains": [
+            "de.xhamster.com",
+            "it.xhamster.com",
+            "m.xhamster.com",
+            "pt.xhamster.com",
+            "xhamster.com",
+            "xhamster.desi",
+            "xhamster.one",
+            "xhamster11.com",
+            "xhamster2.com",
+            "xhamster20.desi",
+            "xhamster26.com",
+            "xhday.com",
+            "xhvid.com"
+        ]
+    },
+    "xhamsterembed": {
+        "domains": [
+            "xhamster.com"
+        ]
+    },
+    "xhamsteruser": {
+        "domains": [
+            "xhamster.com",
+            "xhday.com",
+            "xhvid.com"
+        ]
+    },
+    "xiaohongshu": {
+        "domains": [
+            "xiaohongshu.com"
+        ]
+    },
+    "ximalaya": {
+        "domains": [
+            "m.ximalaya.com",
+            "ximalaya.com"
+        ]
+    },
+    "xinpianchang": {
+        "domains": [
+            "xinpianchang.com"
+        ]
+    },
+    "xminus": {
+        "domains": [
+            "x-minus.org"
+        ]
+    },
+    "xnxx": {
+        "domains": [
+            "video.xnxx.com",
+            "xnxx.com",
+            "xnxx3.com"
+        ]
+    },
+    "xstream": {
+        "domains": [
+            "frontend.xstream.dk"
+        ]
+    },
+    "xvideos": {
+        "domains": [
+            "de.xvideos.com",
+            "flashservice.xvideos.com",
+            "fr.xvideos.com",
+            "it.xvideos.com",
+            "static-hw.xvideos.com",
+            "xvideos.com",
+            "xvideos.es"
+        ]
+    },
+    "xxxymovies": {
+        "domains": [
+            "xxxymovies.com"
+        ]
+    },
+    "yahoo": {
+        "domains": [
+            "es-us.noticias.yahoo.com",
+            "gma.yahoo.com",
+            "malaysia.news.yahoo.com",
+            "news.yahoo.co.jp",
+            "news.yahoo.com",
+            "sports.yahoo.com",
+            "tw.news.yahoo.com",
+            "tw.video.yahoo.com",
+            "yahoo.com"
+        ]
+    },
+    "yandexdisk": {
+        "domains": [
+            "disk.360.yandex.ru",
+            "yadi.sk"
+        ]
+    },
+    "yandexmusic": {
+        "domains": [
+            "music.yandex.com",
+            "music.yandex.ru"
+        ]
+    },
+    "yandexvideo": {
+        "domains": [
+            "frontend.vh.yandex.ru",
+            "yandex.ru"
+        ]
+    },
+    "yandexvideopreview": {
+        "domains": [
+            "yandex.com",
+            "yandex.ru"
+        ]
+    },
+    "yapfiles": {
+        "domains": [
+            "api.yapfiles.ru",
+            "yapfiles.ru"
+        ]
+    },
+    "yappy": {
+        "domains": [
+            "yappy.media"
+        ]
+    },
+    "yappyprofile": {
+        "domains": [
+            "yappy.media"
+        ]
+    },
+    "yfanefa": {
+        "domains": [
+            "yfanefa.com"
+        ]
+    },
+    "yleareena": {
+        "domains": [
+            "areena.yle.fi"
+        ]
+    },
+    "youjizz": {
+        "domains": [
+            "youjizz.com"
+        ]
+    },
+    "youku": {
+        "domains": [
+            "list.youku.com",
+            "play.tudou.com",
+            "player.youku.com",
+            "v.youku.com"
+        ]
+    },
+    "younowchannel": {
+        "domains": [
+            "younow.com"
+        ]
+    },
+    "younowlive": {
+        "domains": [
+            "younow.com"
+        ]
+    },
+    "younowmoment": {
+        "domains": [
+            "younow.com"
+        ]
+    },
+    "youporn": {
+        "domains": [
+            "youporn.com"
+        ]
+    },
+    "youporncategory": {
+        "domains": [
+            "youporn.com"
+        ]
+    },
+    "youpornchannel": {
+        "domains": [
+            "youporn.com"
+        ]
+    },
+    "youporncollection": {
+        "domains": [
+            "youporn.com"
+        ]
+    },
+    "youpornstar": {
+        "domains": [
+            "youporn.com"
+        ]
+    },
+    "youporntag": {
+        "domains": [
+            "youporn.com"
+        ]
+    },
+    "youpornvideos": {
+        "domains": [
+            "youporn.com"
+        ]
+    },
+    "youtube": {
+        "domains": [
+            "consent.youtube.com",
+            "invidio.us",
+            "music.youtube.com",
+            "redirect.invidious.io",
+            "vid.plus",
+            "youtu.be",
+            "youtube.com",
+            "youtubekids.com",
+            "zwearz.com"
+        ]
+    },
+    "youtubelivestreamembed": {
+        "domains": [
+            "youtube.com"
+        ]
+    },
+    "youtubeytbe": {
+        "domains": [
+            "youtu.be"
+        ]
+    },
+    "zaiko": {
+        "domains": [
+            "zaiko.io"
+        ]
+    },
+    "zaikoeticket": {
+        "domains": [
+            "zaiko.io"
+        ]
+    },
+    "zapiks": {
+        "domains": [
+            "zapiks.com",
+            "zapiks.fr"
+        ]
+    },
+    "zattoo": {
+        "domains": [
+            "zattoo.com"
+        ]
+    },
+    "zattoolive": {
+        "domains": [
+            "zattoo.com"
+        ]
+    },
+    "zattoomovies": {
+        "domains": [
+            "zattoo.com"
+        ]
+    },
+    "zattoorecordings": {
+        "domains": [
+            "zattoo.com"
+        ]
+    },
+    "zdf": {
+        "domains": [
+            "logo.de",
+            "zdf.de",
+            "zdfheute.de"
+        ]
+    },
+    "zee5": {
+        "domains": [
+            "zee5.com"
+        ]
+    },
+    "zeenews": {
+        "domains": [
+            "zeenews.india.com"
+        ]
+    },
+    "zenporn": {
+        "domains": [
+            "zenporn.com"
+        ]
+    },
+    "zetlanddkarticle": {
+        "domains": [
+            "zetland.dk"
+        ]
+    },
+    "zhihu": {
+        "domains": [
+            "zhihu.com"
+        ]
+    },
+    "zingmp3": {
+        "domains": [
+            "mp3.zing.vn",
+            "zingmp3.vn"
+        ]
+    },
+    "zoom": {
+        "domains": [
+            "cityofdetroit.zoom.us",
+            "economist.zoom.us",
+            "ffgolf.zoom.us",
+            "us02web.zoom.us"
+        ]
+    },
+    "zype": {
+        "domains": [
+            "player.zype.com"
+        ]
+    }
+}

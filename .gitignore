@@ -1,0 +1,48 @@
+# General
+*.user
+*.local
+*.log
+/bin/
+/build/
+/dist/
+
+# CMake
+/cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+
+# Qt
+*.pro.user
+*.qbs.user
+*.moc
+*.o
+*.obj
+moc_*.cpp
+qrc_*.cpp
+ui_*.h
+
+# Executables
+*.exe
+*.dll
+*.so
+*.dylib
+*.a
+
+# User-specific files
+settings.ini
+download_archive.db
+*.sqlite
+*.db
+*.db-journal
+
+# IDE specific
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln.docstates
+*.nupkg
+*.bak
+*~
