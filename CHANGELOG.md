@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Aria2c RPC Daemon Integration**: Replaced standard `yt-dlp` download execution with a background `aria2c` daemon, enabling massively faster multi-connection segment downloads.
 - **Comprehensive UI Tooltips**: Enforced a requirement that *all* GUI elements must have hover hints (tooltips) and added missing tooltips across the application.
 - **Asynchronous Engine**: Fully decoupled `yt-dlp` metadata extraction and `ffmpeg` post-processing into their own non-blocking workers to prevent UI freezes.
+- **Automatic Extractor Updates**: `YtDlpUpdater` now automatically regenerates `extractors_yt-dlp.json` using `yt-dlp --list-extractors` to keep auto-paste heuristics perfectly in sync with the binary.
+- **Playable Thumbnail Previews**: Added the ability to click on thumbnail previews in the Active Downloads tab to instantly open the completed media file in the OS default player.
 
 ### Changed
 - **Architecture**: Switched from Python/PyQt6 to C++/Qt6.

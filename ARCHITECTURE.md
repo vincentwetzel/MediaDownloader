@@ -26,7 +26,7 @@ The application ensures that only one instance can run at a time. This is achiev
 3.  **Queue:** Valid URLs are added to a download queue managed by `DownloadManager`.
 4.  **Execution:** `DownloadManager` spawns a worker (`YtDlpWorker` or `GalleryDlWorker`) for each item.
 5.  **Progress:** The worker parses `stdout` and emits progress signals (`progressUpdated`, `speedChanged`, etc.).
-6.  **UI Update:** `ActiveDownloadsTab` receives signals and updates the corresponding progress bars and labels.
+6.  **UI Update:** `ActiveDownloadsTab` receives signals and updates the corresponding progress bars, labels, and plays/displays a thumbnail preview on the left side of the download GUI element.
 7.  **Post-Processing:** Upon success, `DownloadManager` performs post-processing (e.g., embedding track numbers for audio playlists) and moves the file to the final output directory.
 
 ## 3. Directory Structure

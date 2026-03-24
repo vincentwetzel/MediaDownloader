@@ -42,6 +42,9 @@ This document outlines the specifications for the C++ port of the MediaDownloade
     - Video Settings group with quality, codec, extension, and audio codec for video downloads. Includes a "Lock Video Settings" checkbox.
     - Audio Settings group with quality, codec, and extension for audio downloads. Includes a "Lock Audio Settings" checkbox.
     - Operational Controls including Playlist logic, Max Concurrent downloads, Rate Limit, "Override duplicate download check", and "Exit after all downloads complete".
+- **Active Downloads Tab**:
+    - Displays a list of queued, actively downloading, and completed items.
+    - Each download GUI element must play/display a thumbnail preview for audio/video downloads on the left side of the widget.
 - **Advanced Settings Tab**:
     - **Organization**: Settings are grouped into logical sections:
         - **Configuration**: Output folder, Temporary folder, Theme.

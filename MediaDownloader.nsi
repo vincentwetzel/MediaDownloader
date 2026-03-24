@@ -1,72 +1,63 @@
-; MediaDownloader NSIS Installer Script
-
-!define APP_NAME "MediaDownloader"
-!define APP_VERSION "1.0.0"
-!define COMPANY_NAME "Vincent Wetzel"
-!define INSTALLER_NAME "MediaDownloader-Setup-${APP_VERSION}.exe"
-!define UNINSTALLER_NAME "Uninstall.exe"
-
-; MUI 2.0
 !include "MUI2.nsh"
 
-; General
-Name "${APP_NAME} ${APP_VERSION}"
-OutFile "${INSTALLER_NAME}"
-InstallDir "$PROGRAMFILES64\${APP_NAME}"
-InstallDirRegKey HKLM "Software\${APP_NAME}" "Install_Dir"
+; General Settings
+Name "MediaDownloader"
+OutFile "MediaDownloader_Installer.exe"
+InstallDir "$PROGRAMFILES64\MediaDownloader"
+InstallDirRegKey HKLM "Software\MediaDownloader" "Install_Dir"
 RequestExecutionLevel admin
 
-; Interface Settings
+; UI Settings
 !define MUI_ABORTWARNING
-!define MUI_ICON "src\ui\assets\icon.ico"
+!define MUI_ICON "src\ui\assets\icon.ico" ; Make sure this path points to your actual icon
 !define MUI_UNICON "src\ui\assets\icon.ico"
 
 ; Pages
-!insertmacro MUI_PAGE_WELCOME
-!insertmacro MUI_PAGE_LICENSE "LICENSE"
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
-!insertmacro MUI_PAGE_FINISH
 
 !insertmacro MUI_UNPAGE_CONFIRM
 !insertmacro MUI_UNPAGE_INSTFILES
 
-; Languages
+; Language
 !insertmacro MUI_LANGUAGE "English"
 
-Section "Install"
-    SetOutPath $INSTDIR
+Section "MediaDownloader" SecMain
+    SetOutPath "$INSTDIR"
 
-    ; Add files
-    File /r "build\Release\*"
+    ; --- SEAMLESS UPDATE CLEANUP ---
+    ; Clean up old Python (PyInstaller) artifacts so they don't waste space
+    RMDir /r "$INSTDIR\_internal"
+    Delete "$INSTDIR\MediaDownloader.exe"
+    
+    ; Assuming CMake places all deployment-ready files (exe, DLLs, bin/) in a folder named 'deploy'
+    ; Change 'deploy\*.*' to your actual packaging output directory
+    File /r "deploy\*.*"
 
-    ; Create uninstaller
-    WriteUninstaller "$INSTDIR\${UNINSTALLER_NAME}"
+    ; Write the installation path into the registry
+    WriteRegStr HKLM "Software\MediaDownloader" "Install_Dir" "$INSTDIR"
 
-    ; Write registry keys
-    WriteRegStr HKLM "Software\${APP_NAME}" "Install_Dir" "$INSTDIR"
-    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "DisplayName" "${APP_NAME}"
-    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "UninstallString" '"$INSTDIR\${UNINSTALLER_NAME}"'
-    WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "NoModify" 1
-    WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "NoRepair" 1
+    ; Write the uninstall keys for Windows Add/Remove Programs
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\MediaDownloader" "DisplayName" "MediaDownloader"
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\MediaDownloader" "UninstallString" '"$INSTDIR\uninstall.exe"'
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\MediaDownloader" "DisplayIcon" '"$INSTDIR\MediaDownloader.exe"'
+    WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\MediaDownloader" "NoModify" 1
+    WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\MediaDownloader" "NoRepair" 1
+    WriteUninstaller "$INSTDIR\uninstall.exe"
 
     ; Create shortcuts
-    CreateDirectory "$SMPROGRAMS\${APP_NAME}"
-    CreateShortCut "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk" "$INSTDIR\MediaDownloader.exe"
-    CreateShortCut "$DESKTOP\${APP_NAME}.lnk" "$INSTDIR\MediaDownloader.exe"
+    CreateDirectory "$SMPROGRAMS\MediaDownloader"
+    CreateShortcut "$SMPROGRAMS\MediaDownloader\MediaDownloader.lnk" "$INSTDIR\MediaDownloader.exe"
+    CreateShortcut "$DESKTOP\MediaDownloader.lnk" "$INSTDIR\MediaDownloader.exe"
 SectionEnd
 
 Section "Uninstall"
     ; Remove registry keys
-    DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}"
-    DeleteRegKey HKLM "Software\${APP_NAME}"
+    DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\MediaDownloader"
+    DeleteRegKey HKLM "Software\MediaDownloader"
 
-    ; Remove files and directories
-    Delete "$INSTDIR\*"
+    ; Remove all files and directories
     RMDir /r "$INSTDIR"
-
-    ; Remove shortcuts
-    Delete "$SMPROGRAMS\${APP_NAME}\*.*"
-    RMDir "$SMPROGRAMS\${APP_NAME}"
-    Delete "$DESKTOP\${APP_NAME}.lnk"
+    RMDir /r "$SMPROGRAMS\MediaDownloader"
+    Delete "$DESKTOP\MediaDownloader.lnk"
 SectionEnd
