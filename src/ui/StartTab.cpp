@@ -22,6 +22,7 @@
 #include <QInputDialog>
 #include <QPushButton>
 #include <QDebug> // Include QDebug for debugging
+#include <QPalette>
 
 StartTab::StartTab(ConfigManager *configManager, ExtractorJsonParser *extractorJsonParser, QWidget *parent)
     : QWidget(parent), m_configManager(configManager), m_extractorJsonParser(extractorJsonParser), m_typeSelectionDialog(nullptr) {
@@ -254,7 +255,6 @@ void StartTab::setupUI() {
 
     QVBoxLayout *urlInputLayout = new QVBoxLayout();
     QLabel *urlLabel = new QLabel("Video/Playlist URL(s):", this);
-    urlLabel->setStyleSheet("font-weight: bold; font-size: 14px;");
     urlLabel->setToolTip("Enter the URLs of the videos or playlists you want to download.");
     urlInputLayout->addWidget(urlLabel);
 
@@ -262,8 +262,8 @@ void StartTab::setupUI() {
     m_urlInput->setPlaceholderText("Paste one or more media URLs (one per line)...");
     m_urlInput->setToolTip("Paste the web address (URL) of the video or audio you want to download here. You can paste multiple links, just put each one on a new line.");
     m_urlInput->setMinimumHeight(100);
-    m_urlInput->setStyleSheet("QTextEdit { font-size: 14px; padding: 5px; border: 1px solid #ccc; border-radius: 4px; } QTextEdit:focus { border: 1px solid #0078d7; }");
     urlInputLayout->addWidget(m_urlInput);
+    applyUrlInputStyleSheet();
     inputSectionLayout->addLayout(urlInputLayout, 70);
 
     QVBoxLayout *actionColumnLayout = new QVBoxLayout();
@@ -340,7 +340,6 @@ void StartTab::setupUI() {
     mainLayout->addStretch();
 
     QLabel *commandPreviewLabel = new QLabel("Command Preview:", this);
-    commandPreviewLabel->setStyleSheet("font-weight: bold;");
     commandPreviewLabel->setToolTip("Shows the exact command that will be executed.");
     mainLayout->addWidget(commandPreviewLabel);
 
@@ -351,6 +350,7 @@ void StartTab::setupUI() {
     m_commandPreview->setFixedHeight(120);
     m_commandPreview->setToolTip("The exact command-line arguments that will be passed to the downloader.");
     mainLayout->addWidget(m_commandPreview);
+    applyCommandPreviewStyleSheet(); // Initial application of stylesheet
 
     connect(m_downloadButton, &QPushButton::clicked, this, &StartTab::onDownloadButtonClicked);
     connect(m_openDownloadsFolderButton, &QPushButton::clicked, this, &StartTab::openDownloadsFolder);
@@ -364,7 +364,72 @@ void StartTab::setupUI() {
     connect(m_overrideDuplicateCheck, &QCheckBox::stateChanged, this, &StartTab::updateCommandPreview);
 }
 
+void StartTab::applyCommandPreviewStyleSheet() {
+    if (!m_commandPreview) {
+        return;
+    }
+
+    const QPalette palette = this->palette();
+    const QString borderColor = palette.color(QPalette::Mid).name();
+    const QString backgroundColor = palette.color(QPalette::AlternateBase).name(); // Use alternate base for distinction
+    const QString textColor = palette.color(QPalette::Text).name();
+
+    const QString style = QStringLiteral(R"(
+        QTextEdit {
+            padding: 5px;
+            border: 1px solid %1;
+            border-radius: 4px;
+            background-color: %2;
+            color: %3;
+        }
+    )").arg(borderColor, backgroundColor, textColor);
+
+    m_commandPreview->setStyleSheet(style);
+}
+
+void StartTab::applyUrlInputStyleSheet() {
+    if (!m_urlInput) {
+        return;
+    }
+
+    const QPalette palette = this->palette();
+    const QString borderColor = palette.color(QPalette::Mid).name();
+    const QString backgroundColor = palette.color(QPalette::Base).name();
+    const QString textColor = palette.color(QPalette::Text).name();
+    const QString focusColor = palette.color(QPalette::Highlight).name();
+
+    const QString style = QStringLiteral(R"(
+        QTextEdit {
+            font-size: 14px;
+            padding: 5px;
+            border: 1px solid %1;
+            border-radius: 4px;
+            background-color: %2;
+            color: %3;
+        }
+        QTextEdit:focus {
+            border: 1px solid %4;
+        }
+    )").arg(borderColor, backgroundColor, textColor, focusColor);
+
+    m_urlInput->setStyleSheet(style);
+}
+
+void StartTab::changeEvent(QEvent *event) {
+    if (event && event->type() == QEvent::PaletteChange) {
+        applyUrlInputStyleSheet();
+        applyCommandPreviewStyleSheet(); // Re-apply command preview style on theme change
+    }
+    QWidget::changeEvent(event);
+}
+
 void StartTab::loadSettings() {
+    QSignalBlocker b1(m_playlistLogicCombo);
+    QSignalBlocker b2(m_maxConcurrentCombo);
+    QSignalBlocker b3(m_rateLimitCombo);
+    QSignalBlocker b4(m_overrideDuplicateCheck);
+    QSignalBlocker b5(m_exitAfterDownloadsCheck);
+
     if (m_playlistLogicCombo) // Added null check
         m_playlistLogicCombo->setCurrentText(m_configManager->get("General", "playlist_logic", "Ask").toString());
     if (m_maxConcurrentCombo) // Added null check

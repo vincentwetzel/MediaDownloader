@@ -68,3 +68,10 @@ void ConfigManager::setDefaults() {
 QVariant ConfigManager::getDefault(const QString &section, const QString &key) {
     return m_defaultSettings.value(section, {}).value(key);
 }
+
+void ConfigManager::resetToDefaults() {
+    m_settings->clear();
+    m_settings->sync();
+    setDefaults();
+    emit settingsReset();
+}

@@ -16,9 +16,11 @@ public:
     QString getConfigDir() const;
     void setDefaults();
     QVariant getDefault(const QString &section, const QString &key);
+    void resetToDefaults();
 
 signals:
     void settingChanged(const QString &section, const QString &key, const QVariant &value);
+    void settingsReset();
 
 private:
     void initializeDefaultSettings();

@@ -33,6 +33,7 @@
 #include <QImageReader>
 #include <QFileDialog>
 #include <QEvent>
+#include <QStyleHints>
 
 const QString APP_VERSION = "1.0.0";
 const QString REPO_URL = "https://api.github.com/repos/vincentwetzel/MediaDownloader";
@@ -391,8 +392,17 @@ void MainWindow::onVideoQualityWarning(const QString &url, const QString &messag
 }
 
 void MainWindow::applyTheme(const QString &themeName) {
+    qApp->setStyle(QStyleFactory::create("Fusion"));
+
+    bool useDarkTheme = false;
     if (themeName == "Dark") {
-        qApp->setStyle(QStyleFactory::create("Fusion"));
+        useDarkTheme = true;
+    } else if (themeName == "System") {
+        const auto colorScheme = qApp->styleHints()->colorScheme();
+        useDarkTheme = (colorScheme == Qt::ColorScheme::Dark);
+    }
+
+    if (useDarkTheme) {
         QPalette darkPalette;
         darkPalette.setColor(QPalette::Window, QColor(53, 53, 53));
         darkPalette.setColor(QPalette::WindowText, Qt::white);
@@ -407,13 +417,25 @@ void MainWindow::applyTheme(const QString &themeName) {
         darkPalette.setColor(QPalette::Link, QColor(42, 130, 218));
         darkPalette.setColor(QPalette::Highlight, QColor(42, 130, 218));
         darkPalette.setColor(QPalette::HighlightedText, Qt::black);
+        darkPalette.setColor(QPalette::Mid, QColor(40, 40, 40));
         qApp->setPalette(darkPalette);
-    } else if (themeName == "Light") {
-        qApp->setStyle(QStyleFactory::create("Fusion"));
-        qApp->setPalette(QApplication::style()->standardPalette());
-    } else { // System
-        qApp->setStyle(QStyleFactory::create("Fusion"));
-        qApp->setPalette(QApplication::style()->standardPalette());
+    } else { // Light theme
+        QPalette lightPalette;
+        lightPalette.setColor(QPalette::Window, QColor(240, 240, 240));
+        lightPalette.setColor(QPalette::WindowText, Qt::black);
+        lightPalette.setColor(QPalette::Base, QColor(255, 255, 255));
+        lightPalette.setColor(QPalette::AlternateBase, QColor(233, 233, 233));
+        lightPalette.setColor(QPalette::ToolTipBase, Qt::black);
+        lightPalette.setColor(QPalette::ToolTipText, Qt::black);
+        lightPalette.setColor(QPalette::Text, Qt::black);
+        lightPalette.setColor(QPalette::Button, QColor(240, 240, 240));
+        lightPalette.setColor(QPalette::ButtonText, Qt::black);
+        lightPalette.setColor(QPalette::BrightText, Qt::red);
+        lightPalette.setColor(QPalette::Link, QColor(0, 0, 255));
+        lightPalette.setColor(QPalette::Highlight, QColor(0, 120, 215));
+        lightPalette.setColor(QPalette::HighlightedText, Qt::white);
+        lightPalette.setColor(QPalette::Mid, QColor(220, 220, 220));
+        qApp->setPalette(lightPalette);
     }
 }
 

@@ -1,5 +1,6 @@
 #include "FfmpegPostProcessor.h"
 #include <QFile>
+#include <QFileInfo>
 #include <QDebug>
 
 FfmpegPostProcessor::FfmpegPostProcessor(QObject *parent)

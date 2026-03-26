@@ -58,6 +58,7 @@ The project follows a **modular, separation-of-concerns design** using C++ and Q
 - `StartTab.h/.cpp` - Input and configuration; URL field, format/quality selection (including video/audio codecs and extensions), "Add to Queue" logic. Now includes enhanced audio quality options, a broader list of audio codecs, and dynamic audio extension selection based on the chosen codec. Also includes new "Playlist" options (Ask, Download All, Download Single), "Max Concurrent" options (1-8, 1 (short sleep), 1 (long sleep)), and expanded "Rate Limit" options for finer control over download speeds. **Added "lock" checkboxes for Video Settings and Audio Settings to prevent accidental changes, with their states saved persistently.** **Now handles "Override duplicate download check" and "Enable SponsorBlock" settings.**
 - `ActiveDownloadsTab.h/.cpp` - Monitoring; renders active/completed downloads, progress bars, etc. Ensures a thumbnail preview is played/displayed on the left side of each download GUI element.
 - `AdvancedSettingsTab.h/.cpp` - Global settings; UI for paths, concurrency, etc. **Refactored to use a `QListWidget` menu on the left and a `QStackedWidget` on the right to display settings in categories.** **Listens for `ConfigManager::settingChanged` signals to dynamically update displayed path values.** Settings are organized into logical groups: Configuration, Authentication Access, Output Template, Download Options, Metadata/Thumbnails, Subtitles, and Updates. Most settings auto-save on change. The "Output Template" has a dedicated "Save" button with validation. Subtitle language input is a `QComboBox` with full language names. The `yt-dlp` update channel selection has been removed (always nightly). Includes a `setYtDlpVersion` slot to update the displayed `yt-dlp` version. Provides immediate feedback if a selected browser's cookie database is locked, preventing misconfiguration. The cookie access check now has a 30-second timeout to prevent indefinite hangs. **The "Auto-paste URL when app is focused" toggle has been replaced with a `QComboBox` offering multiple auto-paste modes (disabled, on focus, on new URL, on focus & enqueue, on new URL & enqueue).**
+    - The left-side category list now derives its colors from the active `QPalette` and re-applies the stylesheet when a palette change occurs so it stays compact and theme-accurate.
 - `SortingTab.h/.cpp` - UI for managing file sorting rules. **Now uses a `QTableWidget` to display rules in a grid with columns for Priority, Type, Condition, Target Path, and Subfolder.**
 - `SortingRuleDialog.h/.cpp` - Dialog for creating and editing sorting rules. **Refactored to include a "Remove" button for each condition, improving usability, and now features a multi-line text input for values with a reduced minimum height of 60 pixels. Also includes "Greater Than" and "Less Than" operators, dynamically enabled/disabled based on the selected field. "Is One Of" condition values are now sorted alphabetically when the dialog is accepted.**
 - `resources.qrc` - Qt Resource file for embedding assets like images.
@@ -101,6 +102,7 @@ The project follows a **modular, separation-of-concerns design** using C++ and Q
 - **Override duplicate download check**: `src/ui/StartTab.h/.cpp`.
 - **Enable SponsorBlock**: `src/ui/StartTab.h/.cpp`.
 - **Auto-paste URL behavior**: `src/ui/AdvancedSettingsTab.h/.cpp` (setting via `QComboBox`) and `src/ui/MainWindow.h/.cpp` (clipboard monitoring and logic).
+- **Advanced Settings navigation styling**: `src/ui/AdvancedSettingsTab.h/.cpp` (palette-driven `QListWidget` styling for the left menu, refreshed on palette changes so the tab stays compact and theme-accurate).
 - **Embed video chapters**: `src/ui/AdvancedSettingsTab.h/.cpp`.
 - **Embed metadata**: `src/ui/AdvancedSettingsTab.h/.cpp`.
 - **Embed thumbnail**: `src/ui/AdvancedSettingsTab.h/.cpp`.
@@ -172,6 +174,7 @@ Agents MUST NOT:
 - Add logging (`QDebug`) for non-trivial changes.
 - **Update AGENTS.md** (Architecture & Quick-Reference) if you add files or change core logic locations.
 - **Ensure all UI elements have tooltips** (`setToolTip`).
+- **Ensure Theme Compatibility**: All UI elements MUST be designed to work correctly in both light and dark themes. Avoid hardcoded colors; use the application's `QPalette` to ensure elements adapt to the current theme.
 - **Update `SPEC.md`, `ARCHITECTURE.MD`, and `TODO.md`** to reflect any changes to functional requirements, system design, or pending tasks.
 - **Discard Invalid Settings**: If any setting loaded from `settings.ini` does not match the current application's expected format, it MUST be discarded and replaced with the default value. The application MUST NOT attempt to migrate or interpret legacy formats.
 

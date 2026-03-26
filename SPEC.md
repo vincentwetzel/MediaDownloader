@@ -55,6 +55,7 @@ This document outlines the specifications for the C++ port of the MediaDownloade
         - **Subtitles**: Subtitle language (using full words in a combo box), Embed subtitles in video, Write subtitles (separate file), Include automatically-generated subtitles, Subtitle file format (greyed out if "Embed subtitles in video" is selected).
         - **Updates**: `yt-dlp` version (display only), Update `yt-dlp` (always to nightly), `gallery-dl` version (display only), Update `gallery-dl`.
         - **Restore defaults** button.
+    - **Navigation Styling**: The left column uses a palette-aware `QListWidget` whose stylesheet is rebuilt on palette changes so the category list stays compact and theme-consistent without reverting to a plain scrollbar-heavy layout.
     - **Saving Behavior**: Most settings auto-save on change. The "Output Template" requires a dedicated "Save" button.
 - **System Integration**: A system tray icon for quick show/hide and quit actions. Clicking the window close button (`X`) must exit the application (it must not keep running in the background).
 - **Theming**: Support for Light, Dark, and System themes.

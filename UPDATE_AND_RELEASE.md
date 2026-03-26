@@ -31,11 +31,22 @@ bin/
   └── ffprobe.exe
 ```
 
-### Step 2: Update Version Number
+### Step 2: Update Extractor Lists
+
+**IMPORTANT:** Before building a new release, you must refresh the extractor lists to ensure the application can handle the latest website changes.
+
+Run the following Python scripts from the project root:
+```powershell
+python ./update_yt-dlp_extractors.py
+python ./update_gallery-dl_extractors.py
+```
+This will update `extractors_yt-dlp.json` and `extractors_gallery-dl.json`.
+
+### Step 3: Update Version Number
 
 Update the version in `CMakeLists.txt` (or a dedicated version header file).
 
-### Step 3: Build with CMake
+### Step 4: Build with CMake
 
 Configure and build the project in Release mode.
 ```powershell
@@ -45,14 +56,14 @@ cmake --build build --config Release
 
 This generates `MediaDownloader.exe` in the build directory.
 
-### Step 4: Deploy Qt Dependencies
+### Step 5: Deploy Qt Dependencies
 
 Use `windeployqt` to copy necessary Qt DLLs to the build directory.
 ```powershell
 windeployqt build/Release/MediaDownloader.exe
 ```
 
-### Step 5: Create NSIS Installer
+### Step 6: Create NSIS Installer
 
 Build the NSIS script to create a Windows installer. You will need to adapt the `MediaDownloader.nsi` script to point to the C++ build output directory instead of the Python `dist/` folder.
 

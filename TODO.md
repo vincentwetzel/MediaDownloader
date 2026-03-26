@@ -21,7 +21,9 @@
     - [ ] Dynamically populate video quality and codec options from `yt-dlp` output.
     - [x] Expanded "Rate Limit" dropdown options to include a wider range of slower speeds.
     - [x] **Advanced Settings Tab Reorganization**: Implemented new organization, auto-saving for most settings, dedicated save button for output template with validation, subtitle language combo box with full names, and removal of `yt-dlp` update channel selection.
+    - [x] **Advanced Settings Navigation Styling**: Left-side category list derives its colors from the active palette and re-applies on palette changes so the layout is compact and theme-consistent.
     - [x] **Start Tab Settings Relocation**: Moved "Override duplicate download check" and "Enable SponsorBlock" to StartTab.
+    - [x] **Start Tab URL Input Theming**: The URL `QTextEdit` now rebuilds its palette-based stylesheet when the palette changes so borders/background match light/dark modes.
     - [x] Provides immediate feedback if a selected browser's cookie database is locked, preventing misconfiguration.
 
 ## Phase 12: Bug Fixes & Enhancements

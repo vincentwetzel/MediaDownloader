@@ -10,6 +10,7 @@ The application ensures that only one instance can run at a time. This is achiev
 
 ### 2.2 Core Components
 - **UI Layer (`src/ui/`):** Handles user interaction, input, and visual feedback using Qt Widgets.
+  - **AdvancedSettingsTab navigation**: The left-side category list is a compact `QListWidget` whose stylesheet is rebuilt from `QPalette` values whenever the palette changes so it remains consistent with both light and dark themes.
 - **Core Logic (`src/core/`):** Manages download queues, file operations, configuration, and external process execution.
 - **Utilities (`src/utils/`):** Provides helper functions for tasks like string manipulation and URL normalization.
 - **Extractor Domain Loader:** `YtDlpJsonParser` loads the extractor-domain list from the app directory for clipboard auto-paste checks in `StartTab`.

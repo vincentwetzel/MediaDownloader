@@ -1,179 +1,110 @@
 cmake_minimum_required(VERSION 3.16)
-project(MediaDownloader)
+
+project(MediaDownloader VERSION 1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Add the path to your Qt6 installation
-set(CMAKE_PREFIX_PATH "C:/Qt/6.10.2/msvc2022_64")
-
+# --- Qt Configuration ---
+# Enable Qt's automatic tools for MOC, RCC, and UIC
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 COMPONENTS
-        Core
-        Gui
-        Widgets
-        Network
-        Sql
-        Concurrent
-        REQUIRED)
+# Find the required Qt6 packages
+find_package(Qt6 REQUIRED COMPONENTS Widgets Network Sql Core Concurrent)
 
+# --- Source Files ---
+# Use file(GLOB_RECURSE) to automatically find all source and header files.
+# This is the key fix: it ensures CMAKE_AUTOMOC can find all Q_OBJECT macros.
+file(GLOB_RECURSE SOURCES
+    "src/*.cpp"
+    "src/*.h"
+)
+
+# --- Include Directories ---
+# This ensures that #include "utils/..." or "core/..." works regardless of
+# which directory the source file is located in.
+include_directories(
+    src
+)
+
+# --- Executable Target ---
 add_executable(MediaDownloader
-        main.cpp
-        src/ui/MainWindow.cpp
-        src/ui/MainWindow.h
-        src/ui/StartTab.cpp
-        src/ui/StartTab.h
-        src/ui/ActiveDownloadsTab.cpp
-        src/ui/ActiveDownloadsTab.h
-        src/ui/DownloadItemWidget.cpp
-        src/ui/DownloadItemWidget.h
-        src/ui/AdvancedSettingsTab.cpp
-        src/ui/AdvancedSettingsTab.h
-        src/ui/SortingTab.cpp
-        src/ui/SortingTab.h
-        src/ui/SortingRuleDialog.cpp
-        src/ui/SortingRuleDialog.h
-        src/core/ConfigManager.cpp
-        src/core/ConfigManager.h
-        src/core/ArchiveManager.cpp
-        src/core/ArchiveManager.h
-        src/core/DownloadManager.cpp
-        src/core/DownloadManager.h
-        src/core/YtDlpWorker.cpp
-        src/core/YtDlpWorker.h
-        src/core/GalleryDlWorker.cpp
-        src/core/GalleryDlWorker.h
-        src/core/YtDlpArgsBuilder.cpp
-        src/core/YtDlpArgsBuilder.h
-        src/core/GalleryDlArgsBuilder.cpp
-        src/core/GalleryDlArgsBuilder.h
-        src/core/PlaylistExpander.cpp
-        src/core/PlaylistExpander.h
-        src/core/SortingManager.cpp
-        src/core/SortingManager.h
-        src/core/AppUpdater.cpp
-        src/core/AppUpdater.h
-        src/core/YtDlpUpdater.cpp
-        src/core/YtDlpUpdater.h
-        src/core/GalleryDlUpdater.cpp
-        src/core/GalleryDlUpdater.h
-        src/core/MetadataEmbedder.cpp
-        src/core/MetadataEmbedder.h
-        src/core/Logger.cpp
-        src/core/Logger.h
-        src/core/StartupWorker.cpp
-        src/core/StartupWorker.h
-        src/core/UrlValidator.cpp
-        src/core/UrlValidator.h
-        src/core/Version.cpp
-        src/core/Version.h
-        src/ui/ToggleSwitch.cpp
-        src/ui/ToggleSwitch.h
-        src/utils/StringUtils.cpp
-        src/utils/StringUtils.h
-        src/utils/BrowserUtils.cpp
-        src/utils/BrowserUtils.h
-        src/utils/LogManager.cpp
-        src/utils/LogManager.h
-        src/utils/ExtractorJsonParser.cpp
-        src/utils/ExtractorJsonParser.h
-        src/ui/resources.qrc
-        MediaDownloader.rc # Add the resource file here
+    # Use WIN32 for GUI applications on Windows to avoid a console window
+    WIN32
+
+    # Application entry point
+    main.cpp
+
+    # All source and header files gathered by the glob
+    ${SOURCES}
+
+    # Qt resource file for icons, etc.
+    src/ui/resources.qrc
+
+    # Windows application icon and metadata
+    MediaDownloader.rc
 )
 
-target_link_libraries(MediaDownloader
-        Qt::Core
-        Qt::Gui
-        Qt::Widgets
-        Qt::Network
-        Qt::Sql
-        Qt::Concurrent
+# --- Link Libraries ---
+target_link_libraries(MediaDownloader PRIVATE
+    Qt6::Widgets
+    Qt6::Network
+    Qt6::Sql
+    Qt6::Core
+    Qt6::Concurrent
 )
 
-# Explicitly ensure Qt's autogen steps are enabled for this target.
-set_target_properties(MediaDownloader PROPERTIES
-        AUTOMOC ON
-        AUTORCC ON
-        AUTOUIC OFF # Set AUTOUIC to OFF
-)
+# --- Deployment of Binaries and Resources ---
+# This section ensures that all required external executables and data files
+# are copied to the build output directory, so the application can find them at runtime.
 
-target_include_directories(MediaDownloader PRIVATE
-        src
-        src/ui
-        src/core
-        src/utils
-)
+# Define a helper function to simplify copying files
+function(copy_to_output_dir target file)
+    add_custom_command(
+        TARGET ${target} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${file}"
+        "$<TARGET_FILE_DIR:${target}>"
+        COMMENT "Copying ${file} to output directory"
+    )
+endfunction()
 
-# Copy bundled binaries to the output directory
-set(WINDOWS_BIN_DIR "${CMAKE_SOURCE_DIR}/bin/windows")
+# Define paths to bundled resources (assuming a 'bin/windows' structure)
+set(BIN_DIR_WIN ${CMAKE_CURRENT_SOURCE_DIR}/bin/windows)
 
-# This single custom command will execute all necessary copy operations after the build.
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy "${WINDOWS_BIN_DIR}/yt-dlp.exe" "$<TARGET_FILE_DIR:${PROJECT_NAME}>/"
-    COMMAND ${CMAKE_COMMAND} -E copy "${WINDOWS_BIN_DIR}/ffmpeg-8.0.1-essentials_build/bin/ffmpeg.exe" "$<TARGET_FILE_DIR:${PROJECT_NAME}>/"
-    COMMAND ${CMAKE_COMMAND} -E copy "${WINDOWS_BIN_DIR}/ffmpeg-8.0.1-essentials_build/bin/ffprobe.exe" "$<TARGET_FILE_DIR:${PROJECT_NAME}>/"
-    COMMAND ${CMAKE_COMMAND} -E copy "${WINDOWS_BIN_DIR}/gallery-dl.exe" "$<TARGET_FILE_DIR:${PROJECT_NAME}>/"
-    COMMAND ${CMAKE_COMMAND} -E copy "${WINDOWS_BIN_DIR}/aria2-1.37.0-win-64bit-build1/aria2c.exe" "$<TARGET_FILE_DIR:${PROJECT_NAME}>/"
-    COMMAND ${CMAKE_COMMAND} -E copy "${WINDOWS_BIN_DIR}/deno.exe" "$<TARGET_FILE_DIR:${PROJECT_NAME}>/"
-    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/extractors_yt-dlp.json" "$<TARGET_FILE_DIR:${PROJECT_NAME}>/"
-    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/extractors_gallery-dl.json" "$<TARGET_FILE_DIR:${PROJECT_NAME}>/"
-    COMMENT "Copying external binaries..."
-)
+# Copy all required binaries and data files
+copy_to_output_dir(MediaDownloader "${BIN_DIR_WIN}/yt-dlp.exe")
+copy_to_output_dir(MediaDownloader "${BIN_DIR_WIN}/ffmpeg.exe")
+copy_to_output_dir(MediaDownloader "${BIN_DIR_WIN}/ffprobe.exe")
+copy_to_output_dir(MediaDownloader "${BIN_DIR_WIN}/gallery-dl.exe")
+copy_to_output_dir(MediaDownloader "${BIN_DIR_WIN}/aria2c.exe")
+copy_to_output_dir(MediaDownloader "${BIN_DIR_WIN}/deno.exe")
+copy_to_output_dir(MediaDownloader "${CMAKE_CURRENT_SOURCE_DIR}/extractors_yt-dlp.json")
+copy_to_output_dir(MediaDownloader "${CMAKE_CURRENT_SOURCE_DIR}/extractors_gallery-dl.json")
 
-# Deploy Qt dependencies on Windows
-if (WIN32 AND NOT DEFINED CMAKE_TOOLCHAIN_FILE)
-    get_filename_component(QT_INSTALL_PATH "${Qt6_DIR}/../../../" ABSOLUTE)
-    function(copy_qt_runtime_if_exists SOURCE_FILE TARGET_DIR)
-        if (EXISTS "${SOURCE_FILE}")
-            add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-                    COMMAND ${CMAKE_COMMAND} -E make_directory "${TARGET_DIR}")
-            add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${SOURCE_FILE}"
-                    "${TARGET_DIR}")
-        endif ()
-    endfunction()
+# --- Windows Specific Deployment (Qt Plugins) ---
+# This ensures that Qt plugins (for database, image formats, TLS, etc.)
+# are available in the build directory, which is critical for both
+# Debug and Release builds to function correctly.
+if(WIN32)
+    # Find windeployqt from Qt6::qmake location
+    get_target_property(_qmake_executable Qt6::qmake IMPORTED_LOCATION)
+    get_filename_component(_qt_bin_dir "${_qmake_executable}" DIRECTORY)
+    find_program(WINDEPLOYQT_EXECUTABLE windeployqt HINTS "${_qt_bin_dir}")
 
-    # Always deploy both release and debug plugin variants when available.
-    # This avoids multi-config suffix issues (CMAKE_BUILD_TYPE can be empty on MSVC).
-    copy_qt_runtime_if_exists("${QT_INSTALL_PATH}/plugins/platforms/qwindows.dll" "$<TARGET_FILE_DIR:${PROJECT_NAME}>/plugins/platforms/")
-    copy_qt_runtime_if_exists("${QT_INSTALL_PATH}/plugins/platforms/qwindowsd.dll" "$<TARGET_FILE_DIR:${PROJECT_NAME}>/plugins/platforms/")
-    copy_qt_runtime_if_exists("${QT_INSTALL_PATH}/plugins/sqldrivers/qsqlite.dll" "$<TARGET_FILE_DIR:${PROJECT_NAME}>/plugins/sqldrivers/")
-    copy_qt_runtime_if_exists("${QT_INSTALL_PATH}/plugins/sqldrivers/qsqlited.dll" "$<TARGET_FILE_DIR:${PROJECT_NAME}>/plugins/sqldrivers/")
-    copy_qt_runtime_if_exists("${QT_INSTALL_PATH}/plugins/tls/qschannelbackend.dll" "$<TARGET_FILE_DIR:${PROJECT_NAME}>/plugins/tls/")
-    copy_qt_runtime_if_exists("${QT_INSTALL_PATH}/plugins/tls/qschannelbackendd.dll" "$<TARGET_FILE_DIR:${PROJECT_NAME}>/plugins/tls/")
-    copy_qt_runtime_if_exists("${QT_INSTALL_PATH}/plugins/tls/qopensslbackend.dll" "$<TARGET_FILE_DIR:${PROJECT_NAME}>/plugins/tls/")
-    copy_qt_runtime_if_exists("${QT_INSTALL_PATH}/plugins/tls/qopensslbackendd.dll" "$<TARGET_FILE_DIR:${PROJECT_NAME}>/plugins/tls/")
-
-    # Explicitly create the imageformats directory
-    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${PROJECT_NAME}>/plugins/imageformats/")
-
-    foreach (IMAGE_PLUGIN qico qjpeg qpng qwebp)
-        set(IMAGE_PLUGIN_RELEASE_PATH "${QT_INSTALL_PATH}/plugins/imageformats/${IMAGE_PLUGIN}.dll")
-        if (EXISTS "${IMAGE_PLUGIN_RELEASE_PATH}")
-            message(STATUS "Found ${IMAGE_PLUGIN}.dll at: ${IMAGE_PLUGIN_RELEASE_PATH}")
-            copy_qt_runtime_if_exists("${IMAGE_PLUGIN_RELEASE_PATH}" "$<TARGET_FILE_DIR:${PROJECT_NAME}>/plugins/imageformats/")
-        else ()
-            message(WARNING "${IMAGE_PLUGIN}.dll not found at: ${IMAGE_PLUGIN_RELEASE_PATH}. Related image formats may not display correctly.")
-        endif ()
-
-        set(IMAGE_PLUGIN_DEBUG_PATH "${QT_INSTALL_PATH}/plugins/imageformats/${IMAGE_PLUGIN}d.dll")
-        if (EXISTS "${IMAGE_PLUGIN_DEBUG_PATH}")
-            message(STATUS "Found ${IMAGE_PLUGIN}d.dll at: ${IMAGE_PLUGIN_DEBUG_PATH}")
-            copy_qt_runtime_if_exists("${IMAGE_PLUGIN_DEBUG_PATH}" "$<TARGET_FILE_DIR:${PROJECT_NAME}>/plugins/imageformats/")
-        else ()
-            message(WARNING "${IMAGE_PLUGIN}d.dll not found at: ${IMAGE_PLUGIN_DEBUG_PATH}. Related image formats may not display correctly in debug builds.")
-        endif ()
-    endforeach ()
-
-    foreach (QT_LIB Core Gui Widgets Network Sql Concurrent)
-        copy_qt_runtime_if_exists("${QT_INSTALL_PATH}/bin/Qt6${QT_LIB}.dll" "$<TARGET_FILE_DIR:${PROJECT_NAME}>")
-        copy_qt_runtime_if_exists("${QT_INSTALL_PATH}/bin/Qt6${QT_LIB}d.dll" "$<TARGET_FILE_DIR:${PROJECT_NAME}>")
-    endforeach ()
-
-    # Create qt.conf to explicitly tell Qt where to find plugins
-    file(GENERATE OUTPUT "$<TARGET_FILE_DIR:${PROJECT_NAME}>/qt.conf" CONTENT "[Paths]\nPlugins=plugins\n")
-endif ()
+    if(WINDEPLOYQT_EXECUTABLE)
+        add_custom_command(TARGET MediaDownloader POST_BUILD
+            COMMAND "${WINDEPLOYQT_EXECUTABLE}"
+            --dir "$<TARGET_FILE_DIR:MediaDownloader>"
+            --no-translations
+            --no-compiler-runtime
+            --no-opengl-sw
+            "$<TARGET_FILE:MediaDownloader>"
+            COMMENT "Running windeployqt to copy Qt dependencies..."
+        )
+    else()
+        message(WARNING "windeployqt not found, Qt dependencies will not be copied automatically.")
+    endif()
+endif()

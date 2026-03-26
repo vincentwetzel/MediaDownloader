@@ -30,6 +30,7 @@ public:
 protected:
     void focusInEvent(QFocusEvent *event) override;
     bool eventFilter(QObject *obj, QEvent *event) override;
+    void changeEvent(QEvent *event) override;
 
 signals:
     void downloadRequested(const QString &url, const QVariantMap &options);
@@ -52,6 +53,8 @@ private:
     void checkFormats(const QString &url);
     QString resolveExecutablePath(const QString &name) const;
     bool checkClipboardForUrl();
+    void applyUrlInputStyleSheet();
+    void applyCommandPreviewStyleSheet(); // Added this line
 
     ConfigManager *m_configManager;
     ExtractorJsonParser *m_extractorJsonParser;
