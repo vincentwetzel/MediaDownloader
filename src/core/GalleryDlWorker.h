@@ -1,16 +1,15 @@
-#ifndef GALLERYDLWORKER_H
-#define GALLERYDLWORKER_H
+#pragma once
 
 #include <QObject>
 #include <QProcess>
+#include <QStringList>
 #include <QVariantMap>
 
-class GalleryDlWorker : public QObject {
+class GalleryDlWorker : public QObject
+{
     Q_OBJECT
-
 public:
     explicit GalleryDlWorker(const QString &id, const QStringList &args, QObject *parent = nullptr);
-    QString getId() const { return m_id; }
     void start();
     void killProcess();
 
@@ -20,16 +19,18 @@ signals:
     void outputReceived(const QString &id, const QString &output);
 
 private slots:
-    void onProcessFinished(int exitCode, QProcess::ExitStatus exitStatus);
     void onReadyReadStandardOutput();
+    void onReadyReadStandardError();
+    void onProcessFinished(int exitCode, QProcess::ExitStatus exitStatus);
+    void onProcessError(QProcess::ProcessError processError);
 
 private:
+    QString resolveExecutablePath(const QString &name) const;
+
     QString m_id;
     QStringList m_args;
     QProcess *m_process;
-    QString m_processOutput;
-
-    QString resolveExecutablePath(const QString &name) const;
+    QString m_lastFile;
+    QByteArray m_outputBuffer;
+    QByteArray m_errorBuffer;
 };
-
-#endif // GALLERYDLWORKER_H

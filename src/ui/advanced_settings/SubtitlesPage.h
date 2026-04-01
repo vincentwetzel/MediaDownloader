@@ -5,6 +5,8 @@
 class ConfigManager;
 class ToggleSwitch;
 class QComboBox;
+class QLineEdit;
+class QPushButton;
 
 class SubtitlesPage : public QWidget {
     Q_OBJECT
@@ -13,7 +15,7 @@ public:
 public slots:
     void loadSettings();
 private slots:
-    void onSubtitleLanguageChanged(const QString &text);
+    void onSelectLanguagesClicked();
     void onEmbedSubtitlesToggled(bool checked);
     void onWriteSubtitlesToggled(bool checked);
     void onIncludeAutoSubtitlesToggled(bool checked);
@@ -23,6 +25,8 @@ private:
     void updateSubtitleFormatAvailability(bool embedSubtitlesChecked);
 
     ConfigManager *m_configManager;
-    QComboBox *m_subtitleLanguageCombo, *m_subtitleFormatCombo;
+    QLineEdit *m_subtitleLanguagesDisplay;
+    QPushButton *m_selectLanguagesButton;
+    QComboBox *m_subtitleFormatCombo;
     ToggleSwitch *m_embedSubtitlesCheck, *m_writeSubtitlesCheck, *m_includeAutoSubtitlesCheck;
 };

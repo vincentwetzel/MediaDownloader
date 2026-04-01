@@ -13,24 +13,32 @@ AudioSettingsPage::AudioSettingsPage(ConfigManager *configManager, QWidget *pare
     layout->setContentsMargins(0, 0, 0, 0);
 
     QGroupBox *audioGroup = new QGroupBox("Default Audio Settings", this);
-    audioGroup->setToolTip("Set the default audio-only download options. These can be overridden on the Start tab.");
+    audioGroup->setToolTip("Set the default audio-only download options, or switch to runtime selection to choose exact formats when each download is queued.");
     QFormLayout *audioLayout = new QFormLayout(audioGroup);
 
     m_audioQualityCombo = new QComboBox(this);
-    m_audioQualityCombo->setToolTip("Pick the sound quality for your audio... 'best' tries to get the highest quality available.");
-    m_audioQualityCombo->addItems({"best", "320k", "256k", "192k", "128k", "96k", "64k", "32k", "worst"});
+    m_audioQualityCombo->setToolTip("Pick the default audio quality. Choose 'Select at Runtime' to hide the rest of these defaults and pick exact formats when you queue a download.");
+    m_audioQualityCombo->addItems({"Select at Runtime", "best", "320k", "256k", "192k", "128k", "96k", "64k", "32k", "worst"});
     audioLayout->addRow("Quality:", m_audioQualityCombo);
 
+    m_audioCodecLabel = new QLabel("Codec:", this);
+    m_audioCodecLabel->setToolTip("Choose the default audio codec used when runtime selection is off.");
     m_audioCodecCombo = new QComboBox(this);
     m_audioCodecCombo->setToolTip("Choose the audio format (codec). Opus is modern and efficient, MP3 is very common, FLAC is for lossless quality.");
     m_audioCodecCombo->addItems({"Default", "Opus", "AAC", "Vorbis", "MP3", "FLAC", "WAV", "ALAC", "AC3", "EAC3", "DTS", "PCM"});
-    audioLayout->addRow("Codec:", m_audioCodecCombo);
+    audioLayout->addRow(m_audioCodecLabel, m_audioCodecCombo);
 
     m_audioExtLabel = new QLabel("Extension:", this);
+    m_audioExtLabel->setToolTip("Select the default file extension used when runtime selection is off.");
     m_audioExtCombo = new QComboBox(this);
     m_audioExtCombo->setToolTip("Select the file type for your audio... This changes automatically based on the audio codec.");
     m_audioExtCombo->addItems({"mp3", "m4a", "opus", "wav", "flac"});
     audioLayout->addRow(m_audioExtLabel, m_audioExtCombo);
+
+    m_runtimeHintLabel = new QLabel("Runtime selection mode is enabled. Quality, codec, extension, and stream choices will be picked from the available formats when you queue a download.", this);
+    m_runtimeHintLabel->setWordWrap(true);
+    m_runtimeHintLabel->setToolTip("This mode uses a runtime format picker instead of the defaults below.");
+    audioLayout->addRow(QString(), m_runtimeHintLabel);
 
     layout->addWidget(audioGroup);
     layout->addStretch();
@@ -52,19 +60,40 @@ void AudioSettingsPage::loadSettings() {
     updateAudioOptions();
 }
 
-void AudioSettingsPage::onAudioQualityChanged(const QString &text) { m_configManager->set("Audio", "audio_quality", text); }
+void AudioSettingsPage::onAudioQualityChanged(const QString &text) { m_configManager->set("Audio", "audio_quality", text); updateAudioOptions(); }
 void AudioSettingsPage::onAudioCodecChanged(const QString &text) { m_configManager->set("Audio", "audio_codec", text); updateAudioOptions(); }
 void AudioSettingsPage::onAudioExtChanged(const QString &text) { m_configManager->set("Audio", "audio_extension", text); }
 
 void AudioSettingsPage::handleConfigSettingChanged(const QString &section, const QString &key, const QVariant &value) {
     if (section == "Audio") {
-        if (key == "quality" || key == "audio_quality") m_audioQualityCombo->setCurrentText(value.toString());
-        else if (key == "codec" || key == "audio_codec") m_audioCodecCombo->setCurrentText(value.toString());
-        else if (key == "extension" || key == "audio_extension") m_audioExtCombo->setCurrentText(value.toString());
+        if (key == "quality" || key == "audio_quality") {
+            m_audioQualityCombo->setCurrentText(value.toString());
+            updateAudioOptions();
+        } else if (key == "codec" || key == "audio_codec") {
+            m_audioCodecCombo->setCurrentText(value.toString());
+            updateAudioOptions();
+        } else if (key == "extension" || key == "audio_extension") {
+            m_audioExtCombo->setCurrentText(value.toString());
+        }
     }
 }
 
+bool AudioSettingsPage::isRuntimeSelectionMode() const {
+    return m_audioQualityCombo && m_audioQualityCombo->currentText() == "Select at Runtime";
+}
+
 void AudioSettingsPage::updateAudioOptions() {
+    const bool runtimeSelection = isRuntimeSelectionMode();
+    m_audioCodecLabel->setVisible(!runtimeSelection);
+    m_audioCodecCombo->setVisible(!runtimeSelection);
+    m_audioExtLabel->setVisible(!runtimeSelection);
+    m_audioExtCombo->setVisible(!runtimeSelection);
+    m_runtimeHintLabel->setVisible(runtimeSelection);
+
+    if (runtimeSelection) {
+        return;
+    }
+
     QString selectedAudioCodec = m_audioCodecCombo->currentText();
     bool isDefaultCodec = (selectedAudioCodec == "Default");
     m_audioExtLabel->setVisible(!isDefaultCodec);

@@ -5,6 +5,7 @@
 class ConfigManager;
 class ToggleSwitch;
 class QComboBox;
+class QLineEdit;
 
 class DownloadOptionsPage : public QWidget {
     Q_OBJECT
@@ -16,12 +17,16 @@ private slots:
     void onExternalDownloaderToggled(bool checked);
     void onSponsorBlockToggled(bool checked);
     void onEmbedChaptersToggled(bool checked);
+    void onSplitChaptersToggled(bool checked);
     void onAutoPasteModeChanged(int index);
     void onSingleLineCommandPreviewToggled(bool checked);
     void onRestrictFilenamesToggled(bool checked);
+    void onGeoProxyChanged();
+    void onAutoClearCompletedToggled(bool checked);
     void handleConfigSettingChanged(const QString &section, const QString &key, const QVariant &value);
 private:
     ConfigManager *m_configManager;
-    ToggleSwitch *m_externalDownloaderCheck, *m_sponsorBlockCheck, *m_embedChaptersCheck, *m_singleLineCommandPreviewCheck, *m_restrictFilenamesCheck;
+    ToggleSwitch *m_externalDownloaderCheck, *m_sponsorBlockCheck, *m_embedChaptersCheck, *m_splitChaptersCheck, *m_singleLineCommandPreviewCheck, *m_restrictFilenamesCheck, *m_autoClearCompletedCheck;
     QComboBox *m_autoPasteModeCombo;
+    QLineEdit *m_geoProxyInput;
 };

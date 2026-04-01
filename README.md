@@ -11,6 +11,7 @@ A lightweight, high-performance desktop application for downloading media (video
 - 📋 **Playlist Support** — Download entire playlists with configurable behavior
 - 🖼️ **Gallery Support** — Download image galleries from supported sites (e.g., Instagram, Twitter) via `gallery-dl`
 - 🎨 **Advanced Settings** — Quality selection, format filtering, SponsorBlock integration, metadata embedding
+- 🎛️ **Runtime Format Selection** — Optionally prompt for specific video/audio qualities on every download, supporting multiple simultaneous format selections for the same media
 - 🔄 **Auto-Update** — Checks GitHub for newer releases and updates silently
 - 📊 **Concurrent Downloads** — Queue and manage multiple downloads simultaneously
 - 🖼️ **Thumbnail Embedding** — Automatic thumbnail download and embedding for videos and audio

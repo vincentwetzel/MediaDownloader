@@ -13,10 +13,16 @@
 #include "core/UpdateStatus.h" // Include UpdateStatus enum
 #include "core/StartupWorker.h"
 #include "utils/ExtractorJsonParser.h"
+#include "YtDlpJsonExtractor.h"
+#include "core/ProcessUtils.h"
+#include "ui/RuntimeSelectionDialog.h"
+#include "ui/FormatSelectionDialog.h"
+#include "ToggleSwitch.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QWidget>
+#include <QStatusBar>
 #include <QLabel>
 #include <QDebug>
 #include <QMessageBox>
@@ -34,6 +40,9 @@
 #include <QFileDialog>
 #include <QEvent>
 #include <QStyleHints>
+#include <QComboBox>
+#include <QSizePolicy>
+#include <QStandardPaths>
 
 const QString APP_VERSION = "1.0.0";
 const QString REPO_URL = "https://api.github.com/repos/vincentwetzel/MediaDownloader";
@@ -52,6 +61,7 @@ MainWindow::MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent
       m_startupWorker(nullptr),
       m_startupThread(nullptr),
       m_extractorJsonParser(extractorJsonParser),
+      m_runtimeExtractor(nullptr),
       m_clipboard(nullptr),
       m_tabWidget(nullptr),
       m_activeDownloadsTab(nullptr),
@@ -66,7 +76,15 @@ MainWindow::MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent
       m_silentUpdateCheck(false)
 {
     // Initialize core components
-    m_configManager = new ConfigManager("settings.ini", this);
+    QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+    if (configDir.isEmpty()) {
+        configDir = QCoreApplication::applicationDirPath(); // Fallback
+    }
+    QDir().mkpath(configDir);
+    QString configPath = QDir(configDir).filePath("settings.ini");
+    qInfo() << "Using settings file at:" << configPath;
+
+    m_configManager = new ConfigManager(configPath, this);
     m_archiveManager = new ArchiveManager(m_configManager, this);
     m_downloadManager = new DownloadManager(m_configManager, this);
     m_appUpdater = new AppUpdater(REPO_URL, APP_VERSION, this);
@@ -76,6 +94,13 @@ MainWindow::MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent
     // Create worker and thread but do not parent the worker to MainWindow
     m_startupWorker = new StartupWorker(m_configManager, m_extractorJsonParser, nullptr);
     m_startupThread = new QThread(this);
+
+    m_runtimeExtractor = new YtDlpJsonExtractor(this);
+    connect(m_runtimeExtractor, &YtDlpJsonExtractor::extractionSuccess, this,
+            [this](const QString &, const QString &, const QList<DownloadTarget> &, const QString &, const QMap<QString, QString> &, const QVariantMap &metadata) {
+                onRuntimeInfoReady(metadata);
+            });
+    connect(m_runtimeExtractor, &YtDlpJsonExtractor::extractionFailed, this, &MainWindow::onRuntimeInfoError);
 
     // Apply theme before UI setup
     applyTheme(m_configManager->get("General", "theme", "System").toString());
@@ -128,6 +153,10 @@ MainWindow::MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent
             m_activeDownloadsTab, [this](const QString &id){
                 m_activeDownloadsTab->setDownloadStatus(id, "Downloading...");
             });
+    connect(m_downloadManager, &DownloadManager::downloadPaused,
+            m_activeDownloadsTab, &ActiveDownloadsTab::onDownloadPaused);
+    connect(m_downloadManager, &DownloadManager::downloadResumed,
+            m_activeDownloadsTab, &ActiveDownloadsTab::onDownloadResumed);
     connect(m_downloadManager, &DownloadManager::downloadFinalPathReady,
             m_activeDownloadsTab, &ActiveDownloadsTab::onDownloadFinalPathReady);
     connect(m_downloadManager, &DownloadManager::playlistExpansionStarted,
@@ -139,12 +168,39 @@ MainWindow::MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent
     connect(m_downloadManager, &DownloadManager::videoQualityWarning, this, &MainWindow::onVideoQualityWarning);
     connect(m_downloadManager, &DownloadManager::downloadStatsUpdated, this, &MainWindow::onDownloadStatsUpdated);
 
+    // Handle requests for runtime format selection
+    connect(m_downloadManager, &DownloadManager::formatSelectionRequested, this, 
+        [this](const QString &url, const QVariantMap &options, const QVariantMap &infoDict) {
+            FormatSelectionDialog dialog(infoDict, options, this);
+            if (dialog.exec() == QDialog::Accepted) {
+                QStringList selectedFormats = dialog.getSelectedFormatIds();
+                if (!selectedFormats.isEmpty()) {
+                    // The dialog allows selecting multiple formats, and the user expects
+                    // each to be enqueued as a separate download.
+                    for (const QString &formatId : selectedFormats) {
+                        QVariantMap newOptions = options;
+                        newOptions["format"] = formatId;
+                        m_downloadManager->enqueueDownload(url, newOptions);
+                    }
+                    m_tabWidget->setCurrentWidget(m_activeDownloadsTab);
+                }
+            }
+        });
+
     connect(m_activeDownloadsTab, &ActiveDownloadsTab::cancelDownloadRequested,
             m_downloadManager, &DownloadManager::cancelDownload);
     connect(m_activeDownloadsTab, &ActiveDownloadsTab::retryDownloadRequested,
             m_downloadManager, &DownloadManager::retryDownload);
     connect(m_activeDownloadsTab, &ActiveDownloadsTab::resumeDownloadRequested,
             m_downloadManager, &DownloadManager::resumeDownload);
+    connect(m_activeDownloadsTab, &ActiveDownloadsTab::pauseDownloadRequested,
+            m_downloadManager, &DownloadManager::pauseDownload);
+    connect(m_activeDownloadsTab, &ActiveDownloadsTab::unpauseDownloadRequested,
+            m_downloadManager, &DownloadManager::unpauseDownload);
+    connect(m_activeDownloadsTab, &ActiveDownloadsTab::moveDownloadUpRequested,
+            m_downloadManager, &DownloadManager::moveDownloadUp);
+    connect(m_activeDownloadsTab, &ActiveDownloadsTab::moveDownloadDownRequested,
+            m_downloadManager, &DownloadManager::moveDownloadDown);
 
     connect(m_urlValidator, &UrlValidator::validationFinished, this, &MainWindow::onValidationFinished);
 
@@ -155,10 +211,14 @@ MainWindow::MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent
     // DO NOT connect deleteLater here. It will be handled manually in the destructor.
     connect(m_startupWorker, &StartupWorker::binariesChecked, this, [this](const QStringList &missingBinaries){
         if (!missingBinaries.isEmpty()) {
-            QMessageBox::warning(this, "Missing Binaries",
-                                 "The following required binaries are missing from the application directory:\n\n" +
-                                 missingBinaries.join("\n") +
-                                 "\n\nPlease ensure they are placed in the same folder as MediaDownloader.exe.");
+            QMessageBox msgBox(this);
+            msgBox.setIcon(QMessageBox::Warning);
+            msgBox.setWindowTitle("Missing Required Binaries");
+            msgBox.setText("The following required binaries could not be found:\n" + missingBinaries.join(", "));
+            msgBox.setInformativeText("MediaDownloader requires these tools to function correctly.\n\n"
+                                      "You can download them from their official websites and place them in the 'bin' folder next to MediaDownloader.exe, "
+                                      "or specify their custom installed locations in 'Advanced Settings -> External Binaries'.");
+            msgBox.exec();
         }
     });
     connect(m_startupWorker, &StartupWorker::ytDlpVersionFetched, this, &MainWindow::setYtDlpVersion);
@@ -191,6 +251,29 @@ void MainWindow::setupUI() {
 
     m_tabWidget = new QTabWidget(this);
     mainLayout->addWidget(m_tabWidget);
+    
+    QComboBox *languageCombo = new QComboBox(this);
+    languageCombo->setToolTip("Select Application Language");
+    QStringList languagesWithFlags = {
+        "🇺🇸 English", "🇪🇸 Spanish", "🇵🇹 Portuguese", "🇷🇺 Russian", "🇩🇪 German", "🇫🇷 French",
+        "🇮🇹 Italian", "🇨🇳 Mandarin", "🇮🇳 Hindi", "🇧🇩 Bengali", "🇯🇵 Japanese", "🇵🇰 Western Punjabi",
+        "🇹🇷 Turkish", "🇻🇳 Vietnamese", "🇭🇰 Yue Chinese", "🇪🇬 Egyptian Arabic", "🇨🇳 Wu Chinese",
+        "🇮🇳 Marathi", "🇮🇳 Telugu", "🇰🇷 Korean", "🇮🇳 Tamil", "🇵🇰 Urdu", "🇮🇩 Indonesian",
+        "🇮🇩 Javanese", "🇮🇷 Iranian Persian", "🇳🇬 Hausa", "🇮🇳 Gujarati", "🇱🇧 Levantine Arabic",
+        "🇮🇳 Bhojpuri"
+    };
+    languageCombo->addItems(languagesWithFlags);
+    
+    QString savedLang = m_configManager->get("General", "language", "🇺🇸 English").toString();
+    int index = languageCombo->findText(savedLang);
+    if (index >= 0) languageCombo->setCurrentIndex(index);
+    m_tabWidget->setCornerWidget(languageCombo, Qt::TopRightCorner);
+    connect(languageCombo, &QComboBox::currentTextChanged, this, [this](const QString &text) {
+        if (m_configManager->get("General", "language", "🇺🇸 English").toString() != text) {
+            m_configManager->set("General", "language", text);
+            QMessageBox::information(this, "Language Changed", "Language changed to " + text + ".\n\nPlease restart the application for changes to take full effect.");
+        }
+    });
 
     m_startTab = new StartTab(m_configManager, m_extractorJsonParser, this);
     m_activeDownloadsTab = new ActiveDownloadsTab(m_configManager, this);
@@ -202,7 +285,26 @@ void MainWindow::setupUI() {
     m_tabWidget->addTab(sortingTab, "Sorting Rules");
     m_tabWidget->addTab(m_advancedSettingsTab, "Advanced Settings");
 
-    QHBoxLayout *footerLayout = new QHBoxLayout();
+    // Dynamically adjust size policies to prevent hidden tabs from forcing a large minimum window width.
+    // This ensures that only the currently visible tab influences the window's minimum size.
+    connect(m_tabWidget, &QTabWidget::currentChanged, this, [this](int index) {
+        for (int i = 0; i < m_tabWidget->count(); ++i) {
+            if (QWidget *widget = m_tabWidget->widget(i)) {
+                widget->setSizePolicy(i == index ? QSizePolicy::Preferred : QSizePolicy::Ignored, QSizePolicy::Preferred);
+            }
+        }
+        m_tabWidget->currentWidget()->updateGeometry();
+    });
+
+    // Set initial state for all but the first tab
+    for (int i = 1; i < m_tabWidget->count(); ++i) {
+        if (QWidget *widget = m_tabWidget->widget(i)) {
+            widget->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+        }
+    }
+
+    QVBoxLayout *footerContainer = new QVBoxLayout();
+    QHBoxLayout *footerTopRow = new QHBoxLayout();
     QLabel *githubLink = new QLabel(QString("<a href=\"%1\">Source Code</a>").arg(GITHUB_PROJECT_URL));
     githubLink->setOpenExternalLinks(true);
     githubLink->setToolTip("Visit the project's source code repository on GitHub.");
@@ -223,18 +325,36 @@ void MainWindow::setupUI() {
     m_speedLabel = new QLabel("Current Speed: 0.00 MB/s", this);
     m_speedLabel->setToolTip("Total download speed across all active transfers.");
 
-    footerLayout->addWidget(githubLink);
-    footerLayout->addSpacing(20);
-    footerLayout->addWidget(discordLink);
-    footerLayout->addStretch();
-    footerLayout->addWidget(m_queuedDownloadsLabel);
-    footerLayout->addSpacing(10);
-    footerLayout->addWidget(m_activeDownloadsLabel);
-    footerLayout->addSpacing(10);
-    footerLayout->addWidget(m_completedDownloadsLabel);
-    footerLayout->addSpacing(10);
-    footerLayout->addWidget(m_speedLabel);
-    mainLayout->addLayout(footerLayout);
+    QLabel *exitAfterLabel = new QLabel("Exit after all downloads complete:", this);
+    ToggleSwitch *exitAfterSwitch = new ToggleSwitch(this);
+    exitAfterSwitch->setToolTip("If switched on, the application will automatically close once all your downloads are finished.");
+    exitAfterSwitch->setChecked(m_configManager->get("General", "exit_after", false).toBool());
+
+    connect(exitAfterSwitch, &ToggleSwitch::toggled, this, [this](bool checked){
+        m_configManager->set("General", "exit_after", checked);
+        m_configManager->save();
+    });
+
+    footerTopRow->addWidget(githubLink);
+    footerTopRow->addSpacing(20);
+    footerTopRow->addWidget(discordLink);
+    footerTopRow->addStretch();
+    footerTopRow->addWidget(exitAfterLabel);
+    footerTopRow->addWidget(exitAfterSwitch);
+
+    QHBoxLayout *footerBottomRow = new QHBoxLayout();
+    footerBottomRow->addStretch();
+    footerBottomRow->addWidget(m_queuedDownloadsLabel);
+    footerBottomRow->addSpacing(10);
+    footerBottomRow->addWidget(m_activeDownloadsLabel);
+    footerBottomRow->addSpacing(10);
+    footerBottomRow->addWidget(m_completedDownloadsLabel);
+    footerBottomRow->addSpacing(20);
+    footerBottomRow->addWidget(m_speedLabel);
+
+    footerContainer->addLayout(footerTopRow);
+    footerContainer->addLayout(footerBottomRow);
+    mainLayout->addLayout(footerContainer);
 
     connect(m_startTab, &StartTab::downloadRequested, this, &MainWindow::onDownloadRequested);
     connect(m_advancedSettingsTab, &AdvancedSettingsTab::themeChanged, this, &MainWindow::applyTheme);
@@ -347,6 +467,26 @@ void MainWindow::onTrayIconActivated(QSystemTrayIcon::ActivationReason reason) {
 }
 
 void MainWindow::onDownloadRequested(const QString &url, const QVariantMap &options) {
+    if (!m_pendingUrl.isEmpty()) {
+        QMessageBox::warning(this, "Please Wait", "Currently fetching info for another download.");
+        return;
+    }
+
+    bool runtimeVideo = m_configManager->get("Video", "video_multistreams", "Default Stream").toString() == "Select at Runtime" && options.value("type").toString() == "video";
+    bool runtimeAudio = m_configManager->get("Audio", "audio_multistreams", "Default Stream").toString() == "Select at Runtime"; // Audio tracks apply to video and audio types
+    bool runtimeSubs = m_configManager->get("Subtitles", "languages", "en").toString().split(',').contains("runtime");
+
+    if (runtimeVideo || runtimeAudio || runtimeSubs) {
+        m_pendingUrl = url;
+        m_pendingOptions = options;
+        statusBar()->showMessage("Fetching media info for runtime selection...");
+        QString ytDlpPath = ProcessUtils::findBinary("yt-dlp", m_configManager).path;
+        QStringList args;
+        args << "--dump-json" << "--no-playlist" << url;
+        m_runtimeExtractor->extract(ytDlpPath, args);
+        return;
+    }
+
     static QRegularExpression fastTrackRe(R"(^(https?://)?(www\.)?(youtube\.com|youtu\.be|music\.youtube\.com|tiktok\.com|instagram\.com|twitter\.com|x\.com)/)");
     if (fastTrackRe.match(url).hasMatch()) {
         m_downloadManager->enqueueDownload(url, options);
@@ -358,6 +498,35 @@ void MainWindow::onDownloadRequested(const QString &url, const QVariantMap &opti
     m_pendingOptions = options;
 
     m_urlValidator->validate(url);
+}
+
+void MainWindow::onRuntimeInfoReady(const QVariantMap &info) {
+    statusBar()->clearMessage();
+    bool runtimeVideo = m_configManager->get("Video", "video_multistreams", "Default Stream").toString() == "Select at Runtime" && m_pendingOptions.value("type").toString() == "video";
+    bool runtimeAudio = m_configManager->get("Audio", "audio_multistreams", "Default Stream").toString() == "Select at Runtime";
+    bool runtimeSubs = m_configManager->get("Subtitles", "languages", "en").toString().split(',').contains("runtime");
+
+    RuntimeSelectionDialog dialog(info, runtimeVideo, runtimeAudio, runtimeSubs, this);
+    if (dialog.exec() == QDialog::Accepted) {
+        QVariantMap opts = m_pendingOptions;
+        if (runtimeVideo) opts["runtime_video_format"] = dialog.getSelectedVideoFormat();
+        if (runtimeAudio) opts["runtime_audio_format"] = dialog.getSelectedAudioFormat();
+        if (runtimeSubs) {
+            QStringList subs = dialog.getSelectedSubtitles();
+            if (!subs.isEmpty()) opts["runtime_subtitles"] = subs.join(',');
+        }
+        m_downloadManager->enqueueDownload(m_pendingUrl, opts);
+        m_tabWidget->setCurrentWidget(m_activeDownloadsTab);
+    }
+    m_pendingUrl.clear();
+    m_pendingOptions.clear();
+}
+
+void MainWindow::onRuntimeInfoError(const QString &error) {
+    statusBar()->clearMessage();
+    QMessageBox::warning(this, "Extraction Error", "Failed to fetch media info for runtime selection:\n" + error);
+    m_pendingUrl.clear();
+    m_pendingOptions.clear();
 }
 
 void MainWindow::onValidationFinished(bool isValid, const QString &error) {
@@ -374,6 +543,11 @@ void MainWindow::onValidationFinished(bool isValid, const QString &error) {
 void MainWindow::onQueueFinished() {
     if (!m_configManager) {
         return;
+    }
+
+    // Notify the user that the queue has finished
+    if (m_trayIcon && m_trayIcon->isVisible()) {
+        m_trayIcon->showMessage("Downloads Complete", "All queued media downloads have finished.", QSystemTrayIcon::Information, 3000);
     }
 
     bool exitAfter = m_pendingOptions.value("exit_after", m_configManager->get("General", "exit_after", false)).toBool();
@@ -420,21 +594,18 @@ void MainWindow::applyTheme(const QString &themeName) {
         darkPalette.setColor(QPalette::Mid, QColor(40, 40, 40));
         qApp->setPalette(darkPalette);
     } else { // Light theme
-        QPalette lightPalette;
-        lightPalette.setColor(QPalette::Window, QColor(240, 240, 240));
+        QPalette lightPalette(QColor(240, 240, 240));
         lightPalette.setColor(QPalette::WindowText, Qt::black);
-        lightPalette.setColor(QPalette::Base, QColor(255, 255, 255));
-        lightPalette.setColor(QPalette::AlternateBase, QColor(233, 233, 233));
-        lightPalette.setColor(QPalette::ToolTipBase, Qt::black);
+        lightPalette.setColor(QPalette::Base, Qt::white);
+        lightPalette.setColor(QPalette::AlternateBase, QColor(246, 246, 246));
+        lightPalette.setColor(QPalette::ToolTipBase, Qt::white);
         lightPalette.setColor(QPalette::ToolTipText, Qt::black);
         lightPalette.setColor(QPalette::Text, Qt::black);
-        lightPalette.setColor(QPalette::Button, QColor(240, 240, 240));
         lightPalette.setColor(QPalette::ButtonText, Qt::black);
         lightPalette.setColor(QPalette::BrightText, Qt::red);
-        lightPalette.setColor(QPalette::Link, QColor(0, 0, 255));
-        lightPalette.setColor(QPalette::Highlight, QColor(0, 120, 215));
+        lightPalette.setColor(QPalette::Link, QColor(42, 130, 218));
+        lightPalette.setColor(QPalette::Highlight, QColor(42, 130, 218));
         lightPalette.setColor(QPalette::HighlightedText, Qt::white);
-        lightPalette.setColor(QPalette::Mid, QColor(220, 220, 220));
         qApp->setPalette(lightPalette);
     }
 }

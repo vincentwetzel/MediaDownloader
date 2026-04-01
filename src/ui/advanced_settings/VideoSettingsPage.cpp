@@ -13,18 +13,20 @@ VideoSettingsPage::VideoSettingsPage(ConfigManager *configManager, QWidget *pare
     layout->setContentsMargins(0, 0, 0, 0);
 
     QGroupBox *videoGroup = new QGroupBox("Default Video Settings", this);
-    videoGroup->setToolTip("Set the default video download options. These can be overridden on the Start tab.");
+    videoGroup->setToolTip("Set the default video download options, or switch to runtime selection to choose formats when each download is added.");
     QFormLayout *videoLayout = new QFormLayout(videoGroup);
 
     m_videoQualityCombo = new QComboBox(this);
-    m_videoQualityCombo->setToolTip("Pick the picture quality for your video, like '1080p' for high definition or '360p' for smaller files. 'best' tries to get the highest quality available.");
-    m_videoQualityCombo->addItems({"best", "2160p", "1440p", "1080p", "720p", "480p", "360p", "240p", "144p", "worst"});
+    m_videoQualityCombo->setToolTip("Pick the default picture quality for video downloads. Choose 'Select at Runtime' to hide the rest of these defaults and pick exact formats when you queue a download.");
+    m_videoQualityCombo->addItems({"Select at Runtime", "best", "2160p", "1440p", "1080p", "720p", "480p", "360p", "240p", "144p", "worst"});
     videoLayout->addRow("Quality:", m_videoQualityCombo);
 
+    m_videoCodecLabel = new QLabel("Codec:", this);
+    m_videoCodecLabel->setToolTip("Choose the default video codec used when runtime selection is off.");
     m_videoCodecCombo = new QComboBox(this);
     m_videoCodecCombo->setToolTip("Choose the video format (codec). This affects file size and compatibility. H.264 is common, H.265 is newer and smaller, AV1/VP9 are often used for web videos.");
     m_videoCodecCombo->addItems({"Default", "H.264 (AVC)", "H.265 (HEVC)", "VP9", "AV1", "ProRes (Archive)", "Theora"});
-    videoLayout->addRow("Codec:", m_videoCodecCombo);
+    videoLayout->addRow(m_videoCodecLabel, m_videoCodecCombo);
 
     m_videoExtLabel = new QLabel("Extension:", this);
     m_videoExtLabel->setToolTip("Select the file type for your video... changes automatically based on codec.");
@@ -33,10 +35,17 @@ VideoSettingsPage::VideoSettingsPage(ConfigManager *configManager, QWidget *pare
     m_videoExtCombo->addItems({"mp4", "mkv", "webm"});
     videoLayout->addRow(m_videoExtLabel, m_videoExtCombo);
 
+    m_videoAudioCodecLabel = new QLabel("Audio Codec:", this);
+    m_videoAudioCodecLabel->setToolTip("Choose the default audio codec used inside video downloads when runtime selection is off.");
     m_videoAudioCodecCombo = new QComboBox(this);
     m_videoAudioCodecCombo->setToolTip("Choose the audio format (codec) that will be included in your video file.");
     m_videoAudioCodecCombo->addItems({"Default", "AAC", "Opus", "Vorbis", "MP3", "FLAC", "PCM"});
-    videoLayout->addRow("Audio Codec:", m_videoAudioCodecCombo);
+    videoLayout->addRow(m_videoAudioCodecLabel, m_videoAudioCodecCombo);
+
+    m_runtimeHintLabel = new QLabel("Runtime selection mode is enabled. Quality, codec, extension, and stream choices will be picked from the available formats when you queue a download.", this);
+    m_runtimeHintLabel->setWordWrap(true);
+    m_runtimeHintLabel->setToolTip("This mode uses a runtime format picker instead of the defaults below.");
+    videoLayout->addRow(QString(), m_runtimeHintLabel);
 
     layout->addWidget(videoGroup);
     layout->addStretch();
@@ -61,21 +70,45 @@ void VideoSettingsPage::loadSettings() {
     updateVideoOptions();
 }
 
-void VideoSettingsPage::onVideoQualityChanged(const QString &text) { m_configManager->set("Video", "video_quality", text); }
+void VideoSettingsPage::onVideoQualityChanged(const QString &text) { m_configManager->set("Video", "video_quality", text); updateVideoOptions(); }
 void VideoSettingsPage::onVideoCodecChanged(const QString &text) { m_configManager->set("Video", "video_codec", text); updateVideoOptions(); }
 void VideoSettingsPage::onVideoExtChanged(const QString &text) { m_configManager->set("Video", "video_extension", text); }
 void VideoSettingsPage::onVideoAudioCodecChanged(const QString &text) { m_configManager->set("Video", "video_audio_codec", text); }
 
 void VideoSettingsPage::handleConfigSettingChanged(const QString &section, const QString &key, const QVariant &value) {
     if (section == "Video") {
-        if (key == "quality" || key == "video_quality") m_videoQualityCombo->setCurrentText(value.toString());
-        else if (key == "codec" || key == "video_codec") m_videoCodecCombo->setCurrentText(value.toString());
-        else if (key == "extension" || key == "video_extension") m_videoExtCombo->setCurrentText(value.toString());
-        else if (key == "audio_codec" || key == "video_audio_codec") m_videoAudioCodecCombo->setCurrentText(value.toString());
+        if (key == "quality" || key == "video_quality") {
+            m_videoQualityCombo->setCurrentText(value.toString());
+            updateVideoOptions();
+        } else if (key == "codec" || key == "video_codec") {
+            m_videoCodecCombo->setCurrentText(value.toString());
+            updateVideoOptions();
+        } else if (key == "extension" || key == "video_extension") {
+            m_videoExtCombo->setCurrentText(value.toString());
+        } else if (key == "audio_codec" || key == "video_audio_codec") {
+            m_videoAudioCodecCombo->setCurrentText(value.toString());
+        }
     }
 }
 
+bool VideoSettingsPage::isRuntimeSelectionMode() const {
+    return m_videoQualityCombo && m_videoQualityCombo->currentText() == "Select at Runtime";
+}
+
 void VideoSettingsPage::updateVideoOptions() {
+    const bool runtimeSelection = isRuntimeSelectionMode();
+    m_videoCodecLabel->setVisible(!runtimeSelection);
+    m_videoCodecCombo->setVisible(!runtimeSelection);
+    m_videoExtLabel->setVisible(!runtimeSelection);
+    m_videoExtCombo->setVisible(!runtimeSelection);
+    m_videoAudioCodecLabel->setVisible(!runtimeSelection);
+    m_videoAudioCodecCombo->setVisible(!runtimeSelection);
+    m_runtimeHintLabel->setVisible(runtimeSelection);
+
+    if (runtimeSelection) {
+        return;
+    }
+
     QString selectedVideoCodec = m_videoCodecCombo->currentText();
     bool isDefaultCodec = (selectedVideoCodec == "Default");
     m_videoExtLabel->setVisible(!isDefaultCodec);

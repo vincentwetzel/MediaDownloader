@@ -39,9 +39,10 @@ This document outlines the specifications for the C++ port of the MediaDownloade
     - Clipboard auto-paste: when the URL field is focused/clicked, the app checks the clipboard against the extractor-domain list stored next to `MediaDownloader.exe` and auto-pastes a matching URL.
     - If `auto_paste_on_focus` is enabled, focusing or hovering the app window will switch to Start Download and auto-paste when a valid clipboard URL is detected.
     - Download Type dropdown, including "View Formats".
-    - Video Settings group with quality, codec, extension, and audio codec for video downloads. Includes a "Lock Video Settings" checkbox.
-    - Audio Settings group with quality, codec, and extension for audio downloads. Includes a "Lock Audio Settings" checkbox.
-    - Operational Controls including Playlist logic, Max Concurrent downloads, Rate Limit, "Override duplicate download check", and "Exit after all downloads complete".
+    - No per-download runtime quality/codec override dropdowns may appear on the Start tab; runtime format selection must be driven by Advanced Settings and download-time dialogs.
+    - Video Settings group with quality, codec, extension, and audio codec defaults. Choosing `Quality = Select at Runtime` must hide the other video-format defaults on that page and defer the whole format decision to the runtime picker. Includes a "Lock Video Settings" checkbox.
+    - Audio Settings group with quality, codec, and extension defaults. Choosing `Quality = Select at Runtime` must hide the other audio-format defaults on that page and defer the whole format decision to the runtime picker. Includes a "Lock Audio Settings" checkbox.
+    - Operational Controls including Playlist logic, Max Concurrent downloads, Rate Limit, and "Override duplicate download check". "Exit after all downloads complete" is controlled from the main window footer.
 - **Active Downloads Tab**:
     - Displays a list of queued, actively downloading, and completed items.
     - Each download GUI element must play/display a thumbnail preview for audio/video downloads on the left side of the widget.
@@ -77,6 +78,7 @@ This document outlines the specifications for the C++ port of the MediaDownloade
     - Override archive (`--no-download-archive`).
     - Embed chapters (`--embed-chapters`).
 - **Output Parsing**: Must parse `yt-dlp` stdout for progress, final filename, and metadata JSON.
+- **Runtime Format Selection**: When Advanced Settings `Quality` is set to `Select at Runtime` for video or audio downloads, the app must asynchronously fetch format metadata with `yt-dlp` and present a structured selection dialog. Selecting multiple formats must enqueue one download per selected format.
 - **Encoding Robustness**: Worker process environment must force UTF-8 text output (`PYTHONUTF8=1`, `PYTHONIOENCODING=utf-8`) so Unicode filenames are preserved in stdout/stderr parsing.
 
 ### 2.6. Post-Processing

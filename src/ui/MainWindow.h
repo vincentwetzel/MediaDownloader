@@ -24,6 +24,7 @@ class AdvancedSettingsTab;
 class StartTab;
 class SortingTab;
 class ExtractorJsonParser;
+class YtDlpJsonExtractor;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -47,6 +48,8 @@ private slots:
     void onDownloadStatsUpdated(int queued, int active, int completed);
     void setYtDlpVersion(const QString &version);
     void onClipboardChanged(); // New slot for clipboard changes
+        void onRuntimeInfoReady(const QVariantMap &info);
+        void onRuntimeInfoError(const QString &error);
 
 private:
     void setupUI();
@@ -63,6 +66,7 @@ private:
     StartupWorker *m_startupWorker;
     QThread *m_startupThread; // New thread for the startup worker
     ExtractorJsonParser *m_extractorJsonParser;
+    YtDlpJsonExtractor *m_runtimeExtractor;
     QClipboard *m_clipboard; // New QClipboard member
 
     QTabWidget *m_tabWidget;

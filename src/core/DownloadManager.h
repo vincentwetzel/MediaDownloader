@@ -33,11 +33,18 @@ public slots:
     void cancelDownload(const QString &id);
     void retryDownload(const QVariantMap &itemData);
     void resumeDownload(const QVariantMap &itemData);
+    void pauseDownload(const QString &id);
+    void unpauseDownload(const QString &id);
+    void moveDownloadUp(const QString &id);
+    void moveDownloadDown(const QString &id);
     void onWorkerOutputReceived(const QString &id, const QString &output);
+    void resumeDownloadWithFormat(const QString &url, const QVariantMap &options, const QString &formatId);
 
 signals:
     void downloadAddedToQueue(const QVariantMap &itemData);
     void downloadStarted(const QString &id);
+    void downloadPaused(const QString &id);
+    void downloadResumed(const QString &id);
     void downloadProgress(const QString &id, const QVariantMap &progressData);
     void downloadFinished(const QString &id, bool success, const QString &message);
     void downloadCancelled(const QString &id);
@@ -48,6 +55,8 @@ signals:
     void totalSpeedUpdated(double speed);
     void videoQualityWarning(const QString &url, const QString &message);
     void downloadStatsUpdated(int queued, int active, int completed);
+    void formatSelectionRequested(const QString &url, const QVariantMap &options, const QVariantMap &infoDict);
+    void formatSelectionFailed(const QString &url, const QString &message);
 
 private slots:
     void onPlaylistDetected(const QString &url, int itemCount, const QVariantMap &options, const QList<QVariantMap> &expandedItems);
@@ -60,15 +69,19 @@ private slots:
     void onMetadataEmbedded(const QString &id, bool success, const QString &error);
 
 private:
+    void saveQueueState();
+    void loadQueueState();
     void proceedWithDownload();
     void finalizeDownload(const QString &id, DownloadItem &item, const QString &filePath);
     void checkQueueFinished();
     void updateTotalSpeed();
     void emitDownloadStats();
+    void fetchFormatsForSelection(const QString &url, const QVariantMap &options);
 
     ConfigManager *m_configManager;
     SortingManager *m_sortingManager;
     QQueue<DownloadItem> m_downloadQueue;
+    QMap<QString, DownloadItem> m_pausedItems;
     QMap<QString, QObject*> m_activeWorkers;
     QMap<QString, DownloadItem> m_activeItems;
     QMap<QString, QObject*> m_activeEmbedders;

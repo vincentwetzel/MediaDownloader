@@ -14,16 +14,21 @@ public:
 public slots:
     void loadSettings();
 private slots:
-    void validateAndSaveYtDlpTemplate();
+    void validateAndSaveVideoTemplate();
+    void validateAndSaveAudioTemplate();
     void validateAndSaveGalleryDlTemplate();
-    void insertYtDlpTemplateToken(int index);
+    void insertVideoTemplateToken(int index);
+    void insertAudioTemplateToken(int index);
     void insertGalleryDlTemplateToken(int index);
     void handleConfigSettingChanged(const QString &section, const QString &key, const QVariant &value);
 private:
     ConfigManager *m_configManager;
-    QLineEdit *m_ytDlpOutputTemplateInput;
-    QComboBox *m_ytDlpTemplateTokensCombo;
-    QPushButton *m_saveYtDlpTemplateButton;
+    QLineEdit *m_videoOutputTemplateInput;
+    QComboBox *m_videoTemplateTokensCombo;
+    QPushButton *m_saveVideoTemplateButton;
+    QLineEdit *m_audioOutputTemplateInput;
+    QComboBox *m_audioTemplateTokensCombo;
+    QPushButton *m_saveAudioTemplateButton;
     QLineEdit *m_galleryDlOutputTemplateInput;
     QComboBox *m_galleryDlTemplateTokensCombo;
     QPushButton *m_saveGalleryDlTemplateButton;

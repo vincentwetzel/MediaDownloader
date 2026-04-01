@@ -65,16 +65,23 @@ void ConfigurationPage::loadSettings() {
 
 void ConfigurationPage::selectCompletedDir() {
     QString dir = QFileDialog::getExistingDirectory(this, "Select Completed Downloads Directory", m_completedDirInput->text());
-    if (!dir.isEmpty()) m_configManager->set("Paths", "completed_downloads_directory", dir);
+    if (!dir.isEmpty()) {
+        m_configManager->set("Paths", "completed_downloads_directory", dir);
+        m_configManager->save();
+    }
 }
 
 void ConfigurationPage::selectTempDir() {
     QString dir = QFileDialog::getExistingDirectory(this, "Select Temporary Downloads Directory", m_tempDirInput->text());
-    if (!dir.isEmpty()) m_configManager->set("Paths", "temporary_downloads_directory", dir);
+    if (!dir.isEmpty()) {
+        m_configManager->set("Paths", "temporary_downloads_directory", dir);
+        m_configManager->save();
+    }
 }
 
 void ConfigurationPage::onThemeChanged(const QString &text) {
     m_configManager->set("General", "theme", text);
+    m_configManager->save();
     emit themeChanged(text);
 }
 

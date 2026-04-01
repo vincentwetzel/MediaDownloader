@@ -12,6 +12,7 @@ public:
     explicit ConfigManager(const QString &filePath, QObject *parent = nullptr);
     QVariant get(const QString &section, const QString &key, const QVariant &defaultValue = QVariant());
     bool set(const QString &section, const QString &key, const QVariant &value);
+    void remove(const QString &section, const QString &key);
     void save();
     QString getConfigDir() const;
     void setDefaults();

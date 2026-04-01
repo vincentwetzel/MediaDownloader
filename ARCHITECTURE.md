@@ -11,6 +11,7 @@ The application ensures that only one instance can run at a time. This is achiev
 ### 2.2 Core Components
 - **UI Layer (`src/ui/`):** Handles user interaction, input, and visual feedback using Qt Widgets.
   - **AdvancedSettingsTab navigation**: The left-side category list is a compact `QListWidget` whose stylesheet is rebuilt from `QPalette` values whenever the palette changes so it remains consistent with both light and dark themes.
+  - **Runtime format selection**: Advanced Settings can defer the entire video/audio format decision until enqueue time by setting `Quality` to `Select at Runtime`; `DownloadManager` fetches format metadata and `MainWindow` presents `FormatSelectionDialog`, which enqueues one item per selected format.
 - **Core Logic (`src/core/`):** Manages download queues, file operations, configuration, and external process execution.
 - **Utilities (`src/utils/`):** Provides helper functions for tasks like string manipulation and URL normalization.
 - **Extractor Domain Loader:** `YtDlpJsonParser` loads the extractor-domain list from the app directory for clipboard auto-paste checks in `StartTab`.
@@ -24,11 +25,12 @@ The application ensures that only one instance can run at a time. This is achiev
 ### 2.3 Data Flow
 1.  **Input:** User enters a URL in `StartTab`.
 2.  **Validation/Expansion:** `DownloadManager` validates the URL. If it's a playlist, `PlaylistExpander` expands it into individual items.
-3.  **Queue:** Valid URLs are added to a download queue managed by `DownloadManager`.
-4.  **Execution:** `DownloadManager` spawns a worker (`YtDlpWorker` or `GalleryDlWorker`) for each item.
-5.  **Progress:** The worker parses `stdout` and emits progress signals (`progressUpdated`, `speedChanged`, etc.).
-6.  **UI Update:** `ActiveDownloadsTab` receives signals and updates the corresponding progress bars, labels, and plays/displays a thumbnail preview on the left side of the download GUI element.
-7.  **Post-Processing:** Upon success, `DownloadManager` performs post-processing (e.g., embedding track numbers for audio playlists) and moves the file to the final output directory.
+3.  **Runtime Selection Gate:** If Advanced Settings quality is set to `Select at Runtime` for video/audio downloads, `DownloadManager` asynchronously fetches `yt-dlp` format metadata and `MainWindow` shows `FormatSelectionDialog`. Each selected format becomes its own queued item.
+4.  **Queue:** Valid URLs are added to a download queue managed by `DownloadManager`.
+5.  **Execution:** `DownloadManager` spawns a worker (`YtDlpWorker` or `GalleryDlWorker`) for each item.
+6.  **Progress:** The worker parses `stdout` and emits progress signals (`progressUpdated`, `speedChanged`, etc.).
+7.  **UI Update:** `ActiveDownloadsTab` receives signals and updates the corresponding progress bars, labels, and plays/displays a thumbnail preview on the left side of the download GUI element.
+8.  **Post-Processing:** Upon success, `DownloadManager` performs post-processing (e.g., embedding track numbers for audio playlists) and moves the file to the final output directory.
 
 ## 3. Directory Structure
 
@@ -90,6 +92,7 @@ MediaDownloader/
 ### 4.3 DownloadManager (`src/core/DownloadManager.h`)
 - **Responsibilities:**
   - Manages the download queue and enforces concurrency limits (`max_threads`).
+  - Intercepts runtime video/audio format-selection settings, fetches format metadata asynchronously, and re-enqueues one download per chosen format ID.
   - Handles the file lifecycle (Temp -> Final).
   - Uses `yt-dlp --print after_move:filepath` as the authoritative final output path source and moves files using Qt-native rename/copy fallback for Unicode-safe, cross-volume behavior.
   - Coordinates `YtDlpWorker` and `GalleryDlWorker` instances.

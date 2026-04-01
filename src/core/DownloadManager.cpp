@@ -7,11 +7,13 @@
 #include "YtDlpWorker.h"
 #include "PlaylistExpander.h"
 #include "MetadataEmbedder.h"
+#include "core/ProcessUtils.h"
 #include <QUuid>
 #include <QDebug>
 #include <QDir>
 #include <QStandardPaths>
 #include <QFile>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QProcess>
@@ -61,6 +63,8 @@ DownloadManager::DownloadManager(ConfigManager *configManager, QObject *parent)
     m_sleepTimer->setSingleShot(true);
     connect(m_sleepTimer, &QTimer::timeout, this, &DownloadManager::onSleepTimerTimeout);
 
+    QTimer::singleShot(0, this, &DownloadManager::loadQueueState);
+
     emitDownloadStats();
 }
 
@@ -77,10 +81,31 @@ DownloadManager::~DownloadManager() {
     for (const QString &id : embedderIds) {
         cancelDownload(id);
     }
+    QStringList pausedIds = m_pausedItems.keys();
+    for (const QString &id : pausedIds) {
+        cancelDownload(id);
+    }
 }
 
 void DownloadManager::enqueueDownload(const QString &url, const QVariantMap &options) {
     QString downloadType = options.value("type", "video").toString();
+
+    // Intercept for runtime format selection before doing anything else
+    bool needsRuntimeSelection = false;
+    if (downloadType == "video") {
+        if (m_configManager->get("Video", "video_quality").toString() == "Select at Runtime") {
+            needsRuntimeSelection = true;
+        }
+    } else if (downloadType == "audio") {
+        if (m_configManager->get("Audio", "audio_quality").toString() == "Select at Runtime") {
+            needsRuntimeSelection = true;
+        }
+    }
+
+    if (needsRuntimeSelection && !options.value("runtime_format_selected", false).toBool()) {
+        fetchFormatsForSelection(url, options);
+        return;
+    }
 
     if (downloadType == "gallery") {
         DownloadItem item;
@@ -101,6 +126,7 @@ void DownloadManager::enqueueDownload(const QString &url, const QVariantMap &opt
         emit downloadAddedToQueue(uiData);
 
         emitDownloadStats();
+        saveQueueState();
         startNextDownload();
     } else {
         PlaylistExpander *expander = new PlaylistExpander(url, m_configManager, this);
@@ -115,6 +141,51 @@ void DownloadManager::enqueueDownload(const QString &url, const QVariantMap &opt
     }
 }
 
+void DownloadManager::fetchFormatsForSelection(const QString &url, const QVariantMap &options) {
+    QProcess *process = new QProcess(this);
+    QString ytDlpPath = ProcessUtils::findBinary("yt-dlp", m_configManager).path;
+    
+    QStringList args;
+    args << "--dump-json" << "--no-playlist" << url;
+    
+    QString cookiesBrowser = m_configManager->get("General", "cookies_from_browser", "None").toString();
+    if (cookiesBrowser != "None") {
+        args << "--cookies-from-browser" << cookiesBrowser.toLower();
+    }
+    
+    connect(process, &QProcess::finished, this, [this, process, url, options](int exitCode, QProcess::ExitStatus exitStatus) {
+        if (exitStatus == QProcess::NormalExit && exitCode == 0) {
+            QByteArray output = process->readAllStandardOutput();
+            QJsonDocument doc = QJsonDocument::fromJson(output);
+            if (doc.isObject()) {
+                emit formatSelectionRequested(url, options, doc.object().toVariantMap());
+            } else {
+                const QString message = "yt-dlp returned invalid format metadata.";
+                qWarning() << "DownloadManager: Invalid JSON returned from yt-dlp -J";
+                emit formatSelectionFailed(url, message);
+            }
+        } else {
+            const QString errorText = QString::fromUtf8(process->readAllStandardError()).trimmed();
+            qWarning() << "DownloadManager: yt-dlp -J failed:" << errorText;
+            emit formatSelectionFailed(url, errorText.isEmpty() ? "Failed to retrieve available formats." : errorText);
+        }
+        process->deleteLater();
+    });
+    
+    process->start(ytDlpPath, args);
+}
+
+void DownloadManager::resumeDownloadWithFormat(const QString &url, const QVariantMap &options, const QString &formatId) {
+    QVariantMap newOptions = options;
+    newOptions["runtime_format_selected"] = true;
+    if (options.value("type", "video").toString() == "audio") {
+        newOptions["runtime_audio_format"] = formatId;
+    } else {
+        newOptions["runtime_video_format"] = formatId;
+    }
+    enqueueDownload(url, newOptions);
+}
+
 void DownloadManager::cancelDownload(const QString &id) {
     bool cancelled = false;
     for (int i = 0; i < m_downloadQueue.size(); ++i) {
@@ -126,6 +197,19 @@ void DownloadManager::cancelDownload(const QString &id) {
             cancelled = true;
             break;
         }
+    }
+
+    if (!cancelled && m_pausedItems.contains(id)) {
+        DownloadItem item = m_pausedItems.take(id);
+        if (!item.tempFilePath.isEmpty()) {
+            QFile::remove(item.tempFilePath);
+            QFileInfo fi(item.tempFilePath);
+            QString infoFilePath = fi.absoluteDir().filePath(fi.completeBaseName() + ".info.json");
+            QFile::remove(infoFilePath);
+            qDebug() << "Cleaned up temporary files for cancelled paused download:" << id;
+        }
+        emit downloadCancelled(id);
+        cancelled = true;
     }
 
     if (!cancelled && m_activeWorkers.contains(id)) {
@@ -181,6 +265,7 @@ void DownloadManager::cancelDownload(const QString &id) {
 
     if (cancelled) {
         emitDownloadStats();
+        saveQueueState();
         startNextDownload();
     }
 }
@@ -195,11 +280,95 @@ void DownloadManager::retryDownload(const QVariantMap &itemData) {
     m_queuedDownloadsCount++;
     emit downloadAddedToQueue(itemData);
     emitDownloadStats();
+    saveQueueState();
     startNextDownload();
 }
 
 void DownloadManager::resumeDownload(const QVariantMap &itemData) {
     retryDownload(itemData);
+}
+
+void DownloadManager::pauseDownload(const QString &id) {
+    bool paused = false;
+    
+    for (int i = 0; i < m_downloadQueue.size(); ++i) {
+        if (m_downloadQueue.at(i).id == id) {
+            m_pausedItems[id] = m_downloadQueue.takeAt(i);
+            m_queuedDownloadsCount--;
+            qDebug() << "Paused queued download:" << id;
+            emit downloadPaused(id);
+            paused = true;
+            break;
+        }
+    }
+
+    if (!paused && m_activeWorkers.contains(id)) {
+        QObject *worker = m_activeWorkers.take(id);
+        DownloadItem item = m_activeItems.take(id);
+        m_pausedItems[id] = item;
+        
+        m_workerSpeeds.remove(id);
+        updateTotalSpeed();
+
+        YtDlpWorker *ytDlpWorker = qobject_cast<YtDlpWorker*>(worker);
+        if (ytDlpWorker) {
+            ytDlpWorker->killProcess();
+        } else {
+            GalleryDlWorker *galleryDlWorker = qobject_cast<GalleryDlWorker*>(worker);
+            if (galleryDlWorker) {
+                galleryDlWorker->killProcess();
+            }
+        }
+        
+        worker->deleteLater();
+        m_activeDownloadsCount--;
+        qDebug() << "Paused active download:" << id;
+        emit downloadPaused(id);
+        paused = true;
+    } else if (!paused && m_activeEmbedders.contains(id)) {
+        qWarning() << "Cannot pause a download that is currently embedding metadata:" << id;
+        emit downloadResumed(id); // Revert UI
+        paused = true;
+    }
+
+    if (paused) {
+        emitDownloadStats();
+        saveQueueState();
+        startNextDownload();
+    }
+}
+
+void DownloadManager::unpauseDownload(const QString &id) {
+    if (m_pausedItems.contains(id)) {
+        DownloadItem item = m_pausedItems.take(id);
+        m_downloadQueue.prepend(item); // Insert at front to resume immediately
+        m_queuedDownloadsCount++;
+        qDebug() << "Unpaused download:" << id;
+        emit downloadResumed(id);
+        emitDownloadStats();
+        saveQueueState();
+        startNextDownload();
+    }
+}
+
+void DownloadManager::moveDownloadUp(const QString &id) {
+    for (int i = 1; i < m_downloadQueue.size(); ++i) { // Can't move 0 up
+        if (m_downloadQueue.at(i).id == id) {
+            m_downloadQueue.swapItemsAt(i, i - 1);
+            saveQueueState();
+            break;
+        }
+    }
+}
+
+void DownloadManager::moveDownloadDown(const QString &id) {
+    for (int i = 0; i < m_downloadQueue.size() - 1; ++i) { // Can't move last down
+        if (m_downloadQueue.at(i).id == id) {
+            m_downloadQueue.swapItemsAt(i, i + 1);
+            saveQueueState();
+            break;
+        }
+    }
 }
 
 void DownloadManager::onPlaylistDetected(const QString &url, int itemCount, const QVariantMap &options, const QList<QVariantMap> &expandedItems) {
@@ -267,6 +436,7 @@ void DownloadManager::onPlaylistDetected(const QString &url, int itemCount, cons
     }
 
     emitDownloadStats();
+    saveQueueState();
     startNextDownload();
 }
 
@@ -305,7 +475,103 @@ void DownloadManager::onPlaylistExpanded(const QString &originalUrl, const QList
     }
 
     emitDownloadStats();
+    saveQueueState();
     startNextDownload();
+}
+
+void DownloadManager::saveQueueState() {
+    QJsonArray queueArray;
+    for (auto it = m_activeItems.begin(); it != m_activeItems.end(); ++it) {
+        QJsonObject obj;
+        obj["id"] = it.value().id;
+        obj["url"] = it.value().url;
+        obj["options"] = QJsonObject::fromVariantMap(it.value().options);
+        obj["status"] = "queued"; // Active items revert to queued on app start
+        obj["playlistIndex"] = it.value().playlistIndex;
+        queueArray.append(obj);
+    }
+    for (auto it = m_pausedItems.begin(); it != m_pausedItems.end(); ++it) {
+        QJsonObject obj;
+        obj["id"] = it.value().id;
+        obj["url"] = it.value().url;
+        obj["options"] = QJsonObject::fromVariantMap(it.value().options);
+        obj["status"] = "paused";
+        obj["playlistIndex"] = it.value().playlistIndex;
+        queueArray.append(obj);
+    }
+    for (const auto& item : m_downloadQueue) {
+        QJsonObject obj;
+        obj["id"] = item.id;
+        obj["url"] = item.url;
+        obj["options"] = QJsonObject::fromVariantMap(item.options);
+        obj["status"] = "queued";
+        obj["playlistIndex"] = item.playlistIndex;
+        queueArray.append(obj);
+    }
+
+    QString backupPath = QDir(QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation)).filePath("downloads_backup.json");
+    if (queueArray.isEmpty()) {
+        QFile::remove(backupPath);
+    } else {
+        QFile file(backupPath);
+        if (file.open(QIODevice::WriteOnly)) {
+            file.write(QJsonDocument(queueArray).toJson());
+            file.close();
+        }
+    }
+}
+
+void DownloadManager::loadQueueState() {
+    QString backupPath = QDir(QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation)).filePath("downloads_backup.json");
+    QFile file(backupPath);
+    if (!file.exists()) return;
+
+    if (file.open(QIODevice::ReadOnly)) {
+        QByteArray data = file.readAll();
+        file.close();
+        QJsonDocument doc = QJsonDocument::fromJson(data);
+        if (doc.isArray() && !doc.array().isEmpty()) {
+            QJsonArray arr = doc.array();
+            QMessageBox::StandardButton reply;
+            reply = QMessageBox::question(qobject_cast<QWidget*>(parent()), "Resume Downloads",
+                QString("You have %1 incomplete download(s) from a previous session.\nWould you like to resume them?").arg(arr.size()),
+                QMessageBox::Yes | QMessageBox::No);
+
+            if (reply == QMessageBox::Yes) {
+                for (const QJsonValue& val : arr) {
+                    QJsonObject obj = val.toObject();
+                    DownloadItem item;
+                    item.id = obj["id"].toString();
+                    item.url = obj["url"].toString();
+                    item.options = obj["options"].toObject().toVariantMap();
+                    item.playlistIndex = obj["playlistIndex"].toInt(-1);
+                    
+                    QString status = obj["status"].toString("queued");
+
+                    QVariantMap uiData;
+                    uiData["id"] = item.id;
+                    uiData["url"] = item.url;
+                    uiData["status"] = (status == "paused") ? "Paused" : "Queued";
+                    uiData["progress"] = 0;
+                    uiData["options"] = item.options;
+
+                    if (status == "paused") {
+                        m_pausedItems[item.id] = item;
+                        emit downloadAddedToQueue(uiData);
+                        emit downloadPaused(item.id);
+                    } else {
+                        m_downloadQueue.enqueue(item);
+                        m_queuedDownloadsCount++;
+                        emit downloadAddedToQueue(uiData);
+                    }
+                }
+                emitDownloadStats();
+                startNextDownload();
+            } else {
+                QFile::remove(backupPath);
+            }
+        }
+    }
 }
 
 void DownloadManager::proceedWithDownload() {
@@ -322,6 +588,7 @@ void DownloadManager::proceedWithDownload() {
 
     if (downloadType == "gallery") {
         item.options["id"] = item.id;
+        item.options["playlist_index"] = item.playlistIndex;
         GalleryDlArgsBuilder argsBuilder(m_configManager);
         QStringList args = argsBuilder.build(item.url, item.options);
 
@@ -337,6 +604,7 @@ void DownloadManager::proceedWithDownload() {
         worker->start();
     } else {
         item.options["id"] = item.id;
+        item.options["playlist_index"] = item.playlistIndex;
         YtDlpArgsBuilder argsBuilder;
         QStringList args = argsBuilder.build(m_configManager, item.url, item.options);
 
@@ -399,6 +667,7 @@ void DownloadManager::onWorkerFinished(const QString &id, bool success, const QS
     if (!success) {
         m_activeItems.remove(id);
         emit downloadFinished(id, false, message);
+        saveQueueState();
         emitDownloadStats();
         startNextDownload();
         return;
@@ -443,6 +712,7 @@ void DownloadManager::onGalleryDlWorkerFinished(const QString &id, bool success,
     if (!success) {
         m_activeItems.remove(id);
         emit downloadFinished(id, false, message);
+        saveQueueState();
         emitDownloadStats();
         startNextDownload();
         return;
@@ -469,6 +739,7 @@ void DownloadManager::onMetadataEmbedded(const QString &id, bool success, const 
     } else {
         m_activeItems.remove(id);
         emit downloadFinished(id, false, "Metadata embedding failed: " + error);
+        saveQueueState();
         emitDownloadStats();
         startNextDownload();
     }
@@ -486,6 +757,7 @@ void DownloadManager::finalizeDownload(const QString &id, DownloadItem &item, co
             qWarning() << "No info.json found in temp dir";
             emit downloadFinished(id, false, "Downloaded file not found.");
             m_activeItems.remove(id);
+            saveQueueState();
             emitDownloadStats();
             startNextDownload();
             return;
@@ -496,6 +768,7 @@ void DownloadManager::finalizeDownload(const QString &id, DownloadItem &item, co
             qWarning() << "Could not open info.json:" << jsonPath;
             emit downloadFinished(id, false, "Downloaded file not found.");
             m_activeItems.remove(id);
+            saveQueueState();
             emitDownloadStats();
             startNextDownload();
             return;
@@ -507,6 +780,7 @@ void DownloadManager::finalizeDownload(const QString &id, DownloadItem &item, co
             qWarning() << "Invalid info.json";
             emit downloadFinished(id, false, "Downloaded file not found.");
             m_activeItems.remove(id);
+            saveQueueState();
             emitDownloadStats();
             startNextDownload();
             return;
@@ -519,6 +793,7 @@ void DownloadManager::finalizeDownload(const QString &id, DownloadItem &item, co
         qWarning() << "Could not resolve final media filename from yt-dlp after_move path output.";
         emit downloadFinished(id, false, "Download completed, but could not resolve output filename from yt-dlp.");
         m_activeItems.remove(id);
+        saveQueueState();
         emitDownloadStats();
         startNextDownload();
         return;
@@ -565,6 +840,18 @@ void DownloadManager::finalizeDownload(const QString &id, DownloadItem &item, co
 
     qDebug() << "source:" << item.tempFilePath;
     qDebug() << "dest:" << destPath;
+
+    if (item.options.value("type").toString() == "audio" && item.playlistIndex > 0) {
+        QString thumbTempPath = QDir(m_configManager->get("Paths", "temporary_downloads_directory").toString()).filePath(id + "_folder.jpg");
+        if (QFile::exists(thumbTempPath)) {
+            QString thumbDestPath = QDir(finalDir).filePath("folder.jpg");
+            if (!QFile::exists(thumbDestPath)) {
+                QFile::copy(thumbTempPath, thumbDestPath);
+                qDebug() << "Copied folder.jpg for audio playlist to:" << thumbDestPath;
+            }
+            QFile::remove(thumbTempPath);
+        }
+    }
 
     if (item.options.value("type").toString() == "gallery") {
         QDir tempDir(item.tempFilePath);
@@ -619,6 +906,7 @@ void DownloadManager::finalizeDownload(const QString &id, DownloadItem &item, co
             qWarning() << "Failed to remove existing destination before move:" << destPath;
             emit downloadFinished(id, false, "Download completed, but failed to replace existing file.");
             m_activeItems.remove(id);
+            saveQueueState();
             emitDownloadStats();
             startNextDownload();
             return;
@@ -660,6 +948,7 @@ void DownloadManager::finalizeDownload(const QString &id, DownloadItem &item, co
     }
 
     m_activeItems.remove(id);
+    saveQueueState();
     emitDownloadStats();
     startNextDownload();
     qDebug() << "FinalizeDownload completed";

@@ -21,10 +21,14 @@ private slots:
     void handleConfigSettingChanged(const QString &section, const QString &key, const QVariant &value);
 private:
     void updateVideoOptions();
+    bool isRuntimeSelectionMode() const;
     ConfigManager *m_configManager;
     QComboBox *m_videoQualityCombo;
+    QLabel *m_videoCodecLabel;
     QComboBox *m_videoCodecCombo;
     QLabel *m_videoExtLabel;
     QComboBox *m_videoExtCombo;
+    QLabel *m_videoAudioCodecLabel;
     QComboBox *m_videoAudioCodecCombo;
+    QLabel *m_runtimeHintLabel;
 };

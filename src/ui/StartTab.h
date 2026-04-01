@@ -5,7 +5,6 @@
 #include <QTextEdit>
 #include <QComboBox>
 #include <QPushButton>
-#include <QCheckBox>
 #include <QVariantMap>
 #include <QProcess>
 #include <QSpinBox>
@@ -18,6 +17,7 @@
 
 class QEvent;
 class QFocusEvent;
+class ToggleSwitch;
 
 class StartTab : public QWidget {
     Q_OBJECT
@@ -72,8 +72,7 @@ private:
     QComboBox *m_playlistLogicCombo;
     QComboBox *m_maxConcurrentCombo;
     QComboBox *m_rateLimitCombo;
-    QCheckBox *m_overrideDuplicateCheck;
-    QCheckBox *m_exitAfterDownloadsCheck;
+    ToggleSwitch *m_overrideDuplicateCheck;
 
     QMessageBox *m_typeSelectionDialog = nullptr;
 };

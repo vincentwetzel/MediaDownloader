@@ -23,13 +23,20 @@
 #include <QPushButton>
 #include <QDebug> // Include QDebug for debugging
 #include <QPalette>
+#include "ToggleSwitch.h"
 
 StartTab::StartTab(ConfigManager *configManager, ExtractorJsonParser *extractorJsonParser, QWidget *parent)
     : QWidget(parent), m_configManager(configManager), m_extractorJsonParser(extractorJsonParser), m_typeSelectionDialog(nullptr) {
     m_ytDlpArgsBuilder = new YtDlpArgsBuilder();
     m_galleryDlArgsBuilder = new GalleryDlArgsBuilder(m_configManager);
+
     connect(m_extractorJsonParser, &ExtractorJsonParser::extractorsReady, this, &StartTab::onExtractorsReady);
-    connect(m_configManager, &ConfigManager::settingChanged, this, &StartTab::updateCommandPreview);
+    connect(m_configManager, &ConfigManager::settingChanged, this, [this](const QString &section, const QString &/*key*/, const QVariant &/*value*/){
+        // The command preview only cares about settings that influence the download args
+        if (section != "SortingRules") {
+            updateCommandPreview();
+        }
+    });
     setupUI(); // UI elements are created here
     loadSettings();
     if (m_urlInput) { // Added null check
@@ -295,45 +302,45 @@ void StartTab::setupUI() {
     inputSectionLayout->addLayout(actionColumnLayout, 30);
     mainLayout->addLayout(inputSectionLayout);
 
-    QHBoxLayout *operationalControlsLayout = new QHBoxLayout();
-    operationalControlsLayout->setSpacing(20);
-    operationalControlsLayout->setAlignment(Qt::AlignLeft);
+    QGridLayout *operationalControlsLayout = new QGridLayout();
+    operationalControlsLayout->setSpacing(15);
 
     QLabel *playlistLabel = new QLabel("Playlist Handling:", this);
     playlistLabel->setToolTip("How should the app handle links that are part of a playlist (like a YouTube playlist)?");
     m_playlistLogicCombo = new QComboBox(this);
     m_playlistLogicCombo->setToolTip("How should the app handle links that are part of a playlist (like a YouTube playlist)? 'Ask' will prompt you, 'Download All' will get everything, 'Download Single' will only get the video you linked.");
     m_playlistLogicCombo->addItems({"Ask", "Download All (no prompt)", "Download Single (ignore playlist)"});
-    operationalControlsLayout->addWidget(playlistLabel);
-    operationalControlsLayout->addWidget(m_playlistLogicCombo);
+    operationalControlsLayout->addWidget(playlistLabel, 0, 0);
+    operationalControlsLayout->addWidget(m_playlistLogicCombo, 0, 1);
 
     QLabel *maxConcurrentLabel = new QLabel("Max Concurrent:", this);
     maxConcurrentLabel->setToolTip("Set how many downloads can happen at the same time. More downloads might slow down your internet.");
     m_maxConcurrentCombo = new QComboBox(this);
     m_maxConcurrentCombo->setToolTip("Set how many downloads can happen at the same time. More downloads might slow down your internet. '1 (short sleep)' and '1 (long sleep)' are for very slow connections or to avoid detection.");
     m_maxConcurrentCombo->addItems({"1", "2", "3", "4", "5", "6", "7", "8", "1 (short sleep)", "1 (long sleep)"});
-    operationalControlsLayout->addWidget(maxConcurrentLabel);
-    operationalControlsLayout->addWidget(m_maxConcurrentCombo);
+    operationalControlsLayout->addWidget(maxConcurrentLabel, 0, 2);
+    operationalControlsLayout->addWidget(m_maxConcurrentCombo, 0, 3);
 
     QLabel *rateLimitLabel = new QLabel("Rate Limit:", this);
     rateLimitLabel->setToolTip("Limit the download speed so it doesn't use up all your internet bandwidth.");
     m_rateLimitCombo = new QComboBox(this);
     m_rateLimitCombo->setToolTip("Limit the download speed so it doesn't use up all your internet bandwidth. 'Unlimited' uses full speed, others set a maximum speed.");
     m_rateLimitCombo->addItems({"Unlimited", "50 KB/s", "100 KB/s", "250 KB/s", "500 KB/s", "1 MB/s", "2 MB/s", "5 MB/s", "10 MB/s", "20 MB/s", "50 MB/s"});
-    operationalControlsLayout->addWidget(rateLimitLabel);
-    operationalControlsLayout->addWidget(m_rateLimitCombo);
+    operationalControlsLayout->addWidget(rateLimitLabel, 1, 0);
+    operationalControlsLayout->addWidget(m_rateLimitCombo, 1, 1);
 
-    operationalControlsLayout->addStretch();
-
-    QVBoxLayout *checkboxLayout = new QVBoxLayout();
-    m_overrideDuplicateCheck = new QCheckBox("Override duplicate download check", this);
+    QHBoxLayout *checkboxLayout = new QHBoxLayout();
+    QLabel *overrideLabel = new QLabel("Override duplicate download check:", this);
+    overrideLabel->setToolTip("If checked, allows downloading a URL even if it's already in your download history. Use this if you want to download the same file again.");
+    m_overrideDuplicateCheck = new ToggleSwitch(this);
     m_overrideDuplicateCheck->setToolTip("If checked, allows downloading a URL even if it's already in your download history. Use this if you want to download the same file again.");
+    checkboxLayout->addWidget(overrideLabel);
     checkboxLayout->addWidget(m_overrideDuplicateCheck);
-
-    m_exitAfterDownloadsCheck = new QCheckBox("Exit after all downloads complete", this);
-    m_exitAfterDownloadsCheck->setToolTip("If checked, the application will automatically close once all your downloads are finished.");
-    checkboxLayout->addWidget(m_exitAfterDownloadsCheck);
-    operationalControlsLayout->addLayout(checkboxLayout);
+    checkboxLayout->addStretch();
+    operationalControlsLayout->addLayout(checkboxLayout, 1, 2, 1, 2);
+    
+    operationalControlsLayout->setColumnStretch(1, 1);
+    operationalControlsLayout->setColumnStretch(3, 1);
 
     mainLayout->addLayout(operationalControlsLayout);
 
@@ -361,7 +368,7 @@ void StartTab::setupUI() {
     connect(m_playlistLogicCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &StartTab::updateCommandPreview);
     connect(m_maxConcurrentCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &StartTab::updateCommandPreview);
     connect(m_rateLimitCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &StartTab::updateCommandPreview);
-    connect(m_overrideDuplicateCheck, &QCheckBox::stateChanged, this, &StartTab::updateCommandPreview);
+    connect(m_overrideDuplicateCheck, &ToggleSwitch::toggled, this, &StartTab::updateCommandPreview);
 }
 
 void StartTab::applyCommandPreviewStyleSheet() {
@@ -428,7 +435,6 @@ void StartTab::loadSettings() {
     QSignalBlocker b2(m_maxConcurrentCombo);
     QSignalBlocker b3(m_rateLimitCombo);
     QSignalBlocker b4(m_overrideDuplicateCheck);
-    QSignalBlocker b5(m_exitAfterDownloadsCheck);
 
     if (m_playlistLogicCombo) // Added null check
         m_playlistLogicCombo->setCurrentText(m_configManager->get("General", "playlist_logic", "Ask").toString());
@@ -438,8 +444,6 @@ void StartTab::loadSettings() {
         m_rateLimitCombo->setCurrentText(m_configManager->get("General", "rate_limit", "Unlimited").toString());
     if (m_overrideDuplicateCheck) // Added null check
         m_overrideDuplicateCheck->setChecked(m_configManager->get("General", "override_archive", false).toBool());
-    if (m_exitAfterDownloadsCheck) // Added null check
-        m_exitAfterDownloadsCheck->setChecked(m_configManager->get("General", "exit_after", false).toBool());
 }
 
 void StartTab::onDownloadButtonClicked() {
@@ -492,12 +496,6 @@ void StartTab::onDownloadButtonClicked() {
     qDebug() << "Accessing m_overrideDuplicateCheck...";
     m_configManager->set("General", "override_archive", m_overrideDuplicateCheck->isChecked());
 
-    if (!m_exitAfterDownloadsCheck) {
-        qCritical() << "CRITICAL ERROR: m_exitAfterDownloadsCheck is null in onDownloadButtonClicked!";
-        return;
-    }
-    qDebug() << "Accessing m_exitAfterDownloadsCheck...";
-    m_configManager->set("General", "exit_after", m_exitAfterDownloadsCheck->isChecked());
     m_configManager->save();
 
     if (!m_downloadTypeCombo) {
@@ -629,7 +627,21 @@ void StartTab::updateCommandPreview()
         m_commandPreview->setText(command);
     } else {
         QString commandUrl = args.isEmpty() ? "" : args.takeFirst();
-        QString command = QDir::toNativeSeparators(ytDlpPath) + " " + commandUrl + " \\\n    " + args.join(" \\\n    ");
+        
+        QStringList formattedArgs;
+        for (int i = 0; i < args.size(); ++i) {
+            if (args[i].startsWith("-") && i + 1 < args.size() && !args[i+1].startsWith("-")) {
+                formattedArgs.append(args[i] + " " + args[i+1]);
+                ++i;
+            } else {
+                formattedArgs.append(args[i]);
+            }
+        }
+        
+        QString command = QDir::toNativeSeparators(ytDlpPath) + (commandUrl.isEmpty() ? "" : " " + commandUrl);
+        if (!formattedArgs.isEmpty()) {
+            command += " \\\n    " + formattedArgs.join(" \\\n    ");
+        }
         m_commandPreview->setText(command);
     }
     qDebug() << "StartTab::updateCommandPreview finished.";

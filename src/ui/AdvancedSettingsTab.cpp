@@ -8,6 +8,7 @@
 #include "advanced_settings/MetadataPage.h"
 #include "advanced_settings/SubtitlesPage.h"
 #include "advanced_settings/UpdatesPage.h"
+#include "advanced_settings/BinariesPage.h"
 #include "core/ConfigManager.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -18,6 +19,7 @@
 #include <QMessageBox>
 #include <QPalette>
 #include <QApplication>
+#include <QSizePolicy>
 #include <QEvent>
 #include <array>
 
@@ -101,7 +103,7 @@ void AdvancedSettingsTab::setupUI() {
         QString tooltip;
     };
 
-    const std::array<PageDescriptor, 9> descriptors = {{
+    const std::array<PageDescriptor, 10> descriptors = {{
         { "Configuration", configPage, "General application settings, download locations, and theme." },
         { "Video Settings", new VideoSettingsPage(m_configManager, this), "Control video codec, resolution, and formats." },
         { "Audio Settings", new AudioSettingsPage(m_configManager, this), "Adjust audio codecs, quality, and extensions." },
@@ -110,6 +112,7 @@ void AdvancedSettingsTab::setupUI() {
         { "Download Options", new DownloadOptionsPage(m_configManager, this), "Set concurrency, rate limits, and temporary directory behavior." },
         { "Metadata", new MetadataPage(m_configManager, this), "Embed metadata, artwork, and thumbnails into media." },
         { "Subtitles", new SubtitlesPage(m_configManager, this), "Subtitle languages, formats, and embedding behavior." },
+        { "External Binaries", new BinariesPage(m_configManager, this), "Manage paths to external dependencies like yt-dlp and ffmpeg." },
         { "Updates", new UpdatesPage(m_configManager, this), "Check for new versions of yt-dlp, gallery-dl, and the app." }
     }};
 
@@ -117,7 +120,18 @@ void AdvancedSettingsTab::setupUI() {
         addPage(descriptor.title, descriptor.page, descriptor.tooltip);
     }
 
-    connect(m_categoryList, &QListWidget::currentRowChanged, m_stackedWidget, &QStackedWidget::setCurrentIndex);
+    // Dynamically adjust size policies to prevent hidden tabs from forcing a large minimum window width
+    connect(m_categoryList, &QListWidget::currentRowChanged, this, [this](int index) {
+        for (int i = 0; i < m_stackedWidget->count(); ++i) {
+            QWidget *page = m_stackedWidget->widget(i);
+            if (i == index) {
+                page->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+            } else {
+                page->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
+            }
+        }
+        m_stackedWidget->setCurrentIndex(index);
+    });
     m_categoryList->setCurrentRow(0);
 
     m_restoreDefaultsButton = new QPushButton("Restore defaults", this);

@@ -17,10 +17,23 @@ find_package(Qt6 REQUIRED COMPONENTS Widgets Network Sql Core Concurrent)
 # --- Source Files ---
 # Use file(GLOB_RECURSE) to automatically find all source and header files.
 # This is the key fix: it ensures CMAKE_AUTOMOC can find all Q_OBJECT macros.
-file(GLOB_RECURSE SOURCES
+file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS
     "src/*.cpp"
     "src/*.h"
 )
+
+# The project currently contains two different YtDlpJsonExtractor
+# implementations with the same class name. Keep the original top-level
+# extractor that Aria2DownloadWorker and MainWindow use, and exclude the
+# duplicate core variant from this target to avoid ODR/link conflicts.
+list(FILTER SOURCES EXCLUDE REGEX ".*/src/core/YtDlpJsonExtractor\\.(cpp|h)$")
+
+# Likewise, the target contains legacy top-level Aria2/ffmpeg pipeline classes
+# plus newer core-side classes with the same names. The app currently uses the
+# top-level variants, so exclude the duplicate core implementations from the
+# target to keep AUTOMOC from generating conflicting meta-object code.
+list(FILTER SOURCES EXCLUDE REGEX ".*/src/core/Aria2Daemon\\.(cpp|h)$")
+list(FILTER SOURCES EXCLUDE REGEX ".*/src/core/FfmpegPostProcessor\\.(cpp|h)$")
 
 # --- Include Directories ---
 # This ensures that #include "utils/..." or "core/..." works regardless of
@@ -32,13 +45,20 @@ include_directories(
 # --- Executable Target ---
 add_executable(MediaDownloader
     # Use WIN32 for GUI applications on Windows to avoid a console window
-    WIN32
+    # WIN32 # Temporarily disabled to allow console output for debugging
 
     # Application entry point
     main.cpp
 
     # All source and header files gathered by the glob
     ${SOURCES}
+
+    # Explicitly include recently added files so link-time availability
+    # does not depend on whether the generator re-ran after they were created.
+    src/core/ProcessUtils.cpp
+    src/ui/RuntimeSelectionDialog.cpp
+    src/ui/FormatSelectionDialog.cpp
+    src/ui/advanced_settings/BinariesPage.cpp
 
     # Qt resource file for icons, etc.
     src/ui/resources.qrc

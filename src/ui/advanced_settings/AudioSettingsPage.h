@@ -19,9 +19,12 @@ private slots:
     void handleConfigSettingChanged(const QString &section, const QString &key, const QVariant &value);
 private:
     void updateAudioOptions();
+    bool isRuntimeSelectionMode() const;
     ConfigManager *m_configManager;
     QComboBox *m_audioQualityCombo;
+    QLabel *m_audioCodecLabel;
     QComboBox *m_audioCodecCombo;
     QLabel *m_audioExtLabel;
     QComboBox *m_audioExtCombo;
+    QLabel *m_runtimeHintLabel;
 };

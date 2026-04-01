@@ -1,5 +1,6 @@
 #include "YtDlpArgsBuilder.h"
 #include <QDir>
+#include "core/ProcessUtils.h"
 #include <QRegularExpression>
 #include <QStandardPaths>
 #include <QCoreApplication>
@@ -57,45 +58,62 @@ QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString 
 
     // --- Format Selection ---
     if (downloadType == "video") {
-        QString videoQuality = configManager->get("Video", "video_quality", "1080p (HD)").toString();
-        QString videoCodecSetting = configManager->get("Video", "video_codec", "Default").toString();
-        QString audioCodecSetting = configManager->get("Video", "video_audio_codec", "Default").toString();
+        QString videoQuality = options.contains("video_quality") ? options.value("video_quality").toString() : configManager->get("Video", "video_quality", "1080p (HD)").toString();
+        QString videoCodecSetting = options.contains("video_codec") ? options.value("video_codec").toString() : configManager->get("Video", "video_codec", "Default").toString();
+        QString audioCodecSetting = options.contains("video_audio_codec") ? options.value("video_audio_codec").toString() : configManager->get("Video", "video_audio_codec", "Default").toString();
         QString requestedExtension = configManager->get("Video", "video_extension", "mp4").toString();
         finalOutputExtension = requestedExtension;
 
-        QString vcodec = getCodecMapping(videoCodecSetting);
-        QString acodec = getCodecMapping(audioCodecSetting);
+        if (videoQuality == "Select at Runtime") videoQuality = "best";
+        if (videoCodecSetting == "Select at Runtime") videoCodecSetting = "Default";
+        if (audioCodecSetting == "Select at Runtime") audioCodecSetting = "Default";
 
-        QString videoFormatSelector = "bestvideo";
-        if (videoQuality.toLower() == "best" || videoQuality.toLower() == "worst") {
-            videoFormatSelector = videoQuality.toLower() + "video";
+        if (options.contains("runtime_video_format") && !options.value("runtime_video_format").toString().isEmpty()) {
+            rawArgs << "-f" << options.value("runtime_video_format").toString();
+            rawArgs << "--merge-output-format" << requestedExtension;
         } else {
-            videoFormatSelector += QString("[height<=?%1]").arg(videoQuality.split(' ').first().remove('p'));
+            QString vcodec = getCodecMapping(videoCodecSetting);
+            QString acodec = getCodecMapping(audioCodecSetting);
+            QString videoFormatSelector = "bestvideo";
+
+            if (videoQuality.toLower() == "best" || videoQuality.toLower() == "worst") {
+                videoFormatSelector = videoQuality.toLower() + "video";
+            } else {
+                videoFormatSelector += QString("[height<=?%1]").arg(videoQuality.split(' ').first().remove('p'));
+            }
+            if (videoCodecSetting != "Default") videoFormatSelector += QString("[vcodec~='(?i)%1']").arg(vcodec);
+
+            QString audioFormatSelector = "bestaudio";
+            if (audioCodecSetting != "Default") audioFormatSelector += QString("[acodec~='(?i)%1']").arg(acodec);
+
+            rawArgs << "-f" << QString("%1+%2/%1/bestvideo+bestaudio/best").arg(videoFormatSelector, audioFormatSelector);
+            rawArgs << "--merge-output-format" << requestedExtension;
         }
-        if (videoCodecSetting != "Default") videoFormatSelector += QString("[vcodec~='(?i)%1']").arg(vcodec);
-
-        QString audioFormatSelector = "bestaudio";
-        if (audioCodecSetting != "Default") audioFormatSelector += QString("[acodec~='(?i)%1']").arg(acodec);
-
-        rawArgs << "-f" << QString("%1+%2/bestvideo+bestaudio/best").arg(videoFormatSelector, audioFormatSelector);
-        rawArgs << "--merge-output-format" << requestedExtension;
 
     } else if (downloadType == "audio") {
-        QString audioQuality = configManager->get("Audio", "audio_quality", "Best").toString();
-        QString audioCodecSetting = configManager->get("Audio", "audio_codec", "Default").toString();
+        QString audioQuality = options.contains("audio_quality") ? options.value("audio_quality").toString() : configManager->get("Audio", "audio_quality", "Best").toString();
+        QString audioCodecSetting = options.contains("audio_codec") ? options.value("audio_codec").toString() : configManager->get("Audio", "audio_codec", "Default").toString();
         finalOutputExtension = configManager->get("Audio", "audio_extension", "mp3").toString();
-        QString acodec = getCodecMapping(audioCodecSetting);
 
-        QString formatSelector = "bestaudio";
-        if (audioQuality.toLower() == "best" || audioQuality.toLower() == "worst") {
-            formatSelector = audioQuality.toLower() + "audio";
+        if (audioQuality == "Select at Runtime") audioQuality = "best";
+        if (audioCodecSetting == "Select at Runtime") audioCodecSetting = "Default";
+
+        if (options.contains("runtime_audio_format") && !options.value("runtime_audio_format").toString().isEmpty()) {
+            rawArgs << "-f" << options.value("runtime_audio_format").toString();
         } else {
-            // Strip any non-digit characters so "320K" or "128 kbps" safely becomes "320" / "128"
-            formatSelector += QString("[abr<=?%1]").arg(QString(audioQuality).remove(QRegularExpression("[a-zA-Z\\s]")));
-        }
-        if (audioCodecSetting != "Default") formatSelector += QString("[acodec~='(?i)%1']").arg(acodec);
+            QString acodec = getCodecMapping(audioCodecSetting);
+            QString formatSelector = "bestaudio";
 
-        rawArgs << "-f" << formatSelector + "/bestaudio";
+            if (audioQuality.toLower() == "best" || audioQuality.toLower() == "worst") {
+                formatSelector = audioQuality.toLower() + "audio";
+            } else {
+                // Strip any non-digit characters so "320K" or "128 kbps" safely becomes "320" / "128"
+                formatSelector += QString("[abr<=?%1]").arg(QString(audioQuality).remove(QRegularExpression("[a-zA-Z\\s]")));
+            }
+            if (audioCodecSetting != "Default") formatSelector += QString("[acodec~='(?i)%1']").arg(acodec);
+
+            rawArgs << "-f" << formatSelector + "/bestaudio/best";
+        }
         rawArgs << "-x";
         if (audioCodecSetting != "Default") rawArgs << "--audio-format" << finalOutputExtension;
         rawArgs << "--audio-quality" << "0";
@@ -112,40 +130,89 @@ QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString 
     // --- General Options ---
     if (configManager->get("General", "sponsorblock", false).toBool()) rawArgs << "--sponsorblock-remove" << "all";
     if (configManager->get("Metadata", "use_aria2c", false).toBool()) {
-        rawArgs << "--external-downloader" << "aria2c";
+        QString aria2cPath = ProcessUtils::findBinary("aria2c", configManager).path;
+        rawArgs << "--external-downloader" << aria2cPath;
         rawArgs << "--external-downloader-args" << "aria2c:--summary-interval=1";
     }
+    
+    QString geoProxy = configManager->get("DownloadOptions", "geo_verification_proxy", "").toString();
+    if (!geoProxy.isEmpty()) {
+        rawArgs << "--geo-verification-proxy" << geoProxy;
+    }
+
     if (configManager->get("Metadata", "embed_chapters", true).toBool()) rawArgs << "--embed-chapters";
+    if (configManager->get("DownloadOptions", "split_chapters", false).toBool()) rawArgs << "--split-chapters";
     if (configManager->get("Metadata", "embed_metadata", true).toBool()) rawArgs << "--embed-metadata";
 
     const QStringList supportedThumbnailExts = {"mp3", "mkv", "mka", "ogg", "opus", "flac", "m4a", "mp4", "m4v", "mov"};
-    if (configManager->get("Metadata", "embed_thumbnail", true).toBool() && supportedThumbnailExts.contains(finalOutputExtension, Qt::CaseInsensitive)) {
+    
+    bool embedThumb = configManager->get("Metadata", "embed_thumbnail", true).toBool();
+    bool genFolderJpg = (downloadType == "audio" && configManager->get("Metadata", "generate_folder_jpg", false).toBool() && options.value("playlist_index", -1).toInt() > 0);
+
+    if (embedThumb && supportedThumbnailExts.contains(finalOutputExtension, Qt::CaseInsensitive)) {
         rawArgs << "--embed-thumbnail";
+
+        QStringList ppaArgs;
         if (configManager->get("Metadata", "high_quality_thumbnail", false).toBool()) {
-            rawArgs << "--ppa" << "ThumbnailsConvertor+ffmpeg_o:-q:v 0";
+            ppaArgs << "-q:v 0";
         }
+        
+        // Crop to square if downloading audio
+        if (downloadType == "audio" && configManager->get("Metadata", "crop_artwork_to_square", true).toBool()) {
+            ppaArgs << "-vf crop=ih";
+        }
+
+        if (!ppaArgs.isEmpty()) {
+            rawArgs << "--ppa" << QString("ThumbnailsConvertor+ffmpeg_o:%1").arg(ppaArgs.join(" "));
+        }
+
         QString convertThumb = configManager->get("Metadata", "convert_thumbnail_to", "jpg").toString();
         if (convertThumb != "None") rawArgs << "--convert-thumbnails" << convertThumb;
+    } else if (genFolderJpg) {
+        // Force conversion to jpg if we just want a folder.jpg but no embedding
+        rawArgs << "--convert-thumbnails" << "jpg";
+    }
+
+    QString tempPath = configManager->get("Paths", "temporary_downloads_directory").toString();
+    if (tempPath.isEmpty()) tempPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/MediaDownloader";
+
+    if (genFolderJpg) {
+        rawArgs << "--write-thumbnail";
+        rawArgs << "-o" << QString("thumbnail:%1").arg(QDir(tempPath).filePath(options.value("id").toString() + "_folder.%(ext)s"));
     }
 
     // --- Subtitles ---
     bool embedSubs = configManager->get("Subtitles", "embed_subtitles", false).toBool();
     bool writeSubs = configManager->get("Subtitles", "write_subtitles", false).toBool();
     if (embedSubs || writeSubs) {
-        QString subLangs = configManager->get("Subtitles", "languages", "en").toString();
-        rawArgs << (subLangs == "all" ? "--all-subs" : "--sub-langs") << subLangs;
-        if (configManager->get("Subtitles", "write_auto_subtitles", false).toBool()) rawArgs << "--write-auto-subs";
-        if (embedSubs) rawArgs << "--embed-subs";
-        if (writeSubs) {
-            rawArgs << "--write-subs";
-            rawArgs << "--sub-format" << configManager->get("Subtitles", "format", "srt").toString().remove('*');
+        QString subLangsRaw = configManager->get("Subtitles", "languages", "en").toString();
+        QStringList subLangsList = subLangsRaw.split(',', Qt::SkipEmptyParts);
+        subLangsList.removeAll("runtime"); // Exclude 'runtime' from being passed to yt-dlp
+
+        if (options.contains("runtime_subtitles")) {
+            subLangsList.append(options.value("runtime_subtitles").toString().split(',', Qt::SkipEmptyParts));
+            subLangsList.removeDuplicates();
+        }
+
+        if (!subLangsList.isEmpty()) {
+            if (subLangsList.contains("all")) {
+                rawArgs << "--all-subs";
+            } else {
+                rawArgs << "--sub-langs" << subLangsList.join(',');
+            }
+            if (configManager->get("Subtitles", "write_auto_subtitles", false).toBool()) rawArgs << "--write-auto-subs";
+            if (embedSubs) rawArgs << "--embed-subs";
+            if (writeSubs) {
+                rawArgs << "--write-subs";
+                rawArgs << "--sub-format" << configManager->get("Subtitles", "format", "srt").toString();
+            }
         }
     }
 
     // --- JS Runtime ---
-    const QString denoPath = QDir(QCoreApplication::applicationDirPath()).filePath("deno.exe");
-    if (QFile::exists(denoPath)) {
-        rawArgs << "--js-runtimes" << "deno:" + denoPath;
+    ProcessUtils::FoundBinary denoBinary = ProcessUtils::findBinary("deno", configManager);
+    if (denoBinary.source != "Not Found") {
+        rawArgs << "--js-runtimes" << "deno:" + denoBinary.path;
     }
 
     // --- Filename restrictions ---
@@ -155,6 +222,19 @@ QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString 
     QString cookiesBrowser = configManager->get("General", "cookies_from_browser", "None").toString();
     if (cookiesBrowser != "None") rawArgs << "--cookies-from-browser" << cookiesBrowser.toLower();
 
+    // --- Custom ffmpeg path ---
+    // yt-dlp needs the directory containing ffmpeg and ffprobe
+    QString ffmpegPath = ProcessUtils::findBinary("ffmpeg", configManager).path;
+    if (ffmpegPath != "ffmpeg") { // Only add if we found a specific path
+        rawArgs << "--ffmpeg-location" << QFileInfo(ffmpegPath).path();
+    }
+
+    // --- Download Sections ---
+    QString downloadSections = options.value("download_sections").toString();
+    if (!downloadSections.isEmpty()) {
+        rawArgs << "--download-sections" << downloadSections;
+    }
+
     // --- Rate Limit ---
     QString rateLimit = options.value("rate_limit", "Unlimited").toString();
     if (rateLimit != "Unlimited") {
@@ -162,10 +242,20 @@ QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString 
     }
 
     // --- Output paths ---
-    QString tempPath = configManager->get("Paths", "temporary_downloads_directory").toString();
-    if (tempPath.isEmpty()) tempPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/MediaDownloader";
     QDir().mkpath(tempPath);
-    QString outputTemplate = configManager->get("General", "output_template").toString();
+    
+    QString outputTemplate;
+    if (downloadType == "audio") {
+        outputTemplate = configManager->get("General", "output_template_audio").toString();
+    } else {
+        outputTemplate = configManager->get("General", "output_template_video").toString();
+    }
+    
+    // Fallback to legacy combined setting if the specific ones aren't set yet
+    if (outputTemplate.isEmpty()) {
+        outputTemplate = configManager->get("General", "output_template").toString();
+    }
+
     if (outputTemplate.isEmpty()) outputTemplate = "%(title)s [%(uploader)s][%(upload_date>%m-%d-%Y)s][%(id)s].%(ext)s";
     rawArgs << "-o" << QDir(tempPath).filePath(outputTemplate);
 

@@ -6,8 +6,11 @@
 #include <QVariantMap>
 
 class QVBoxLayout;
+class QStackedLayout;
 class DownloadItemWidget;
 class ConfigManager;
+class QPushButton;
+class QLabel;
 
 class ActiveDownloadsTab : public QWidget {
     Q_OBJECT
@@ -24,17 +27,38 @@ public slots:
     void setDownloadStatus(const QString &id, const QString &status);
     void addExpandingPlaylist(const QString &url);
     void removeExpandingPlaylist(const QString &url, int count);
+    void onDownloadPaused(const QString &id);
+    void onDownloadResumed(const QString &id);
 
 signals:
     void cancelDownloadRequested(const QString &id);
     void retryDownloadRequested(const QVariantMap &itemData);
     void resumeDownloadRequested(const QVariantMap &itemData);
+    void pauseDownloadRequested(const QString &id);
+    void unpauseDownloadRequested(const QString &id);
+    void moveDownloadUpRequested(const QString &id);
+    void moveDownloadDownRequested(const QString &id);
 
 private:
     void setupUi();
+    void updatePlaceholderVisibility();
+    void clearCompletedDownloads();
+    void cancelAllDownloads();
+    void togglePauseAllDownloads();
+    void onItemClearRequested(const QString &id);
+    void onItemMoveUpRequested(const QString &id);
+    void onItemMoveDownRequested(const QString &id);
 
     ConfigManager *m_configManager;
+    QStackedLayout *m_stackedLayout;
+    QWidget *m_downloadsContainer;
     QVBoxLayout *m_downloadsLayout;
+    QWidget *m_placeholderWidget;
+    QPushButton *m_pauseResumeAllButton;
+    QPushButton *m_cancelAllButton;
+    QPushButton *m_clearCompletedButton;
+    bool m_isAllPaused = false;
+
     QMap<QString, DownloadItemWidget*> m_downloadItems;
     QMap<QString, QWidget*> m_expandingPlaylists;
 };

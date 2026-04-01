@@ -88,4 +88,7 @@ void LogManager::installHandler() {
     }
 
     qInstallMessageHandler(customMessageHandler);
+
+    // Print the log file path to the console (and log it) on startup
+    qDebug() << "Log file path:" << logPath;
 }

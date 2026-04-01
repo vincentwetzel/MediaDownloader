@@ -3,9 +3,6 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QMessageBox>
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QJsonArray>
 #include <QLabel>
 #include <QHeaderView>
 #include <QDebug>
@@ -106,35 +103,114 @@ void SortingTab::populateRow(int row, const QVariantMap &ruleMap) {
 void SortingTab::loadRules() {
     m_rulesTable->setRowCount(0);
     int size = m_configManager->get("SortingRules", "size", 0).toInt();
-    if (size == 0) {
-        return;
-    }
+
+    bool rulesPurged = false;
 
     for (int i = 0; i < size; ++i) {
         QString key = QString("rule_%1").arg(i);
-        QString jsonString = m_configManager->get("SortingRules", key).toString();
-        QJsonDocument doc = QJsonDocument::fromJson(jsonString.toUtf8());
+        QVariantMap ruleMap;
+        
+        ruleMap["name"] = m_configManager->get("SortingRules", key + "_name").toString();
+        ruleMap["applies_to"] = m_configManager->get("SortingRules", key + "_applies_to").toString();
+        ruleMap["target_folder"] = m_configManager->get("SortingRules", key + "_target_folder").toString();
+        ruleMap["subfolder_pattern"] = m_configManager->get("SortingRules", key + "_subfolder_pattern").toString();
 
-        if (doc.isObject()) {
-            int row = m_rulesTable->rowCount();
-            m_rulesTable->insertRow(row);
-            populateRow(row, doc.object().toVariantMap());
-        } else {
-            qWarning() << "Skipping invalid or empty sorting rule for key" << key;
+        int condSize = m_configManager->get("SortingRules", key + "_conditions_size", 0).toInt();
+        QVariantList conditions;
+        for (int j = 0; j < condSize; ++j) {
+            QVariantMap cond;
+            QString condKey = key + QString("_condition_%1").arg(j);
+            cond["field"] = m_configManager->get("SortingRules", condKey + "_field").toString();
+            cond["operator"] = m_configManager->get("SortingRules", condKey + "_operator").toString();
+            cond["value"] = m_configManager->get("SortingRules", condKey + "_value").toString();
+            conditions.append(cond);
         }
+        ruleMap["conditions"] = conditions;
+
+        // Discard legacy JSON formats or invalid/empty rules
+        if (ruleMap["name"].toString().isEmpty() || ruleMap["target_folder"].toString().isEmpty()) {
+            qWarning() << "Skipping invalid or legacy sorting rule for key" << key;
+            rulesPurged = true;
+            continue;
+        }
+
+        int row = m_rulesTable->rowCount();
+        m_rulesTable->insertRow(row);
+        populateRow(row, ruleMap);
+    }
+
+    // Check for detached garbage past 'size'
+    if (!m_configManager->get("SortingRules", QString("rule_%1").arg(size)).isNull() ||
+        !m_configManager->get("SortingRules", QString("rule_%1_name").arg(size)).isNull()) {
+        rulesPurged = true;
+    }
+
+    if (rulesPurged) {
+        qInfo() << "Purging invalid/legacy rules from settings.";
+        saveRules();
     }
 }
 
 void SortingTab::saveRules() {
-    m_configManager->set("SortingRules", "size", 0);
-    m_configManager->save();
-    m_configManager->set("SortingRules", "size", m_rulesTable->rowCount());
-    for (int i = 0; i < m_rulesTable->rowCount(); ++i) {
+    int oldSize = m_configManager->get("SortingRules", "size", 0).toInt();
+    int newSize = m_rulesTable->rowCount();
+    
+    m_configManager->set("SortingRules", "size", newSize);
+    for (int i = 0; i < newSize; ++i) {
         QVariantMap ruleMap = m_rulesTable->item(i, 0)->data(Qt::UserRole).toMap();
-        QJsonObject jsonObj = QJsonObject::fromVariantMap(ruleMap);
-        QString jsonString = QJsonDocument(jsonObj).toJson(QJsonDocument::Compact);
-        m_configManager->set("SortingRules", QString("rule_%1").arg(i), jsonString);
+        QString baseKey = QString("rule_%1").arg(i);
+        
+        // Purge old JSON string key
+        m_configManager->remove("SortingRules", baseKey);
+        
+        // Save strictly in flat properties
+        m_configManager->set("SortingRules", baseKey + "_name", ruleMap["name"]);
+        m_configManager->set("SortingRules", baseKey + "_applies_to", ruleMap["applies_to"]);
+        m_configManager->set("SortingRules", baseKey + "_target_folder", ruleMap["target_folder"]);
+        m_configManager->set("SortingRules", baseKey + "_subfolder_pattern", ruleMap["subfolder_pattern"]);
+        
+        QVariantList conditions = ruleMap["conditions"].toList();
+        int oldCondSize = m_configManager->get("SortingRules", baseKey + "_conditions_size", 0).toInt();
+        m_configManager->set("SortingRules", baseKey + "_conditions_size", conditions.size());
+        
+        for (int j = 0; j < conditions.size(); ++j) {
+            QVariantMap cond = conditions[j].toMap();
+            QString condKey = baseKey + QString("_condition_%1").arg(j);
+            m_configManager->set("SortingRules", condKey + "_field", cond["field"]);
+            m_configManager->set("SortingRules", condKey + "_operator", cond["operator"]);
+            m_configManager->set("SortingRules", condKey + "_value", cond["value"]);
+        }
+        
+        // Purge leftover conditions if the rule shrunk
+        for (int j = conditions.size(); j < oldCondSize; ++j) {
+            QString condKey = baseKey + QString("_condition_%1").arg(j);
+            m_configManager->remove("SortingRules", condKey + "_field");
+            m_configManager->remove("SortingRules", condKey + "_operator");
+            m_configManager->remove("SortingRules", condKey + "_value");
+        }
     }
+    
+    // Purge leftover rules entirely, checking up to a large bound to catch detached legacy keys
+    int cleanupLimit = qMax(oldSize, 100);
+    for (int i = newSize; i < cleanupLimit; ++i) {
+        QString baseKey = QString("rule_%1").arg(i);
+        
+        m_configManager->remove("SortingRules", baseKey);
+        m_configManager->remove("SortingRules", baseKey + "_name");
+        m_configManager->remove("SortingRules", baseKey + "_applies_to");
+        m_configManager->remove("SortingRules", baseKey + "_target_folder");
+        m_configManager->remove("SortingRules", baseKey + "_subfolder_pattern");
+        
+        int oldCondSize = m_configManager->get("SortingRules", baseKey + "_conditions_size", 0).toInt();
+        m_configManager->remove("SortingRules", baseKey + "_conditions_size");
+        for (int j = 0; j < qMax(oldCondSize, 20); ++j) {
+            QString condKey = baseKey + QString("_condition_%1").arg(j);
+            m_configManager->remove("SortingRules", condKey + "_field");
+            m_configManager->remove("SortingRules", condKey + "_operator");
+            m_configManager->remove("SortingRules", condKey + "_value");
+        }
+    }
+    
     m_configManager->save();
 }
 
