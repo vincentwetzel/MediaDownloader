@@ -974,7 +974,7 @@ void DownloadManager::finalizeDownload(const QString &id, DownloadItem &item, co
                 if (QFile::rename(entry.absoluteFilePath(), newDestPath)) {
                     m_archiveManager->addToArchive(item.url);
                     emit downloadFinalPathReady(id, newDestPath);
-                    emit downloadFinished(id, true, "Gallery download completed and moved.");
+                    emit downloadFinished(id, true, QString("Gallery download completed → %1").arg(QDir::toNativeSeparators(newDestPath)));
                     m_completedDownloadsCount++;
                 } else {
                     qDebug() << "Direct rename failed for gallery file, attempting copy+remove from" << entry.absoluteFilePath() << "to" << newDestPath;
@@ -982,7 +982,7 @@ void DownloadManager::finalizeDownload(const QString &id, DownloadItem &item, co
                         QFile::remove(entry.absoluteFilePath());
                         m_archiveManager->addToArchive(item.url);
                         emit downloadFinalPathReady(id, newDestPath);
-                        emit downloadFinished(id, true, "Gallery download completed and moved.");
+                        emit downloadFinished(id, true, QString("Gallery download completed → %1").arg(QDir::toNativeSeparators(newDestPath)));
                         m_completedDownloadsCount++;
                     } else {
                         emit downloadFinished(id, false, "Gallery download completed, but failed to move file to final destination. Check log for details.");
@@ -994,7 +994,7 @@ void DownloadManager::finalizeDownload(const QString &id, DownloadItem &item, co
                 if (QDir().rename(entry.absoluteFilePath(), newDestPath)) {
                     m_archiveManager->addToArchive(item.url);
                     emit downloadFinalPathReady(id, newDestPath);
-                    emit downloadFinished(id, true, "Gallery download completed and moved.");
+                    emit downloadFinished(id, true, QString("Gallery download completed → %1").arg(QDir::toNativeSeparators(newDestPath)));
                     m_completedDownloadsCount++;
                 } else {
                     qDebug() << "Direct rename failed for gallery, attempting recursive copy+remove from" << entry.absoluteFilePath() << "to" << newDestPath;
@@ -1002,7 +1002,7 @@ void DownloadManager::finalizeDownload(const QString &id, DownloadItem &item, co
                         if (QDir(entry.absoluteFilePath()).removeRecursively()) {
                             m_archiveManager->addToArchive(item.url);
                             emit downloadFinalPathReady(id, newDestPath);
-                            emit downloadFinished(id, true, "Gallery download completed and moved.");
+                            emit downloadFinished(id, true, QString("Gallery download completed → %1").arg(QDir::toNativeSeparators(newDestPath)));
                             m_completedDownloadsCount++;
                         } else {
                             qWarning() << "Failed to remove temp gallery directory:" << entry.absoluteFilePath();
@@ -1021,7 +1021,7 @@ void DownloadManager::finalizeDownload(const QString &id, DownloadItem &item, co
             if (QDir().rename(item.tempFilePath, destPath)) {
                 m_archiveManager->addToArchive(item.url);
                 emit downloadFinalPathReady(id, destPath);
-                emit downloadFinished(id, true, "Gallery download completed and moved.");
+                emit downloadFinished(id, true, QString("Gallery download completed → %1").arg(QDir::toNativeSeparators(destPath)));
                 m_completedDownloadsCount++;
             } else {
                 qWarning() << "Direct rename failed for gallery fallback, attempting recursive copy+remove from" << item.tempFilePath << "to" << destPath;
@@ -1029,7 +1029,7 @@ void DownloadManager::finalizeDownload(const QString &id, DownloadItem &item, co
                     QDir(item.tempFilePath).removeRecursively();
                     m_archiveManager->addToArchive(item.url);
                     emit downloadFinalPathReady(id, destPath);
-                    emit downloadFinished(id, true, "Gallery download completed and moved.");
+                    emit downloadFinished(id, true, QString("Gallery download completed → %1").arg(QDir::toNativeSeparators(destPath)));
                     m_completedDownloadsCount++;
                 } else {
                     emit downloadFinished(id, false, "Gallery download completed, but failed to move file/directory.");
@@ -1065,7 +1065,7 @@ void DownloadManager::finalizeDownload(const QString &id, DownloadItem &item, co
             qDebug() << "Move succeeded";
             m_archiveManager->addToArchive(item.url);
             emit downloadFinalPathReady(id, destPath);
-            emit downloadFinished(id, true, "Download completed and moved.");
+            emit downloadFinished(id, true, QString("Download completed → %1").arg(QDir::toNativeSeparators(destPath)));
             m_completedDownloadsCount++;
 
             if (!item.originalDownloadedFilePath.isEmpty() && item.originalDownloadedFilePath != item.tempFilePath) {
