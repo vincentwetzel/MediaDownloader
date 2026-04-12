@@ -11,6 +11,44 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
+# Help CMake find Qt in common Windows SDK layouts when the IDE environment
+# does not already provide Qt6_DIR/CMAKE_PREFIX_PATH (for example in CLion).
+set(_qt_search_prefixes "")
+
+foreach(_qt_env_var Qt6_DIR QT_DIR QTDIR)
+    if(DEFINED ENV{${_qt_env_var}} AND NOT "$ENV{${_qt_env_var}}" STREQUAL "")
+        if(EXISTS "$ENV{${_qt_env_var}}/Qt6Config.cmake")
+            get_filename_component(_qt_prefix "$ENV{${_qt_env_var}}/../../.." ABSOLUTE)
+            list(APPEND _qt_search_prefixes "${_qt_prefix}")
+        elseif(EXISTS "$ENV{${_qt_env_var}}/lib/cmake/Qt6/Qt6Config.cmake")
+            list(APPEND _qt_search_prefixes "$ENV{${_qt_env_var}}")
+        endif()
+    endif()
+endforeach()
+
+if(WIN32)
+    # Check C:, D: (common for Dev Drives), and the drive the project is currently on
+    string(SUBSTRING "${CMAKE_SOURCE_DIR}" 0 3 _project_drive)
+    file(GLOB _qt_version_dirs LIST_DIRECTORIES true 
+        "C:/Qt/6.*" 
+        "D:/Qt/6.*"
+        "${_project_drive}Qt/6.*"
+    )
+    foreach(_qt_version_dir IN LISTS _qt_version_dirs)
+        foreach(_qt_arch_dir msvc2022_64 msvc2019_64 mingw_64)
+            if(EXISTS "${_qt_version_dir}/${_qt_arch_dir}/lib/cmake/Qt6/Qt6Config.cmake")
+                list(APPEND _qt_search_prefixes "${_qt_version_dir}/${_qt_arch_dir}")
+            endif()
+        endforeach()
+    endforeach()
+endif()
+
+if(_qt_search_prefixes)
+    list(REMOVE_DUPLICATES _qt_search_prefixes)
+    list(APPEND CMAKE_PREFIX_PATH ${_qt_search_prefixes})
+    message(STATUS "Additional Qt search prefixes: ${_qt_search_prefixes}")
+endif()
+
 # Find the required Qt6 packages
 find_package(Qt6 REQUIRED COMPONENTS Widgets Network Sql Core Concurrent)
 
@@ -40,6 +78,16 @@ list(FILTER SOURCES EXCLUDE REGEX ".*/src/core/FfmpegPostProcessor\\.(cpp|h)$")
 # which directory the source file is located in.
 include_directories(
     src
+    ${CMAKE_CURRENT_BINARY_DIR}/src/core   # Generated version.h
+)
+
+# --- Version Header ---
+# Generate version.h from the project VERSION so every build has a single
+# canonical version string shared by the executable, the .rc file, and code.
+configure_file(
+    src/core/version.h.in
+    ${CMAKE_CURRENT_BINARY_DIR}/src/core/version.h
+    @ONLY
 )
 
 # --- Executable Target ---
@@ -76,33 +124,19 @@ target_link_libraries(MediaDownloader PRIVATE
     Qt6::Concurrent
 )
 
-# --- Deployment of Binaries and Resources ---
-# This section ensures that all required external executables and data files
-# are copied to the build output directory, so the application can find them at runtime.
-
-# Define a helper function to simplify copying files
-function(copy_to_output_dir target file)
-    add_custom_command(
-        TARGET ${target} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${file}"
-        "$<TARGET_FILE_DIR:${target}>"
-        COMMENT "Copying ${file} to output directory"
-    )
-endfunction()
-
-# Define paths to bundled resources (assuming a 'bin/windows' structure)
-set(BIN_DIR_WIN ${CMAKE_CURRENT_SOURCE_DIR}/bin/windows)
-
-# Copy all required binaries and data files
-copy_to_output_dir(MediaDownloader "${BIN_DIR_WIN}/yt-dlp.exe")
-copy_to_output_dir(MediaDownloader "${BIN_DIR_WIN}/ffmpeg.exe")
-copy_to_output_dir(MediaDownloader "${BIN_DIR_WIN}/ffprobe.exe")
-copy_to_output_dir(MediaDownloader "${BIN_DIR_WIN}/gallery-dl.exe")
-copy_to_output_dir(MediaDownloader "${BIN_DIR_WIN}/aria2c.exe")
-copy_to_output_dir(MediaDownloader "${BIN_DIR_WIN}/deno.exe")
-copy_to_output_dir(MediaDownloader "${CMAKE_CURRENT_SOURCE_DIR}/extractors_yt-dlp.json")
-copy_to_output_dir(MediaDownloader "${CMAKE_CURRENT_SOURCE_DIR}/extractors_gallery-dl.json")
+# --- Deployment of Resources ---
+# This section ensures that required data files are copied to the build
+# output directory, so the application can find them at runtime.
+add_custom_command(TARGET MediaDownloader POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    "${CMAKE_CURRENT_SOURCE_DIR}/extractors_yt-dlp.json"
+    "$<TARGET_FILE_DIR:MediaDownloader>"
+    COMMENT "Copying yt-dlp extractor list to output directory")
+add_custom_command(TARGET MediaDownloader POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    "${CMAKE_CURRENT_SOURCE_DIR}/extractors_gallery-dl.json"
+    "$<TARGET_FILE_DIR:MediaDownloader>"
+    COMMENT "Copying gallery-dl extractor list to output directory")
 
 # --- Windows Specific Deployment (Qt Plugins) ---
 # This ensures that Qt plugins (for database, image formats, TLS, etc.)

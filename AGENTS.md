@@ -73,8 +73,9 @@ The project follows a **modular, separation-of-concerns design** using C++ and Q
 
 ### Entry Point
 - `main.cpp` - Initializes the `QApplication`, creates and shows the `MainWindow`, and enforces single application instance using `QSystemSemaphore` and `QSharedMemory`. Installs a custom message handler for logging.
-- `CMakeLists.txt` - Project definition, dependencies (Qt6), and build instructions.
-- `MediaDownloader.rc` - Windows resource file for embedding the application icon into the executable.
+- `CMakeLists.txt` - Project definition, **version source of truth** (`project(VERSION x.y.z)`), dependencies (Qt6), and build instructions. Version is auto-generated into `version.h` via `configure_file`.
+- `MediaDownloader.rc` - Windows resource file for embedding the application icon and **version info** (file/product version from `version.h`) into the executable.
+- `src/core/version.h.in` - CMake template that generates `version.h` with `APP_VERSION_MAJOR`, `APP_VERSION_MINOR`, `APP_VERSION_PATCH`, `APP_VERSION_STRING`, and `APP_VERSION_RC` macros.
 
 ### UI Layer (`src/ui/`)
 - `MainWindow.h/.cpp` - Application shell and signal orchestrator; initializes tabs, connects global signals. Now includes labels for displaying download statistics (queued, active, completed). **Handles initial setup prompt for download directories if not configured, ensuring both completed and temporary directories are set at launch.** **Connects to `AdvancedSettingsTab::setYtDlpVersion` to display the current `yt-dlp` version.** **Now includes a `QClipboard` listener and an updated `handleClipboardAutoPaste` function to support multiple auto-paste modes.** **Handles runtime subtitle selection and displays the runtime format-selection dialog requested by `DownloadManager`.**

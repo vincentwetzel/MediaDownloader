@@ -18,6 +18,7 @@
 #include "ui/RuntimeSelectionDialog.h"
 #include "ui/FormatSelectionDialog.h"
 #include "ToggleSwitch.h"
+#include "utils/BinaryFinder.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -44,7 +45,8 @@
 #include <QSizePolicy>
 #include <QStandardPaths>
 
-const QString APP_VERSION = "1.0.0";
+#include "core/version.h"
+
 const QString REPO_URL = "https://api.github.com/repos/vincentwetzel/MediaDownloader";
 const QString GITHUB_PROJECT_URL = "https://github.com/vincentwetzel/MediaDownloader";
 const QString DEVELOPER_DISCORD_URL_PART1 = "https://discord.gg/";
@@ -87,9 +89,23 @@ MainWindow::MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent
     m_configManager = new ConfigManager(configPath, this);
     m_archiveManager = new ArchiveManager(m_configManager, this);
     m_downloadManager = new DownloadManager(m_configManager, this);
-    m_appUpdater = new AppUpdater(REPO_URL, APP_VERSION, this);
+    m_appUpdater = new AppUpdater(REPO_URL, QString(APP_VERSION_STRING), this);
     m_urlValidator = new UrlValidator(m_configManager, this);
     m_clipboard = QApplication::clipboard(); // Initialize QClipboard
+
+    // --- Dynamic Binary Discovery ---
+    QMap<QString, QString> foundBinaries = BinaryFinder::findAllBinaries();
+    for (auto it = foundBinaries.constBegin(); it != foundBinaries.constEnd(); ++it) {
+        QString configKey = it.key() + "_path";
+        QString currentPath = m_configManager->get("Binaries", configKey).toString();
+        // If current path is empty or invalid, update it
+        if (currentPath.isEmpty() || !QFile::exists(currentPath)) {
+            if (!it.value().isEmpty()) {
+                m_configManager->set("Binaries", configKey, it.value());
+            }
+        }
+    }
+    m_configManager->save();
 
     // Create worker and thread but do not parent the worker to MainWindow
     m_startupWorker = new StartupWorker(m_configManager, m_extractorJsonParser, nullptr);
@@ -216,9 +232,17 @@ MainWindow::MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent
             msgBox.setWindowTitle("Missing Required Binaries");
             msgBox.setText("The following required binaries could not be found:\n" + missingBinaries.join(", "));
             msgBox.setInformativeText("MediaDownloader requires these tools to function correctly.\n\n"
-                                      "You can download them from their official websites and place them in the 'bin' folder next to MediaDownloader.exe, "
-                                      "or specify their custom installed locations in 'Advanced Settings -> External Binaries'.");
+                                      "Install them with your preferred package manager or use the 'Advanced Settings -> External Binaries' page "
+                                      "to browse to their installed locations.");
+
+            QPushButton *fixButton = msgBox.addButton("Take Me There", QMessageBox::ActionRole);
+            msgBox.addButton(QMessageBox::Ok);
             msgBox.exec();
+
+            if (msgBox.clickedButton() == fixButton) {
+                m_tabWidget->setCurrentWidget(m_advancedSettingsTab);
+                m_advancedSettingsTab->navigateToCategory("External Binaries");
+            }
         }
     });
     connect(m_startupWorker, &StartupWorker::ytDlpVersionFetched, this, &MainWindow::setYtDlpVersion);
@@ -241,8 +265,9 @@ MainWindow::~MainWindow() {
 }
 
 void MainWindow::setupUI() {
-    setWindowTitle("MediaDownloader v" + APP_VERSION);
-    resize(800, 600);
+    setWindowTitle("MediaDownloader v" + QString(APP_VERSION_STRING));
+    setMinimumWidth(850);
+    resize(850, 600);
 
     QWidget *centralWidget = new QWidget(this);
     setCentralWidget(centralWidget);
@@ -357,6 +382,9 @@ void MainWindow::setupUI() {
     mainLayout->addLayout(footerContainer);
 
     connect(m_startTab, &StartTab::downloadRequested, this, &MainWindow::onDownloadRequested);
+    connect(m_startTab, &StartTab::navigateToExternalBinaries, this, [this]() {
+        m_tabWidget->setCurrentWidget(m_advancedSettingsTab);
+    });
     connect(m_advancedSettingsTab, &AdvancedSettingsTab::themeChanged, this, &MainWindow::applyTheme);
 }
 

@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased] - YYYY-MM-DD
 
 ### Added
+- **Centralized app versioning system**: Version is now defined once in `CMakeLists.txt` (`project(VERSION x.y.z)`) and automatically propagated to the generated `version.h`, Windows `.rc` file (file properties version), window title, and the update checker. Bump the version in one place and everything updates.
 - **Immediate queue UI feedback**: Downloads now appear instantly in the Active Downloads tab without waiting for playlist expansion:
   - Gallery downloads appear immediately with "Queued" status
   - Video/audio downloads show "Checking for playlist..." during expansion, then update to "Queued"
