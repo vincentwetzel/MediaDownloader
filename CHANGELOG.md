@@ -75,7 +75,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Unused SSL Libraries**: Removed `libssl-3-x64.dll` and `libcrypto-3-x64.dll` from the `bin/` directory to reduce distribution size, as Qt 6 natively uses the Windows SChannel backend.
 
 ### Fixed
-- **Qt6 package discovery in CLion/Ninja builds**: `CMakeLists.txt` now seeds `CMAKE_PREFIX_PATH` from `Qt6_DIR`/`QT_DIR`/`QTDIR` environment variables and common Windows installs such as `C:\Qt\6.*\msvc2022_64`, so `find_package(Qt6 ...)` works even when the IDE does not inherit a Qt kit path.
+- **External binary install crash (winget/pip via WindowsApps)**: Execution-alias stubs in `WindowsApps` are 0-byte files that crash when invoked by full path. Fixed by detecting aliases, storing the bare program name, and prepending `WindowsApps` to PATH during install so the shell resolves the alias correctly.
+- **External binary detection covers all common install locations**: Added WindowsApps alias directory, scoop shims, pip Scripts directories, and Chocolatey to the `findCommonUserTool()` search path in `ProcessUtils`. This ensures aria2c, deno, yt-dlp, gallery-dl, ffmpeg, and ffprobe are detected regardless of how they were installed.
+- **Refresh All Statuses now clears cache**: Previously stale "Not Found" entries persisted after external installs because the resolution cache wasn't purged.
+- **WindowsApps alias detection in ProcessUtils**: Added WindowsApps execution-alias directory to `findCommonUserTool()` so winget-installed binaries (aria2c, yt-dlp, etc.) are found even when not in system PATH.
 - **Unbundled binary path consistency**: `BinariesPage`, `StartTab`, startup checks, and `YtDlpWorker` now resolve the same hyphenated binary config keys and use shared runtime detection instead of assuming bundled-only executables.
 - **Native yt-dlp progress parsing**: `YtDlpWorker` now parses native yt-dlp progress lines with approximate/unknown totals and keeps aria2-compatible progress updates, restoring download percentages and speed reporting when aria2 is unavailable or disabled.
 - **UI/Layout Resizing**: Fixed an issue where the main window could not be resized or snapped to half the screen due to rigid horizontal minimum width constraints in the footer, Start tab, and inactive background tabs.

@@ -67,6 +67,10 @@ BinariesPage::BinariesPage(ConfigManager *configManager, QWidget *parent)
             it.value()->setEnabled(false);
         }
 
+        // Clear the binary resolution cache so stale "Not Found" entries
+        // from before external installs are purged.
+        ProcessUtils::clearCache();
+
         QTimer::singleShot(150, this, [this, refreshButton]() {
             loadSettings();
             refreshButton->setEnabled(true);
@@ -267,9 +271,26 @@ void BinariesPage::installBinaryFor(const QString &binaryName) {
         QProcess *process = new QProcess(&progressDialog);
         process->setProcessChannelMode(QProcess::MergedChannels);
 
-        // Launch through cmd.exe /c on Windows so PATH resolution and
-        // console-output redirection work reliably for all CLI tools
-        // (winget, choco, pip, scoop shims, etc.).
+        // For WindowsApps execution-alias stubs (winget, pip from MS Store) we
+        // must NOT invoke the full path directly — the 0-byte stubs crash when
+        // executed that way. Instead we prepend the WindowsApps directory to
+        // PATH and launch with the bare program name so the shell resolves the
+        // alias correctly.
+        bool isAlias = option.extraData.value("is_windows_apps_alias").toBool();
+
+        if (isAlias) {
+            // Prepend WindowsApps directory to PATH
+            QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+            const QString localAppData = env.value("LOCALAPPDATA");
+            if (!localAppData.isEmpty()) {
+                const QString windowsAppsPath = localAppData + "/Microsoft/WindowsApps";
+                QString currentPath = env.value("PATH");
+                env.insert("PATH", windowsAppsPath + ";" + currentPath);
+                process->setProcessEnvironment(env);
+            }
+        }
+
+        // Build the command string
         QString fullCommand = option.program;
         for (const QString &arg : option.arguments) {
             if (arg.contains(' ')) {
@@ -446,6 +467,7 @@ QList<BinariesPage::InstallOption> BinariesPage::buildInstallOptions(const QStri
 
     auto addOptionIfPresent = [&](const QString &program, const QStringList &arguments, const QString &description) {
         QString programPath;
+        bool isWindowsAppsAlias = false;
 
         // First try standard PATH lookup
         QString foundPath = QStandardPaths::findExecutable(program);
@@ -453,14 +475,21 @@ QList<BinariesPage::InstallOption> BinariesPage::buildInstallOptions(const QStri
             programPath = foundPath;
         }
 
-        // On Windows, winget/pip/etc. may live in the WindowsApps execution-alias
-        // directory which is NOT in PATH. Resolve it here so the full path is used
-        // when launching through cmd.exe /C (otherwise cmd can't find it).
+        // On Windows, many tools live in the WindowsApps execution-alias directory
+        // which is NOT in PATH. These are 0-byte stubs that only work through shell
+        // alias resolution — they crash if invoked by full path directly.
+        // Mark them so the launch code can handle them correctly.
         if (programPath.isEmpty()) {
-            static const QString windowsApps = QProcessEnvironment::systemEnvironment().value("LOCALAPPDATA")
-                + "/Microsoft/WindowsApps/" + program + ".exe";
-            if (QFile::exists(windowsApps)) {
-                programPath = QDir::toNativeSeparators(windowsApps);
+            const QString localAppData = QProcessEnvironment::systemEnvironment().value("LOCALAPPDATA");
+            if (!localAppData.isEmpty()) {
+                const QString windowsApps = localAppData + "/Microsoft/WindowsApps/" + program + ".exe";
+                if (QFile::exists(windowsApps)) {
+                    // Don't store the full path — keep the bare name and flag as alias.
+                    // The launch code will prepend WindowsApps to PATH so the alias
+                    // resolves correctly via shell magic.
+                    programPath = program;
+                    isWindowsAppsAlias = true;
+                }
             }
         }
 
@@ -473,6 +502,7 @@ QList<BinariesPage::InstallOption> BinariesPage::buildInstallOptions(const QStri
         option.description = description;
         option.program = programPath;
         option.arguments = arguments;
+        option.extraData["is_windows_apps_alias"] = isWindowsAppsAlias;
         options.append(option);
     };
 

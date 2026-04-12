@@ -12,19 +12,57 @@ namespace ProcessUtils {
 // Static cache for resolved binary paths
 static QHash<QString, FoundBinary> s_binaryCache;
 
-// Helper: check common per-user tool install locations that may not be in PATH
-// (e.g. deno at ~/.deno/bin, node at ~/.nvm, etc.)
+// Helper: check common per-user tool install locations that may not be PATH
 static QString findCommonUserTool(const QString& exeName)
 {
 #ifdef Q_OS_WIN
     const QString home = QProcessEnvironment::systemEnvironment().value("USERPROFILE");
+    const QString localAppData = QProcessEnvironment::systemEnvironment().value("LOCALAPPDATA");
+    const QString programData = QProcessEnvironment::systemEnvironment().value("ProgramData");
+
     if (!home.isEmpty()) {
+        // deno (~/.deno/bin)
         const QString denoPath = QDir(home).filePath(".deno/bin/" + exeName);
         if (QFileInfo::exists(denoPath)) return denoPath;
+
+        // scoop shims (~\scoop\shims)
+        const QString scoopPath = QDir(home).filePath("scoop/shims/" + exeName);
+        if (QFileInfo::exists(scoopPath)) return scoopPath;
+    }
+
+    if (!localAppData.isEmpty()) {
+        // pip-installed Python scripts (%LOCALAPPDATA%\Programs\Python\Python*\Scripts\)
+        const QString pythonScriptsDir = QDir(localAppData).filePath("Programs/Python");
+        if (QFileInfo::exists(pythonScriptsDir)) {
+            QDir pyDir(pythonScriptsDir);
+            const QFileInfoList entries = pyDir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
+            for (const QFileInfo &entry : entries) {
+                const QString candidate = entry.filePath() + "/Scripts/" + exeName;
+                if (QFileInfo::exists(candidate)) return candidate;
+            }
+        }
+
+        // WindowsApps execution aliases (winget-installed tools that may not be in PATH)
+        // These are 0-byte stubs that only work through shell alias resolution.
+        // We still return the path here — the caller (BinariesPage) detects 0-byte
+        // stubs and handles them by prepending WindowsApps to PATH instead of
+        // invoking the stub directly.
+        const QString windowsAppsDir = QDir(localAppData).filePath("Microsoft/WindowsApps");
+        if (QFileInfo::exists(windowsAppsDir)) {
+            const QString aliasPath = QDir(windowsAppsDir).filePath(exeName);
+            if (QFileInfo::exists(aliasPath)) return aliasPath;
+        }
+    }
+
+    if (!programData.isEmpty()) {
+        // Chocolatey (C:\ProgramData\chocolatey\bin)
+        const QString chocoPath = QDir(programData).filePath("chocolatey/bin/" + exeName);
+        if (QFileInfo::exists(chocoPath)) return chocoPath;
     }
 #else
     const QString home = QProcessEnvironment::systemEnvironment().value("HOME");
     if (!home.isEmpty()) {
+        // deno (~/.deno/bin)
         const QString denoPath = QDir(home).filePath(".deno/bin/" + exeName);
         if (QFileInfo::exists(denoPath)) return denoPath;
     }
