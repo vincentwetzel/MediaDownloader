@@ -48,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Binary path caching**: `ProcessUtils` now caches resolved binary paths after the first lookup to avoid repeated PATH scans. The cache is automatically cleared when binaries are installed or overridden via the Advanced Settings Binaries page.
 - **Expanded gallery-dl template tokens**: The Output Templates page now includes a comprehensive list of gallery-dl format tokens (including `{category}`, `{user}`, `{subcategory}`, `{author[...]}`, `{date}`, `{post[...]}`, `{media[...]}`, etc.) for easier filename template creation.
 - **Flattened AppData directory structure**: Removed duplicate organization name in `main.cpp` so app data is stored in `%LOCALAPPDATA%\MediaDownloader\` instead of `%LOCALAPPDATA%\MediaDownloader\MediaDownloader\`.
+- **Automatic settings cleanup**: The configuration manager now automatically scans and prunes dead, orphaned, or legacy settings from `settings.ini` on startup, keeping the file clean and predictable.
 
 ### Fixed
 - **Archive duplicate detection**: Added pre-enqueue duplicate check in `DownloadManager::enqueueDownload()` that consults `ArchiveManager::isInArchive()` before allowing a download into the queue. Respects the "Override duplicate download check" toggle. Strips all query parameters from non-YouTube URLs during normalization so the same content accessed via different URLs is correctly detected as a duplicate. Replaced scattered temporary `ArchiveManager` instances with a single shared member.
@@ -63,6 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **gallery-dl single file move fix**: Fixed gallery downloads that produce a single file instead of a subdirectory. The app now correctly handles both files and directories when moving gallery downloads to their final destination.
 
 ### Changed
+- **WinGet install options always visible**: WinGet is ubiquitous on modern Windows but often not in PATH. Install options now always appear for all binaries (yt-dlp, ffmpeg, gallery-dl, aria2c, deno) regardless of winget.exe detection.
 - **Download completion message now shows destination path**: Success messages now include the full file path (e.g., "Download completed → C:\Downloads\video.mp4") so users immediately know where their file ended up.
 - **Architecture**: Switched from Python/PyQt6 to C++/Qt6.
 - **Build System**: Switched from PyInstaller to CMake/MSVC.
