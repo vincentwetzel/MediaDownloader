@@ -64,7 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **gallery-dl single file move fix**: Fixed gallery downloads that produce a single file instead of a subdirectory. The app now correctly handles both files and directories when moving gallery downloads to their final destination.
 
 ### Changed
-- **WinGet install options always visible**: WinGet is ubiquitous on modern Windows but often not in PATH. Install options now always appear for all binaries (yt-dlp, ffmpeg, gallery-dl, aria2c, deno) regardless of winget.exe detection.
+- **External binary install commands now run through system shell**: Install commands for winget, choco, pip, etc. are now executed via `cmd.exe /C` (Windows) or `/bin/sh -c` (Linux) instead of direct process launch. This ensures PATH resolution, console output capture, and shim execution work reliably for all package managers.
 - **Download completion message now shows destination path**: Success messages now include the full file path (e.g., "Download completed → C:\Downloads\video.mp4") so users immediately know where their file ended up.
 - **Architecture**: Switched from Python/PyQt6 to C++/Qt6.
 - **Build System**: Switched from PyInstaller to CMake/MSVC.

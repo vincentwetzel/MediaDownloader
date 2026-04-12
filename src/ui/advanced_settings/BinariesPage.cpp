@@ -187,14 +187,18 @@ void BinariesPage::installBinaryFor(const QString &binaryName) {
 
     QVBoxLayout *layout = new QVBoxLayout(&dialog);
 
-    QLabel *infoLabel = new QLabel(
-        QString("Select an installation method for %1. Package-manager options were detected from this system.").arg(displayName(binaryName)),
-        &dialog);
+    const QList<InstallOption> options = buildInstallOptions(binaryName);
+
+    QLabel *infoLabel = new QLabel(&dialog);
+    if (options.isEmpty()) {
+        infoLabel->setText(QString("No supported package managers were detected for %1. Use Manual Download instead.").arg(displayName(binaryName)));
+    } else {
+        infoLabel->setText(QString("Select an installation method for %1. Package-manager options were detected from this system.").arg(displayName(binaryName)));
+    }
     infoLabel->setWordWrap(true);
-    infoLabel->setToolTip("Package-manager commands are launched in a detached process.");
+    infoLabel->setToolTip("Package-manager commands are launched through the system shell (cmd.exe on Windows).");
     layout->addWidget(infoLabel);
 
-    const QList<InstallOption> options = buildInstallOptions(binaryName);
     QComboBox *optionsCombo = new QComboBox(&dialog);
     optionsCombo->setToolTip("Choose a detected package-manager command.");
     for (const InstallOption &option : options) {
@@ -240,34 +244,46 @@ void BinariesPage::installBinaryFor(const QString &binaryName) {
 
     connect(runButton, &QPushButton::clicked, &dialog, [&]() {
         const InstallOption &option = options.at(optionsCombo->currentIndex());
-        
+
         QDialog progressDialog(&dialog);
         progressDialog.setWindowTitle(QString("Installing %1").arg(displayName(binaryName)));
         progressDialog.resize(600, 400);
-        
+
         QVBoxLayout *pLayout = new QVBoxLayout(&progressDialog);
         QTextEdit *outputEdit = new QTextEdit(&progressDialog);
         outputEdit->setReadOnly(true);
         outputEdit->setFontFamily("Courier New");
         pLayout->addWidget(outputEdit);
-        
+
         QDialogButtonBox *pButtons = new QDialogButtonBox(QDialogButtonBox::Close, &progressDialog);
         QPushButton *closeBtn = pButtons->button(QDialogButtonBox::Close);
         closeBtn->setEnabled(false);
         pLayout->addWidget(pButtons);
-        
+
         connect(pButtons, &QDialogButtonBox::rejected, &progressDialog, &QDialog::reject);
-        
+
         QProcess *process = new QProcess(&progressDialog);
         process->setProcessChannelMode(QProcess::MergedChannels);
-        
+
+        // Launch through cmd.exe /c on Windows so PATH resolution and
+        // console-output redirection work reliably for all CLI tools
+        // (winget, choco, pip, scoop shims, etc.).
+        QString fullCommand = option.program;
+        for (const QString &arg : option.arguments) {
+            if (arg.contains(' ')) {
+                fullCommand += " \"" + arg + "\"";
+            } else {
+                fullCommand += " " + arg;
+            }
+        }
+
         connect(process, &QProcess::readyReadStandardOutput, [&]() {
             QString output = QString::fromLocal8Bit(process->readAllStandardOutput());
             outputEdit->moveCursor(QTextCursor::End);
             outputEdit->insertPlainText(output);
             outputEdit->moveCursor(QTextCursor::End);
         });
-        
+
         connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), [&](int exitCode, QProcess::ExitStatus exitStatus) {
             closeBtn->setEnabled(true);
             if (exitStatus == QProcess::NormalExit && exitCode == 0) {
@@ -287,16 +303,20 @@ void BinariesPage::installBinaryFor(const QString &binaryName) {
                 QMessageBox::warning(&progressDialog, "Install Failed", QString("The installation of %1 failed. Please check the output log.").arg(displayName(binaryName)));
             }
         });
-        
+
         connect(process, &QProcess::errorOccurred, [&](QProcess::ProcessError error) {
             closeBtn->setEnabled(true);
             outputEdit->moveCursor(QTextCursor::End);
             outputEdit->insertPlainText(QString("\n--- Process error: %1 ---\n").arg(process->errorString()));
         });
-        
-        outputEdit->insertPlainText(QString("Running command: %1\n\n").arg(commandPreview(option)));
-        process->start(option.program, option.arguments);
-        
+
+        outputEdit->insertPlainText(QString("Running command: %1\n\n").arg(fullCommand));
+#ifdef Q_OS_WIN
+        process->start("cmd", {"/C", fullCommand});
+#else
+        process->start("/bin/sh", {"-c", fullCommand});
+#endif
+
         progressDialog.exec();
         dialog.accept();
     });
@@ -412,25 +432,14 @@ QList<BinariesPage::InstallOption> BinariesPage::buildInstallOptions(const QStri
         options.append(option);
     };
 
-    // WinGet is ubiquitous on modern Windows but often NOT in PATH.
-    // Always offer winget options on Windows regardless of PATH detection.
-    auto addWinGetOption = [&](const QString &packageName, const QString &description) {
-        InstallOption option;
-        option.label = QString("winget (%1)").arg(display);
-        option.description = description;
-        option.program = "winget";
-        option.arguments = {"install", packageName, "--accept-package-agreements", "--accept-source-agreements"};
-        options.append(option);
-    };
-
     if (binaryName == "yt-dlp") {
         addOptionIfPresent("pip", {"install", "-U", "--pre", "yt-dlp"}, "Install or upgrade yt-dlp (nightly) with pip.");
-        addWinGetOption("yt-dlp", "Install yt-dlp with WinGet. Note: Usually installs stable version.");
+        addOptionIfPresent("winget", {"install", "yt-dlp", "--accept-package-agreements", "--accept-source-agreements"}, "Install yt-dlp with WinGet. Note: Usually installs stable version.");
         addOptionIfPresent("choco", {"install", "-y", "yt-dlp"}, "Install yt-dlp with Chocolatey. Note: Usually installs stable version.");
         addOptionIfPresent("scoop", {"install", "yt-dlp"}, "Install yt-dlp with Scoop. Note: Usually installs stable version.");
         addOptionIfPresent("brew", {"install", "yt-dlp"}, "Install yt-dlp with Homebrew. Note: Usually installs stable version.");
     } else if (binaryName == "ffmpeg" || binaryName == "ffprobe") {
-        addWinGetOption("ffmpeg", "Install FFmpeg (includes ffprobe) with WinGet.");
+        addOptionIfPresent("winget", {"install", "ffmpeg", "--accept-package-agreements", "--accept-source-agreements"}, "Install FFmpeg (includes ffprobe) with WinGet.");
         addOptionIfPresent("choco", {"install", "-y", "ffmpeg"}, "Install FFmpeg (includes ffprobe) with Chocolatey.");
         addOptionIfPresent("scoop", {"install", "ffmpeg"}, "Install FFmpeg (includes ffprobe) with Scoop.");
         addOptionIfPresent("apt", {"install", "-y", "ffmpeg"}, "Install FFmpeg (includes ffprobe) with apt.");
@@ -439,12 +448,12 @@ QList<BinariesPage::InstallOption> BinariesPage::buildInstallOptions(const QStri
         addOptionIfPresent("brew", {"install", "ffmpeg"}, "Install FFmpeg (includes ffprobe) with Homebrew.");
     } else if (binaryName == "gallery-dl") {
         addOptionIfPresent("pip", {"install", "-U", "gallery-dl"}, "Install or upgrade gallery-dl with pip.");
-        addWinGetOption("gallery-dl", "Install gallery-dl with WinGet.");
+        addOptionIfPresent("winget", {"install", "gallery-dl", "--accept-package-agreements", "--accept-source-agreements"}, "Install gallery-dl with WinGet.");
         addOptionIfPresent("choco", {"install", "-y", "gallery-dl"}, "Install gallery-dl with Chocolatey.");
         addOptionIfPresent("scoop", {"install", "gallery-dl"}, "Install gallery-dl with Scoop.");
         addOptionIfPresent("brew", {"install", "gallery-dl"}, "Install gallery-dl with Homebrew.");
     } else if (binaryName == "aria2c") {
-        addWinGetOption("aria2", "Install aria2 with WinGet.");
+        addOptionIfPresent("winget", {"install", "aria2", "--accept-package-agreements", "--accept-source-agreements"}, "Install aria2 with WinGet.");
         addOptionIfPresent("choco", {"install", "-y", "aria2"}, "Install aria2 with Chocolatey.");
         addOptionIfPresent("scoop", {"install", "aria2"}, "Install aria2 with Scoop.");
         addOptionIfPresent("apt", {"install", "-y", "aria2"}, "Install aria2 with apt.");
@@ -452,7 +461,7 @@ QList<BinariesPage::InstallOption> BinariesPage::buildInstallOptions(const QStri
         addOptionIfPresent("pacman", {"-S", "--noconfirm", "aria2"}, "Install aria2 with pacman.");
         addOptionIfPresent("brew", {"install", "aria2"}, "Install aria2 with Homebrew.");
     } else if (binaryName == "deno") {
-        addWinGetOption("deno", "Install Deno with WinGet.");
+        addOptionIfPresent("winget", {"install", "deno", "--accept-package-agreements", "--accept-source-agreements"}, "Install Deno with WinGet.");
         addOptionIfPresent("choco", {"install", "-y", "deno"}, "Install Deno with Chocolatey.");
         addOptionIfPresent("scoop", {"install", "deno"}, "Install Deno with Scoop.");
         addOptionIfPresent("brew", {"install", "deno"}, "Install Deno with Homebrew.");
