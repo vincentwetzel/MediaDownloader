@@ -7,6 +7,7 @@
 #include <QDesktopServices>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QDir>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFormLayout>
@@ -444,25 +445,33 @@ QList<BinariesPage::InstallOption> BinariesPage::buildInstallOptions(const QStri
     };
 
     auto addOptionIfPresent = [&](const QString &program, const QStringList &arguments, const QString &description) {
-        // QStandardPaths::findExecutable searches PATH, but on Windows winget
-        // lives in the WindowsApps execution-alias directory which is NOT in PATH.
-        // Check the WindowsApps shim as a fallback so winget options still appear.
-        bool found = !QStandardPaths::findExecutable(program).isEmpty();
-        if (!found) {
+        QString programPath;
+
+        // First try standard PATH lookup
+        QString foundPath = QStandardPaths::findExecutable(program);
+        if (!foundPath.isEmpty()) {
+            programPath = foundPath;
+        }
+
+        // On Windows, winget/pip/etc. may live in the WindowsApps execution-alias
+        // directory which is NOT in PATH. Resolve it here so the full path is used
+        // when launching through cmd.exe /C (otherwise cmd can't find it).
+        if (programPath.isEmpty()) {
             static const QString windowsApps = QProcessEnvironment::systemEnvironment().value("LOCALAPPDATA")
                 + "/Microsoft/WindowsApps/" + program + ".exe";
             if (QFile::exists(windowsApps)) {
-                found = true;
+                programPath = QDir::toNativeSeparators(windowsApps);
             }
         }
-        if (!found) {
+
+        if (programPath.isEmpty()) {
             return;
         }
 
         InstallOption option;
         option.label = QString("%1 (%2)").arg(program, display);
         option.description = description;
-        option.program = program;
+        option.program = programPath;
         option.arguments = arguments;
         options.append(option);
     };
