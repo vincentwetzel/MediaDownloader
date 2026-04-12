@@ -50,7 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Flattened AppData directory structure**: Removed duplicate organization name in `main.cpp` so app data is stored in `%LOCALAPPDATA%\MediaDownloader\` instead of `%LOCALAPPDATA%\MediaDownloader\MediaDownloader\`.
 
 ### Fixed
-- **Sorting Rule dialog smooth scrolling**: Replaced `QListWidget` with `QScrollArea` + `QVBoxLayout` for smooth pixel-level scrolling without item-snapping when multiple conditions overflow the dialog.
+- **Archive duplicate detection**: Added pre-enqueue duplicate check in `DownloadManager::enqueueDownload()` that consults `ArchiveManager::isInArchive()` before allowing a download into the queue. Respects the "Override duplicate download check" toggle. Strips all query parameters from non-YouTube URLs during normalization so the same content accessed via different URLs is correctly detected as a duplicate. Replaced scattered temporary `ArchiveManager` instances with a single shared member.
 - **Sorting Rule dialog condition text entry size**: Set `CONDITION_VALUE_INPUT_HEIGHT` constant to 100px applied via `setFixedHeight()` for consistent text entry sizing across all conditions.
 - **Sorting Rule dialog overflow**: Fixed condition text entry boxes exceeding dialog bounds. Increased dialog minimum size to 650x500.
 - **Download queue immediate start fix**: Fixed downloads failing to start after immediate queue UI feedback implementation. Items are now correctly added to the download queue before playlist expansion, and `saveQueueState`/`startNextDownload` are properly invokable for deferred execution.

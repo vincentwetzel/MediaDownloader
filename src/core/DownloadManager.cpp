@@ -62,10 +62,11 @@ namespace {
 }
 
 DownloadManager::DownloadManager(ConfigManager *configManager, QObject *parent)
-    : QObject(parent), m_configManager(configManager), m_sleepMode(NoSleep),
+    : QObject(parent), m_configManager(configManager), m_archiveManager(nullptr), m_sleepMode(NoSleep),
       m_queuedDownloadsCount(0), m_activeDownloadsCount(0), m_completedDownloadsCount(0) {
 
     m_sortingManager = new SortingManager(m_configManager, this);
+    m_archiveManager = new ArchiveManager(m_configManager, this);
 
     QString maxThreadsStr = m_configManager->get("General", "max_threads", "4").toString();
     if (maxThreadsStr == "1 (short sleep)") {
@@ -108,6 +109,13 @@ DownloadManager::~DownloadManager() {
 }
 
 void DownloadManager::enqueueDownload(const QString &url, const QVariantMap &options) {
+    // Check for duplicate downloads (unless override is enabled)
+    bool overrideArchive = options.value("override_archive", false).toBool();
+    if (!overrideArchive && m_archiveManager && m_archiveManager->isInArchive(url)) {
+        qDebug() << "DownloadManager: Skipping duplicate URL:" << url;
+        return;
+    }
+
     QString downloadType = options.value("type", "video").toString();
 
     // Intercept for runtime format selection before doing anything else
@@ -146,11 +154,32 @@ void DownloadManager::enqueueDownload(const QString &url, const QVariantMap &opt
         emit downloadAddedToQueue(uiData);
 
         emitDownloadStats();
-        saveQueueState();
-        startNextDownload();
+        QMetaObject::invokeMethod(this, "saveQueueState", Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, "startNextDownload", Qt::QueuedConnection);
     } else {
+        // IMMEDIATE UI FEEDBACK: Create the download item in UI before playlist expansion
+        DownloadItem item;
+        item.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+        item.url = url;
+        item.options = options;
+        item.playlistIndex = -1;
+
+        // Add to queue AND tracking maps immediately
+        m_downloadQueue.enqueue(item);
+        m_queuedDownloadsCount++;
+        m_pendingExpansions[item.id] = url;
+
+        QVariantMap uiData;
+        uiData["id"] = item.id;
+        uiData["url"] = url;
+        uiData["status"] = "Checking for playlist...";
+        uiData["progress"] = -1; // Indeterminate
+        uiData["options"] = options;
+        emit downloadAddedToQueue(uiData);
+
         PlaylistExpander *expander = new PlaylistExpander(url, m_configManager, this);
         expander->setProperty("options", options);
+        expander->setProperty("queueId", item.id); // Store queue ID for later
 
         connect(expander, &PlaylistExpander::expansionFinished, this, &DownloadManager::onPlaylistExpanded);
         connect(expander, &PlaylistExpander::playlistDetected, this, &DownloadManager::onPlaylistDetected);
@@ -208,6 +237,14 @@ void DownloadManager::resumeDownloadWithFormat(const QString &url, const QVarian
 
 void DownloadManager::cancelDownload(const QString &id) {
     bool cancelled = false;
+    
+    // Check if this is a pending expansion
+    if (m_pendingExpansions.contains(id)) {
+        m_pendingExpansions.remove(id);
+        emit downloadCancelled(id);
+        return;
+    }
+    
     for (int i = 0; i < m_downloadQueue.size(); ++i) {
         if (m_downloadQueue.at(i).id == id) {
             m_downloadQueue.removeAt(i);
@@ -463,40 +500,79 @@ void DownloadManager::onPlaylistDetected(const QString &url, int itemCount, cons
 void DownloadManager::onPlaylistExpanded(const QString &originalUrl, const QList<QVariantMap> &expandedItems, const QString &error) {
     PlaylistExpander *expander = qobject_cast<PlaylistExpander*>(sender());
     QVariantMap options;
+    QString queueId;
     if (expander) {
         options = expander->property("options").toMap();
+        queueId = expander->property("queueId").toString();
         expander->deleteLater();
     }
 
     if (!error.isEmpty()) {
         qDebug() << "Playlist expansion failed:" << error;
+        // Update the UI item to show error
+        if (!queueId.isEmpty()) {
+            emit downloadProgress(queueId, {{"status", "Failed to check playlist"}});
+            emit downloadFinished(queueId, false, "Playlist expansion failed: " + error);
+            m_pendingExpansions.remove(queueId);
+        }
         return;
     }
 
     emit playlistExpansionFinished(originalUrl, expandedItems.count());
 
-    for (const QVariantMap &itemData : expandedItems) {
-        DownloadItem item;
-        item.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
-        item.url = itemData["url"].toString();
-        item.options = options; // Pass the options from the UI
-        item.playlistIndex = itemData.value("playlist_index", -1).toInt();
+    // If this was a single video (no expansion needed), update the existing UI item
+    if (expandedItems.size() == 1 && !queueId.isEmpty()) {
+        QVariantMap itemData = expandedItems.first();
+        
+        // Find and update the existing queue item
+        for (int i = 0; i < m_downloadQueue.size(); ++i) {
+            if (m_downloadQueue[i].id == queueId) {
+                m_downloadQueue[i].url = itemData["url"].toString();
+                m_downloadQueue[i].playlistIndex = itemData.value("playlist_index", -1).toInt();
+                m_downloadQueue[i].options = options;
+                break;
+            }
+        }
+        
+        // Update UI status to "Queued"
+        emit downloadProgress(queueId, {{"status", "Queued"}, {"progress", 0}});
+        m_pendingExpansions.remove(queueId);
+    } else if (expandedItems.size() > 1) {
+        // This is an actual playlist - remove the placeholder from queue
+        if (!queueId.isEmpty()) {
+            for (int i = 0; i < m_downloadQueue.size(); ++i) {
+                if (m_downloadQueue[i].id == queueId) {
+                    m_downloadQueue.removeAt(i);
+                    m_queuedDownloadsCount--;
+                    break;
+                }
+            }
+            m_pendingExpansions.remove(queueId);
+        }
+        
+        for (const QVariantMap &itemData : expandedItems) {
+            DownloadItem item;
+            item.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+            item.url = itemData["url"].toString();
+            item.options = options;
+            item.playlistIndex = itemData.value("playlist_index", -1).toInt();
 
-        m_downloadQueue.enqueue(item);
-        m_queuedDownloadsCount++;
+            m_downloadQueue.enqueue(item);
+            m_queuedDownloadsCount++;
 
-        QVariantMap uiData;
-        uiData["id"] = item.id;
-        uiData["url"] = item.url;
-        uiData["status"] = "Queued";
-        uiData["progress"] = 0;
-        uiData["options"] = options;
-        emit downloadAddedToQueue(uiData);
+            QVariantMap uiData;
+            uiData["id"] = item.id;
+            uiData["url"] = item.url;
+            uiData["status"] = "Queued";
+            uiData["progress"] = 0;
+            uiData["options"] = options;
+            emit downloadAddedToQueue(uiData);
+        }
     }
 
     emitDownloadStats();
-    saveQueueState();
-    startNextDownload();
+    QMetaObject::invokeMethod(this, "saveQueueState", Qt::QueuedConnection);
+    QMetaObject::invokeMethod(this, "startNextDownload", Qt::QueuedConnection);
 }
 
 void DownloadManager::saveQueueState() {
@@ -896,8 +972,7 @@ void DownloadManager::finalizeDownload(const QString &id, DownloadItem &item, co
                 // gallery-dl downloaded a single file directly
                 QString newDestPath = QDir(finalDir).filePath(entry.fileName());
                 if (QFile::rename(entry.absoluteFilePath(), newDestPath)) {
-                    ArchiveManager archive(m_configManager);
-                    archive.addToArchive(item.url);
+                    m_archiveManager->addToArchive(item.url);
                     emit downloadFinalPathReady(id, newDestPath);
                     emit downloadFinished(id, true, "Gallery download completed and moved.");
                     m_completedDownloadsCount++;
@@ -905,8 +980,7 @@ void DownloadManager::finalizeDownload(const QString &id, DownloadItem &item, co
                     qDebug() << "Direct rename failed for gallery file, attempting copy+remove from" << entry.absoluteFilePath() << "to" << newDestPath;
                     if (QFile::copy(entry.absoluteFilePath(), newDestPath)) {
                         QFile::remove(entry.absoluteFilePath());
-                        ArchiveManager archive(m_configManager);
-                        archive.addToArchive(item.url);
+                        m_archiveManager->addToArchive(item.url);
                         emit downloadFinalPathReady(id, newDestPath);
                         emit downloadFinished(id, true, "Gallery download completed and moved.");
                         m_completedDownloadsCount++;
@@ -918,8 +992,7 @@ void DownloadManager::finalizeDownload(const QString &id, DownloadItem &item, co
                 // gallery-dl downloaded a directory (gallery or collection)
                 QString newDestPath = QDir(finalDir).filePath(entry.fileName());
                 if (QDir().rename(entry.absoluteFilePath(), newDestPath)) {
-                    ArchiveManager archive(m_configManager);
-                    archive.addToArchive(item.url);
+                    m_archiveManager->addToArchive(item.url);
                     emit downloadFinalPathReady(id, newDestPath);
                     emit downloadFinished(id, true, "Gallery download completed and moved.");
                     m_completedDownloadsCount++;
@@ -927,15 +1000,13 @@ void DownloadManager::finalizeDownload(const QString &id, DownloadItem &item, co
                     qDebug() << "Direct rename failed for gallery, attempting recursive copy+remove from" << entry.absoluteFilePath() << "to" << newDestPath;
                     if (copyDirectoryRecursively(entry.absoluteFilePath(), newDestPath)) {
                         if (QDir(entry.absoluteFilePath()).removeRecursively()) {
-                            ArchiveManager archive(m_configManager);
-                            archive.addToArchive(item.url);
+                            m_archiveManager->addToArchive(item.url);
                             emit downloadFinalPathReady(id, newDestPath);
                             emit downloadFinished(id, true, "Gallery download completed and moved.");
                             m_completedDownloadsCount++;
                         } else {
                             qWarning() << "Failed to remove temp gallery directory:" << entry.absoluteFilePath();
-                            ArchiveManager archive(m_configManager);
-                            archive.addToArchive(item.url);
+                            m_archiveManager->addToArchive(item.url);
                             emit downloadFinalPathReady(id, newDestPath);
                             emit downloadFinished(id, true, "Gallery download completed (temp cleanup failed).");
                             m_completedDownloadsCount++;
@@ -948,8 +1019,7 @@ void DownloadManager::finalizeDownload(const QString &id, DownloadItem &item, co
         } else {
             // Fallback for unexpected directory structure
             if (QDir().rename(item.tempFilePath, destPath)) {
-                ArchiveManager archive(m_configManager);
-                archive.addToArchive(item.url);
+                m_archiveManager->addToArchive(item.url);
                 emit downloadFinalPathReady(id, destPath);
                 emit downloadFinished(id, true, "Gallery download completed and moved.");
                 m_completedDownloadsCount++;
@@ -957,8 +1027,7 @@ void DownloadManager::finalizeDownload(const QString &id, DownloadItem &item, co
                 qWarning() << "Direct rename failed for gallery fallback, attempting recursive copy+remove from" << item.tempFilePath << "to" << destPath;
                 if (copyDirectoryRecursively(item.tempFilePath, destPath)) {
                     QDir(item.tempFilePath).removeRecursively();
-                    ArchiveManager archive(m_configManager);
-                    archive.addToArchive(item.url);
+                    m_archiveManager->addToArchive(item.url);
                     emit downloadFinalPathReady(id, destPath);
                     emit downloadFinished(id, true, "Gallery download completed and moved.");
                     m_completedDownloadsCount++;
@@ -994,8 +1063,7 @@ void DownloadManager::finalizeDownload(const QString &id, DownloadItem &item, co
 
         if (moved) {
             qDebug() << "Move succeeded";
-            ArchiveManager archive(m_configManager);
-            archive.addToArchive(item.url);
+            m_archiveManager->addToArchive(item.url);
             emit downloadFinalPathReady(id, destPath);
             emit downloadFinished(id, true, "Download completed and moved.");
             m_completedDownloadsCount++;

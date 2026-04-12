@@ -257,13 +257,21 @@ QString ArchiveManager::normalizeUrl(const QString &urlStr) const {
     QUrlQuery query(url);
     QList<QPair<QString, QString>> queryItems = query.queryItems(QUrl::FullyDecoded);
 
-    // Filter query parameters
+    // For non-YouTube URLs, strip all query params (they're usually session/tracking junk)
+    // For YouTube URLs, only strip known tracking params
+    QStringList keptParams;
+    if (!host.contains("youtube") && !host.contains("youtu.be")) {
+        // Generic URLs: strip all query parameters for archive matching
+        QString result = (host + path).toLower();
+        return result;
+    }
+
+    // Filter YouTube query parameters
     QSet<QString> dropParams = {
         "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
         "si", "feature", "pp"
     };
 
-    QStringList keptParams;
     // Sort keys to ensure consistent order
     std::sort(queryItems.begin(), queryItems.end(), [](const QPair<QString, QString> &a, const QPair<QString, QString> &b) {
         return a.first < b.first;

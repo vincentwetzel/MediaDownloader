@@ -9,6 +9,7 @@
 
 // Forward declarations
 class SortingManager;
+class ArchiveManager;
 class PlaylistExpander;
 
 struct DownloadItem {
@@ -69,8 +70,8 @@ private slots:
     void onMetadataEmbedded(const QString &id, bool success, const QString &error);
 
 private:
-    void saveQueueState();
-    void loadQueueState();
+    Q_INVOKABLE void saveQueueState();
+    Q_INVOKABLE void loadQueueState();
     void proceedWithDownload();
     void finalizeDownload(const QString &id, DownloadItem &item, const QString &filePath);
     void checkQueueFinished();
@@ -80,12 +81,14 @@ private:
 
     ConfigManager *m_configManager;
     SortingManager *m_sortingManager;
+    ArchiveManager *m_archiveManager;
     QQueue<DownloadItem> m_downloadQueue;
     QMap<QString, DownloadItem> m_pausedItems;
     QMap<QString, QObject*> m_activeWorkers;
     QMap<QString, DownloadItem> m_activeItems;
     QMap<QString, QObject*> m_activeEmbedders;
     QMap<QString, double> m_workerSpeeds;
+    QMap<QString, QString> m_pendingExpansions; // Maps queue ID to URL during playlist expansion
 
     int m_maxConcurrentDownloads;
     enum SleepMode { NoSleep, ShortSleep, LongSleep };
