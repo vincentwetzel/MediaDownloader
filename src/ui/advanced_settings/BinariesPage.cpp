@@ -15,6 +15,7 @@
 #include <QLabel>
 #include <QMessageBox>
 #include <QProcess>
+#include <QProcessEnvironment>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QSignalBlocker>
@@ -419,6 +420,29 @@ QList<BinariesPage::InstallOption> BinariesPage::buildInstallOptions(const QStri
     QList<InstallOption> options;
     const QString display = displayName(binaryName);
 
+    // OS-gating so users don't see macOS/Linux-only managers on Windows and vice versa.
+    auto isWindows = []() -> bool {
+#ifdef Q_OS_WIN
+        return true;
+#else
+        return false;
+#endif
+    };
+    auto isMacOS = []() -> bool {
+#ifdef Q_OS_MACOS
+        return true;
+#else
+        return false;
+#endif
+    };
+    auto isLinux = []() -> bool {
+#ifdef Q_OS_LINUX
+        return true;
+#else
+        return false;
+#endif
+    };
+
     auto addOptionIfPresent = [&](const QString &program, const QStringList &arguments, const QString &description) {
         // QStandardPaths::findExecutable searches PATH, but on Windows winget
         // lives in the WindowsApps execution-alias directory which is NOT in PATH.
@@ -445,37 +469,37 @@ QList<BinariesPage::InstallOption> BinariesPage::buildInstallOptions(const QStri
 
     if (binaryName == "yt-dlp") {
         addOptionIfPresent("pip", {"install", "-U", "--pre", "yt-dlp"}, "Install or upgrade yt-dlp (nightly) with pip.");
-        addOptionIfPresent("winget", {"install", "yt-dlp", "--accept-package-agreements", "--accept-source-agreements"}, "Install yt-dlp with WinGet. Note: Usually installs stable version.");
-        addOptionIfPresent("choco", {"install", "-y", "yt-dlp"}, "Install yt-dlp with Chocolatey. Note: Usually installs stable version.");
-        addOptionIfPresent("scoop", {"install", "yt-dlp"}, "Install yt-dlp with Scoop. Note: Usually installs stable version.");
-        addOptionIfPresent("brew", {"install", "yt-dlp"}, "Install yt-dlp with Homebrew. Note: Usually installs stable version.");
+        if (isWindows()) addOptionIfPresent("winget", {"install", "yt-dlp", "--accept-package-agreements", "--accept-source-agreements"}, "Install yt-dlp with WinGet. Note: Usually installs stable version.");
+        if (isWindows()) addOptionIfPresent("choco", {"install", "-y", "yt-dlp"}, "Install yt-dlp with Chocolatey. Note: Usually installs stable version.");
+        if (isWindows()) addOptionIfPresent("scoop", {"install", "yt-dlp"}, "Install yt-dlp with Scoop. Note: Usually installs stable version.");
+        if (isMacOS() || isLinux()) addOptionIfPresent("brew", {"install", "yt-dlp"}, "Install yt-dlp with Homebrew. Note: Usually installs stable version.");
     } else if (binaryName == "ffmpeg" || binaryName == "ffprobe") {
-        addOptionIfPresent("winget", {"install", "ffmpeg", "--accept-package-agreements", "--accept-source-agreements"}, "Install FFmpeg (includes ffprobe) with WinGet.");
-        addOptionIfPresent("choco", {"install", "-y", "ffmpeg"}, "Install FFmpeg (includes ffprobe) with Chocolatey.");
-        addOptionIfPresent("scoop", {"install", "ffmpeg"}, "Install FFmpeg (includes ffprobe) with Scoop.");
-        addOptionIfPresent("apt", {"install", "-y", "ffmpeg"}, "Install FFmpeg (includes ffprobe) with apt.");
-        addOptionIfPresent("dnf", {"install", "-y", "ffmpeg"}, "Install FFmpeg (includes ffprobe) with dnf.");
-        addOptionIfPresent("pacman", {"-S", "--noconfirm", "ffmpeg"}, "Install FFmpeg (includes ffprobe) with pacman.");
-        addOptionIfPresent("brew", {"install", "ffmpeg"}, "Install FFmpeg (includes ffprobe) with Homebrew.");
+        if (isWindows()) addOptionIfPresent("winget", {"install", "ffmpeg", "--accept-package-agreements", "--accept-source-agreements"}, "Install FFmpeg (includes ffprobe) with WinGet.");
+        if (isWindows()) addOptionIfPresent("choco", {"install", "-y", "ffmpeg"}, "Install FFmpeg (includes ffprobe) with Chocolatey.");
+        if (isWindows()) addOptionIfPresent("scoop", {"install", "ffmpeg"}, "Install FFmpeg (includes ffprobe) with Scoop.");
+        if (isLinux()) addOptionIfPresent("apt", {"install", "-y", "ffmpeg"}, "Install FFmpeg (includes ffprobe) with apt.");
+        if (isLinux()) addOptionIfPresent("dnf", {"install", "-y", "ffmpeg"}, "Install FFmpeg (includes ffprobe) with dnf.");
+        if (isLinux()) addOptionIfPresent("pacman", {"-S", "--noconfirm", "ffmpeg"}, "Install FFmpeg (includes ffprobe) with pacman.");
+        if (isMacOS() || isLinux()) addOptionIfPresent("brew", {"install", "ffmpeg"}, "Install FFmpeg (includes ffprobe) with Homebrew.");
     } else if (binaryName == "gallery-dl") {
         addOptionIfPresent("pip", {"install", "-U", "gallery-dl"}, "Install or upgrade gallery-dl with pip.");
-        addOptionIfPresent("winget", {"install", "gallery-dl", "--accept-package-agreements", "--accept-source-agreements"}, "Install gallery-dl with WinGet.");
-        addOptionIfPresent("choco", {"install", "-y", "gallery-dl"}, "Install gallery-dl with Chocolatey.");
-        addOptionIfPresent("scoop", {"install", "gallery-dl"}, "Install gallery-dl with Scoop.");
-        addOptionIfPresent("brew", {"install", "gallery-dl"}, "Install gallery-dl with Homebrew.");
+        if (isWindows()) addOptionIfPresent("winget", {"install", "gallery-dl", "--accept-package-agreements", "--accept-source-agreements"}, "Install gallery-dl with WinGet.");
+        if (isWindows()) addOptionIfPresent("choco", {"install", "-y", "gallery-dl"}, "Install gallery-dl with Chocolatey.");
+        if (isWindows()) addOptionIfPresent("scoop", {"install", "gallery-dl"}, "Install gallery-dl with Scoop.");
+        if (isMacOS() || isLinux()) addOptionIfPresent("brew", {"install", "gallery-dl"}, "Install gallery-dl with Homebrew.");
     } else if (binaryName == "aria2c") {
-        addOptionIfPresent("winget", {"install", "aria2", "--accept-package-agreements", "--accept-source-agreements"}, "Install aria2 with WinGet.");
-        addOptionIfPresent("choco", {"install", "-y", "aria2"}, "Install aria2 with Chocolatey.");
-        addOptionIfPresent("scoop", {"install", "aria2"}, "Install aria2 with Scoop.");
-        addOptionIfPresent("apt", {"install", "-y", "aria2"}, "Install aria2 with apt.");
-        addOptionIfPresent("dnf", {"install", "-y", "aria2"}, "Install aria2 with dnf.");
-        addOptionIfPresent("pacman", {"-S", "--noconfirm", "aria2"}, "Install aria2 with pacman.");
-        addOptionIfPresent("brew", {"install", "aria2"}, "Install aria2 with Homebrew.");
+        if (isWindows()) addOptionIfPresent("winget", {"install", "aria2", "--accept-package-agreements", "--accept-source-agreements"}, "Install aria2 with WinGet.");
+        if (isWindows()) addOptionIfPresent("choco", {"install", "-y", "aria2"}, "Install aria2 with Chocolatey.");
+        if (isWindows()) addOptionIfPresent("scoop", {"install", "aria2"}, "Install aria2 with Scoop.");
+        if (isLinux()) addOptionIfPresent("apt", {"install", "-y", "aria2"}, "Install aria2 with apt.");
+        if (isLinux()) addOptionIfPresent("dnf", {"install", "-y", "aria2"}, "Install aria2 with dnf.");
+        if (isLinux()) addOptionIfPresent("pacman", {"-S", "--noconfirm", "aria2"}, "Install aria2 with pacman.");
+        if (isMacOS() || isLinux()) addOptionIfPresent("brew", {"install", "aria2"}, "Install aria2 with Homebrew.");
     } else if (binaryName == "deno") {
-        addOptionIfPresent("winget", {"install", "deno", "--accept-package-agreements", "--accept-source-agreements"}, "Install Deno with WinGet.");
-        addOptionIfPresent("choco", {"install", "-y", "deno"}, "Install Deno with Chocolatey.");
-        addOptionIfPresent("scoop", {"install", "deno"}, "Install Deno with Scoop.");
-        addOptionIfPresent("brew", {"install", "deno"}, "Install Deno with Homebrew.");
+        if (isWindows()) addOptionIfPresent("winget", {"install", "deno", "--accept-package-agreements", "--accept-source-agreements"}, "Install Deno with WinGet.");
+        if (isWindows()) addOptionIfPresent("choco", {"install", "-y", "deno"}, "Install Deno with Chocolatey.");
+        if (isWindows()) addOptionIfPresent("scoop", {"install", "deno"}, "Install Deno with Scoop.");
+        if (isMacOS() || isLinux()) addOptionIfPresent("brew", {"install", "deno"}, "Install Deno with Homebrew.");
     }
 
     return options;
