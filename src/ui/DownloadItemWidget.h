@@ -3,10 +3,49 @@
 
 #include <QWidget>
 #include <QVariantMap>
+#include <QProgressBar>
+#include <QStyleOptionProgressBar>
+#include <QPainter>
 
 class QLabel;
-class QProgressBar;
 class QPushButton;
+
+// Custom progress bar that paints the percentage text centered on the bar
+class ProgressLabelBar : public QProgressBar {
+    Q_OBJECT
+public:
+    explicit ProgressLabelBar(QWidget *parent = nullptr) : QProgressBar(parent) {
+        setMinimumHeight(24);
+        setTextVisible(false); // We draw our own centered text
+    }
+
+    void setProgressText(const QString &text) { m_progressText = text; update(); }
+    QString progressText() const { return m_progressText; }
+
+protected:
+    void paintEvent(QPaintEvent *event) override {
+        QStyleOptionProgressBar opt;
+        initStyleOption(&opt);
+
+        QPainter painter(this);
+        // Draw the base progress bar (chunk + groove)
+        opt.text = QString();
+        style()->drawControl(QStyle::CE_ProgressBar, &opt, &painter, this);
+
+        // Draw centered progress text on top
+        if (!m_progressText.isEmpty()) {
+            painter.setPen(palette().color(QPalette::Text));
+            QFont font = painter.font();
+            font.setBold(true);
+            font.setPointSize(font.pointSize() + 1);
+            painter.setFont(font);
+            painter.drawText(rect(), Qt::AlignCenter, m_progressText);
+        }
+    }
+
+private:
+    QString m_progressText;
+};
 
 class DownloadItemWidget : public QWidget {
     Q_OBJECT
@@ -46,8 +85,7 @@ private:
     QLabel *m_thumbnailLabel;
     QLabel *m_titleLabel;
     QLabel *m_statusLabel;
-    QLabel *m_progressDetailsLabel;
-    QProgressBar *m_progressBar;
+    ProgressLabelBar *m_progressBar;
     QPushButton *m_clearButton;
     QPushButton *m_pauseResumeButton;
     QPushButton *m_cancelButton;

@@ -48,13 +48,10 @@ Agents MUST preserve and respect the following behaviors from the original Pytho
   - **Light Blue** (`#3b82f6`): While actively downloading (0% < progress < 100%)
   - **Teal** (`#008080`): During post-processing phase (progress at 100% with status containing "Processing", "Merging", or "Post")
   - **Green** (`#22c55e`): When download is fully completed (progress at 100% and post-processing finished)
+  - The percentage, file sizes, speed, and ETA MUST be painted centered on the progress bar using the `ProgressLabelBar` custom widget.
 - **Detailed Progress Display**: The UI MUST display rich, detailed progress information to users during downloads, comparable to command-line yt-dlp output:
   - **Status Label**: Shows current download stage (e.g., "Extracting media information...", "Downloading 2 segment(s)...", "Merging segments with ffmpeg...", "Verifying download completeness...", "Applying sorting rules...", "Moving to final destination...")
-  - **Progress Details Label**: Below the progress bar, display formatted information including:
-    - Downloaded size / Total size (e.g., "15.3 MiB / 45.7 MiB")
-    - Download speed (e.g., "Speed: 2.4 MiB/s")
-    - Estimated time remaining (e.g., "ETA: 0:12")
-  - Information MUST be separated by bullet points (•) for readability
+  - **Centered Progress Text**: Painted directly on the progress bar, includes percentage, downloaded/total size, speed, and ETA (e.g., "45%  15.3 MiB/45.7 MiB  2.4 MiB/s  ETA 0:12")
   - All progress data (speed, ETA, sizes) MUST be emitted by workers and parsed from both native yt-dlp and aria2c output
 - **Immediate Queue UI Feedback**: Downloads MUST appear in the Active Downloads tab immediately when queued, without waiting for playlist expansion or validation:
   - Gallery downloads appear instantly with "Queued" status
@@ -165,7 +162,7 @@ The project follows a **modular, separation-of-concerns design** using C++ and Q
 - **Download Statistics Display**: `src/ui/MainWindow.h/.cpp` (labels for queued, active, completed counts).
 - **Initial Directory Setup**: `src/ui/MainWindow.h/.cpp` (prompts user for download directories on first launch).
 - **Logging**: `src/utils/LogManager.h/.cpp` (installs a custom message handler for structured logging. **Creates one log file per run with timestamp in filename: `MediaDownloader_YYYY-MM-dd_HH-mm-ss.log`. Keeps up to 10 most recent log files, deleting older ones automatically**).
-- **Download Item Widget**: `src/ui/DownloadItemWidget.h/.cpp` (displays thumbnail preview on the left side of the progress bar, loaded from `thumbnail_path` in progress data; updates title from progress data; maintains left-side thumbnail preview requirement).
+- **Download Item Widget**: `src/ui/DownloadItemWidget.h/.cpp` (displays thumbnail preview on the left side of the progress bar, loaded from `thumbnail_path` in progress data; updates title from progress data; **uses custom `ProgressLabelBar` subclass that paints percentage, sizes, speed, and ETA centered directly on the progress bar**).
 
 ---
 

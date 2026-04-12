@@ -1,6 +1,5 @@
 #include "DownloadItemWidget.h"
 #include <QLabel>
-#include <QProgressBar>
 #include <QPushButton>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -8,7 +7,6 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QPixmap>
-#include <QMovie>
 
 DownloadItemWidget::DownloadItemWidget(const QVariantMap &itemData, QWidget *parent)
     : QWidget(parent), m_itemData(itemData) {
@@ -40,13 +38,8 @@ void DownloadItemWidget::setupUi() {
 
     m_statusLabel = new QLabel("Queued", this);
     m_statusLabel->setToolTip("Current status of this download.");
-    
-    m_progressDetailsLabel = new QLabel("", this);
-    m_progressDetailsLabel->setStyleSheet("QLabel { color: palette(shadow); font-size: 11px; }");
-    m_progressDetailsLabel->setWordWrap(true);
-    m_progressDetailsLabel->setToolTip("Detailed progress information including download speed, ETA, and file sizes.");
-    
-    m_progressBar = new QProgressBar(this);
+
+    m_progressBar = new ProgressLabelBar(this);
     m_progressBar->setRange(0, 100);
     m_progressBar->setValue(0);
     m_progressBar->setToolTip("Download progress.");
@@ -64,7 +57,6 @@ void DownloadItemWidget::setupUi() {
     infoLayout->addLayout(titleLayout);
     infoLayout->addWidget(m_statusLabel);
     infoLayout->addWidget(m_progressBar);
-    infoLayout->addWidget(m_progressDetailsLabel);
 
     m_pauseResumeButton = new QPushButton("Pause", this);
     m_pauseResumeButton->setToolTip("Pause or resume this download.");
@@ -125,54 +117,46 @@ void DownloadItemWidget::updateProgress(const QVariantMap &progressData) {
         if (progress < 0) {
             // Indeterminate state (queued/starting) - colorless/default
             m_progressBar->setRange(0, 0);
-            m_progressBar->setStyleSheet(""); // Reset to default (colorless)
-            m_progressDetailsLabel->clear();
+            m_progressBar->setStyleSheet("");
+            m_progressBar->setProgressText("");
         } else if (progress == 100) {
             // Progress complete - check if still post-processing
             QString status = progressData.value("status").toString();
-            if (status.contains("Processing", Qt::CaseInsensitive) || 
+            if (status.contains("Processing", Qt::CaseInsensitive) ||
                 status.contains("Merging", Qt::CaseInsensitive) ||
                 status.contains("Post", Qt::CaseInsensitive)) {
                 // Still in post-processing phase - teal
                 m_progressBar->setRange(0, 100);
                 m_progressBar->setValue(100);
                 m_progressBar->setStyleSheet("QProgressBar::chunk { background-color: #008080; }");
-                m_progressDetailsLabel->setText("Finalizing download...");
+                m_progressBar->setProgressText("Finalizing...");
             } else {
                 // Fully completed - green
                 m_progressBar->setRange(0, 100);
                 m_progressBar->setValue(100);
                 m_progressBar->setStyleSheet("QProgressBar::chunk { background-color: #22c55e; }");
-                m_progressDetailsLabel->clear();
+                m_progressBar->setProgressText("Complete");
             }
         } else {
             // Actively downloading - light blue
             m_progressBar->setRange(0, 100);
             m_progressBar->setValue(progress);
             m_progressBar->setStyleSheet("QProgressBar::chunk { background-color: #3b82f6; }");
-            
-            // Build detailed progress string
-            QStringList details;
-            
-            // Downloaded / Total size
+
+            // Build centered progress text: percentage + size + speed + ETA
+            QStringList parts;
+            parts << QString("%1%").arg(progress);
+
             if (progressData.contains("downloaded_size") && progressData.contains("total_size")) {
-                QString downloaded = progressData["downloaded_size"].toString();
-                QString total = progressData["total_size"].toString();
-                details << QString("%1 / %2").arg(downloaded, total);
+                parts << QString("%1/%2").arg(progressData["downloaded_size"].toString(), progressData["total_size"].toString());
             }
-            
-            // Speed
             if (progressData.contains("speed")) {
-                details << QString("Speed: %1").arg(progressData["speed"].toString());
+                parts << progressData["speed"].toString();
             }
-            
-            // ETA
             if (progressData.contains("eta")) {
-                details << QString("ETA: %1").arg(progressData["eta"].toString());
+                parts << QString("ETA %1").arg(progressData["eta"].toString());
             }
-            
-            // Set the progress details text
-            m_progressDetailsLabel->setText(details.join("  •  "));
+            m_progressBar->setProgressText(parts.join("  "));
         }
     }
     if (progressData.contains("thumbnail_path")) {
