@@ -12,11 +12,13 @@ The application ensures that only one instance can run at a time. This is achiev
 - **UI Layer (`src/ui/`):** Handles user interaction, input, and visual feedback using Qt Widgets.
   - **AdvancedSettingsTab navigation**: The left-side category list is a compact `QListWidget` whose stylesheet is rebuilt from `QPalette` values whenever the palette changes so it remains consistent with both light and dark themes.
   - **Runtime format selection**: Advanced Settings can defer the entire video/audio format decision until enqueue time by setting `Quality` to `Select at Runtime`; `DownloadManager` fetches format metadata and `MainWindow` presents `FormatSelectionDialog`, which enqueues one item per selected format.
+  - **Sorting Rule Dialog**: The dialog for creating/editing sorting rules uses a `QScrollArea` with `QVBoxLayout` instead of `QListWidget` for smooth pixel-level scrolling without item-snapping. The scroll area is capped at 150-400px height with 4px spacing between conditions. Condition widgets use a `CONDITION_VALUE_INPUT_HEIGHT` constant (100px) for consistent text entry sizing via `setFixedHeight()`. Dialog minimum size is 650x500px.
 - **Core Logic (`src/core/`):** Manages download queues, file operations, configuration, and external process execution.
 - **Utilities (`src/utils/`):** Provides helper functions for tasks like string manipulation and URL normalization.
 - **Extractor Domain Loader:** `YtDlpJsonParser` loads the extractor-domain list from the app directory for clipboard auto-paste checks in `StartTab`.
 - **Auto-paste Control:** `AdvancedSettingsTab` saves `General/auto_paste_on_focus`, and `MainWindow` reacts to app focus/hover to route clipboard URLs to `StartTab` when enabled.
-- **Bundled Binaries (`bin/`):** Contains the necessary executables (`yt-dlp.exe`, `ffmpeg.exe`, etc.).
+- **External Binaries:** Relies on user-installed binaries (`yt-dlp`, `ffmpeg`, `ffprobe`, `deno`, `gallery-dl`, `aria2c`) found in system paths or configured manually. **`deno` is used as the JavaScript runtime for yt-dlp's YouTube challenge solver (`--js-runtimes deno:...`).** The application includes `BinaryFinder` for startup discovery, `ProcessUtils` for runtime resolution, and `BinariesPage` for status/install UX.
+- **Qt SDK Discovery:** `CMakeLists.txt` auto-adds Qt search prefixes from `Qt6_DIR`/`QT_DIR`/`QTDIR` environment variables plus common Windows installs such as `C:\Qt\6.*\msvc2022_64`, which keeps CLion/Ninja configure steps working even when the IDE does not inherit a Qt kit path.
 
 ### 2.4 Window/Tray Lifecycle
 - The main window close action (`X`) performs an application exit after temp-file safety checks.
@@ -24,13 +26,14 @@ The application ensures that only one instance can run at a time. This is achiev
 
 ### 2.3 Data Flow
 1.  **Input:** User enters a URL in `StartTab`.
-2.  **Validation/Expansion:** `DownloadManager` validates the URL. If it's a playlist, `PlaylistExpander` expands it into individual items.
-3.  **Runtime Selection Gate:** If Advanced Settings quality is set to `Select at Runtime` for video/audio downloads, `DownloadManager` asynchronously fetches `yt-dlp` format metadata and `MainWindow` shows `FormatSelectionDialog`. Each selected format becomes its own queued item.
-4.  **Queue:** Valid URLs are added to a download queue managed by `DownloadManager`.
-5.  **Execution:** `DownloadManager` spawns a worker (`YtDlpWorker` or `GalleryDlWorker`) for each item.
-6.  **Progress:** The worker parses `stdout` and emits progress signals (`progressUpdated`, `speedChanged`, etc.).
-7.  **UI Update:** `ActiveDownloadsTab` receives signals and updates the corresponding progress bars, labels, and plays/displays a thumbnail preview on the left side of the download GUI element.
-8.  **Post-Processing:** Upon success, `DownloadManager` performs post-processing (e.g., embedding track numbers for audio playlists) and moves the file to the final output directory.
+2.  **Immediate Queue Feedback:** Download item appears instantly in Active Downloads tab with "Checking for playlist..." status. Item is added to `m_downloadQueue` immediately and tracked in `m_pendingExpansions` map.
+3.  **Validation/Expansion:** `PlaylistExpander` validates the URL and checks for playlists asynchronously. **PlaylistExpander now uses `YtDlpArgsBuilder` to construct the full yt-dlp command (including `--js-runtimes deno:...`, `--cookies-from-browser`, `--ffmpeg-location`, etc.) so playlist expansion matches the actual download configuration.**
+4.  **Runtime Selection Gate:** If Advanced Settings quality is set to `Select at Runtime` for video/audio downloads, `DownloadManager` asynchronously fetches `yt-dlp` format metadata and `MainWindow` shows `FormatSelectionDialog`. Each selected format becomes its own queued item.
+5.  **Queue Update:** For single videos, status updates from "Checking for playlist..." to "Queued". For playlists, placeholder is removed and individual track items are added.
+6.  **Execution:** `DownloadManager` spawns a worker (`YtDlpWorker` or `GalleryDlWorker`) for each item via deferred `QMetaObject::invokeMethod` call to avoid GUI thread blocking.
+7.  **Progress:** The worker parses native yt-dlp progress from `stderr` (`[download] XX.X% of YY.YMiB at ZZ.ZMiB/s ETA 0:00`) or aria2 progress (`[#XXXXX ...]`) and emits progress signals (`progressUpdated`, `speedChanged`, etc.). **YtDlpWorker includes diagnostic logging for process state changes, stderr/stdout data received, and progress parsing.**
+8.  **UI Update:** `ActiveDownloadsTab` receives signals and updates the corresponding progress bars, labels, and displays a thumbnail preview on the left side of the download GUI element. **Thumbnails are loaded from the `thumbnail_path` field in progress data, which is emitted by `YtDlpWorker` when yt-dlp converts the thumbnail during the download process.** Progress bars are color-coded: colorless (queued), light blue (downloading), teal (post-processing), green (completed). Detailed progress information (downloaded/total size, speed, ETA) is displayed below the progress bar.
+9.  **Post-Processing:** Upon success, `DownloadManager` performs post-processing (e.g., embedding track numbers for audio playlists) and moves the file to the final output directory. Queue state persistence is deferred via `Qt::QueuedConnection`.
 
 ## 3. Directory Structure
 
@@ -43,33 +46,29 @@ MediaDownloader/
 │   │   ├── ConfigManager.h/cpp   # Settings persistence (INI)
 │   │   ├── ArchiveManager.h/cpp  # Download history (SQLite)
 │   │   ├── DownloadManager.h/cpp # Queue & Lifecycle Management
-│   │   ├── YtDlpWorker.h/cpp     # yt-dlp Process Wrapper
+│   │   ├── YtDlpWorker.h/cpp     # yt-dlp Process Wrapper + progress parser (stderr)
+│   │   ├── PlaylistExpander.h/cpp # Playlist Expansion (uses YtDlpArgsBuilder)
+│   │   ├── YtDlpArgsBuilder.h/cpp # yt-dlp CLI argument construction
+│   │   ├── ProcessUtils.h/cpp    # Runtime binary resolution + process env helpers
 │   │   ├── GalleryDlWorker.h/cpp # gallery-dl Process Wrapper
-│   │   ├── PlaylistExpander.h/cpp # Playlist Expansion Logic
+│   │   ├── YtDlpJsonExtractor.h/cpp # yt-dlp --dump-json async extractor
+│   │   ├── FfmpegPostProcessor.h/cpp # ffmpeg muxing wrapper
 │   │   ├── SortingManager.h/cpp  # File Sorting Logic
 │   │   ├── AppUpdater.h/cpp      # Application Update Logic
-│   │   ├── YtDlpUpdater.h/cpp    # yt-dlp Update Logic
-│   │   ├── GalleryDlUpdater.h/cpp # gallery-dl Update Logic
-│   │   ├── Logger.h/cpp          # Structured Logging
 │   │   └── ...
 │   ├── ui/                     # User Interface (Qt Widgets)
-│   │   ├── MainWindow.h/cpp      # Main Window & Signal Hub
-│   │   ├── StartTab.h/cpp        # Input Tab
-│   │   ├── ActiveDownloadsTab.h/cpp # Progress Tab
-│   │   ├── AdvancedSettingsTab.h/cpp # Settings Tab
-│   │   ├── SortingTab.h/cpp      # Sorting Rules Tab
+│   │   ├── advanced_settings/
+│   │   │   ├── BinariesPage.h/cpp # External binary status + install actions
+│   │   ├── FormatSelectionDialog.h/cpp # Runtime format picker
+│   │   ├── RuntimeSelectionDialog.h/cpp # Runtime subtitle picker
+│   │   ├── DownloadItemWidget.h/cpp # Individual download item widget (displays thumbnail on left side of progress bar)
 │   │   └── ...
 │   └── utils/                  # Helper Modules
+│       ├── BinaryFinder.h/cpp    # Locates external binaries
 │       ├── StringUtils.h/cpp   # String/URL utilities
-│       ├── YtDlpJsonParser.h/cpp # Extractor-domain cache loader
+│       ├── ExtractorJsonParser.h/cpp # Extractor-domain cache loader
+│       ├── LogManager.h/cpp    # Structured logging, one file per run with timestamp
 │       └── ...
-├── bin/                        # External Binaries
-│   ├── yt-dlp.exe
-│   ├── ffmpeg.exe
-│   ├── ffprobe.exe
-│   ├── gallery-dl.exe
-│   ├── aria2c.exe
-│   └── deno.exe
 └── resources/                  # qrc resources (icons, extractor seed data, etc.)
 ```
 
@@ -92,21 +91,26 @@ MediaDownloader/
 ### 4.3 DownloadManager (`src/core/DownloadManager.h`)
 - **Responsibilities:**
   - Manages the download queue and enforces concurrency limits (`max_threads`).
+  - **Provides immediate UI feedback by emitting download items before playlist expansion completes.** Items are added to `m_downloadQueue` immediately and tracked in `m_pendingExpansions` map.
   - Intercepts runtime video/audio format-selection settings, fetches format metadata asynchronously, and re-enqueues one download per chosen format ID.
   - Handles the file lifecycle (Temp -> Final).
   - Uses `yt-dlp --print after_move:filepath` as the authoritative final output path source and moves files using Qt-native rename/copy fallback for Unicode-safe, cross-volume behavior.
   - Coordinates `YtDlpWorker` and `GalleryDlWorker` instances.
   - Handles playlist expansion via `PlaylistExpander`.
   - Performs post-processing (renaming, metadata embedding).
+  - **Defers queue state persistence (`saveQueueState`) and download initiation (`startNextDownload`) via `QMetaObject::invokeMethod` with `Qt::QueuedConnection` to prevent GUI thread blocking.** These methods MUST be declared as `Q_INVOKABLE` in the header file.
 
 ### 4.4 YtDlpWorker (`src/core/YtDlpWorker.h`)
 - **Responsibilities:**
   - Executes `yt-dlp` commands using `QProcess`.
-  - Resolves bundled `yt-dlp.exe` from both app-root and `bin/` deployment layouts.
+  - Resolves `yt-dlp` through configured overrides, system discovery, or bundled fallback paths.
   - Forces UTF-8 process I/O environment (`PYTHONUTF8`, `PYTHONIOENCODING`) to preserve Unicode output text.
   - Emits explicit failure results when `QProcess` cannot start, preventing stuck in-progress UI states.
-  - Parses `stdout` for progress percentage, speed, ETA, and JSON metadata.
-  - Captures `stderr` for error reporting.
+  - **Parses native yt-dlp progress from `stderr`** (`[download] XX.X% of YY.YMiB at ZZ.ZMiB/s ETA 0:00`) and aria2c progress (`[#XXXXX ...]`) for progress percentage, speed, ETA, and metadata. **Progress lines are matched directly against the `[download]` prefix (no `download:` URL scheme stripping).**
+  - Captures `stderr` for error reporting and progress. Captures `stdout` for the final file path (`--print after_move:filepath`).
+  - **Caches full metadata from `info.json`** in `m_fullMetadata` when `readInfoJsonWithRetry()` successfully parses the file, ensuring all fields (uploader, channel, tags, etc.) are available for sorting rule evaluation when the download completes.
+  - Includes diagnostic logging for process state changes, stderr/stdout data received, and progress parsing.
+  - Reads `info.json` via a retry mechanism (up to 5 attempts with 500ms delays) to extract video title and metadata.
 
 ### 4.5 YtDlpUpdater (`src/core/YtDlpUpdater.h`)
 - **Responsibilities:**
@@ -114,15 +118,30 @@ MediaDownloader/
   - Downloads and replaces the `yt-dlp.exe` binary.
   - Fetches and emits the current `yt-dlp` version.
 
+### 4.5b PlaylistExpander (`src/core/PlaylistExpander.h`)
+- **Responsibilities:**
+  - Expands playlist URLs into individual video entries using `yt-dlp --flat-playlist --dump-single-json`.
+  - **Uses `YtDlpArgsBuilder` to construct the full yt-dlp command**, ensuring playlist expansion includes the same configuration as actual downloads: `--js-runtimes deno:...`, `--cookies-from-browser`, `--ffmpeg-location`, `--windows-filenames`, etc.
+  - Removes download-specific args (format selection, output template, embedding options) and adds `--no-download` to avoid fetching actual media during expansion.
+  - Emits `playlistDetected` signal when a multi-item playlist is found and the user's playlist logic is set to "Ask".
+
 ### 4.6 SortingManager (`src/core/SortingManager.h`)
 - **Responsibilities:**
   - Evaluates user-defined sorting rules against video metadata.
   - Replaces dynamic tokens (e.g., `{uploader}`) in destination paths.
 
-### 4.7 Logger (`src/core/Logger.h`)
+### 4.7 LogManager (`src/utils/LogManager.h`)
 - **Responsibilities:**
-  - Installs a Qt message handler to capture debug output.
-  - Writes logs to a rotating file (`MediaDownloader.log`).
+  - Installs a custom Qt message handler to capture debug output.
+  - Writes logs to `%LOCALAPPDATA%\MediaDownloader\MediaDownloader_YYYY-MM-dd_HH-mm-ss.log` (or equivalent platform-specific config directory), alongside `settings.ini`.
+  - **One log file per run:** Each application startup creates a new log file with a timestamp in the filename.
+  - Implements **automatic cleanup on startup:** keeps only the 10 most recent log files, deleting older ones to prevent unbounded disk growth.
+  - Designed for **NSIS release deployment**: logs are stored in user data directories, not the installation directory, ensuring they persist across application updates.
+
+### 4.8 YtDlpArgsBuilder (`src/core/YtDlpArgsBuilder.h`)
+- **Responsibilities:**
+  - Constructs the full `yt-dlp` command-line arguments from `ConfigManager` settings and per-download options.
+  - Handles format selection (codec mapping, quality constraints, runtime selection override), output templates, subtitle configuration, metadata/thumbnail embedding, JS runtime (`deno`), cookie extraction, and rate limiting.
 
 ## 5. Concurrency Model
 - **GUI Thread:** The main thread handles all UI updates and user interactions. **No blocking operations are allowed on this thread.**
@@ -130,7 +149,9 @@ MediaDownloader/
 
 ## 6. Deployment
 - **Build System:** CMake.
+- **Qt Configure Resilience:** The build should succeed in IDE-driven configure runs by auto-detecting common Windows Qt SDK locations before `find_package(Qt6 ...)` executes.
 - **Installer:** NSIS will be used to create a Windows installer (`MediaDownloader-Setup.exe`).
 - **Executable Name:** The final executable will be named `MediaDownloader.exe` to ensure a seamless update from the Python version.
 - **Bundling:** All dependencies (Qt runtime DLLs, binaries) will be included in the installation directory.
 - **Qt Image Format Plugins:** Windows deployments must include the required `plugins/imageformats` codecs for active-download artwork and converted thumbnails, including `qjpeg`, `qpng`, `qwebp`, and `qico` (plus debug variants when available).
+- **User Data Preservation:** The NSIS installer MUST NOT overwrite user data files (`settings.ini`, `download_archive.db`, or log files). These are stored in platform-specific user data directories (e.g., `%APPDATA%` on Windows), separate from the installation directory, ensuring they persist across application updates.

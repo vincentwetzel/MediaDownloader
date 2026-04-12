@@ -56,6 +56,12 @@ Agents MUST preserve and respect the following behaviors from the original Pytho
     - Estimated time remaining (e.g., "ETA: 0:12")
   - Information MUST be separated by bullet points (•) for readability
   - All progress data (speed, ETA, sizes) MUST be emitted by workers and parsed from both native yt-dlp and aria2c output
+- **Immediate Queue UI Feedback**: Downloads MUST appear in the Active Downloads tab immediately when queued, without waiting for playlist expansion or validation:
+  - Gallery downloads appear instantly with "Queued" status
+  - Video/audio downloads appear instantly with "Checking for playlist..." status during playlist expansion
+  - Single videos update to "Queued" once expansion completes
+  - Playlists remove the placeholder and add individual items for each track
+  - Queue state persistence (`saveQueueState`) MUST be deferred via `Qt::QueuedConnection` to avoid blocking the GUI thread
 
 ---
 
@@ -80,7 +86,7 @@ The project follows a **modular, separation-of-concerns design** using C++ and Q
 - `FormatSelectionDialog.h/.cpp` - Runtime format picker; displays `yt-dlp --dump-json` format data in a table, allows multi-selection/custom IDs, and each selected format is enqueued as a separate download. **This dialog is the sole place where runtime video/audio format decisions are made once Advanced Settings quality is set to `Select at Runtime`.**
 - `RuntimeSelectionDialog.h/.cpp` - Runtime subtitle picker; currently used for subtitle-at-runtime selection sourced from extractor metadata.
 - `SortingTab.h/.cpp` - UI for managing file sorting rules. **Now uses a `QTableWidget` to display rules in a grid with columns for Priority, Type, Condition, Target Path, and Subfolder.**
-- `SortingRuleDialog.h/.cpp` - Dialog for creating and editing sorting rules. **Refactored to include a "Remove" button for each condition, improving usability, and now features a multi-line text input for values with a reduced minimum height of 60 pixels. Also includes "Greater Than" and "Less Than" operators, dynamically enabled/disabled based on the selected field. "Is One Of" condition values are now sorted alphabetically when the dialog is accepted.**
+- `SortingRuleDialog.h/.cpp` - Dialog for creating and editing sorting rules. **Uses QScrollArea with QVBoxLayout instead of QListWidget for smooth pixel-level scrolling (no item-snapping). Conditions are added directly to a vertical layout inside the scroll area. The dialog has a minimum size of 650x500. Multi-line text inputs use a fixed height of 100px controlled by the `CONDITION_VALUE_INPUT_HEIGHT` constant for consistent sizing. Also includes "Greater Than" and "Less Than" operators, dynamically enabled/disabled based on the selected field. "Is One Of" condition values are now sorted alphabetically when the dialog is accepted.**
 - `resources.qrc` - Qt Resource file for embedding assets like images.
 
 ### Core Logic (`src/core/`)
@@ -111,7 +117,7 @@ The project follows a **modular, separation-of-concerns design** using C++ and Q
 - **Settings/Config**: `src/core/ConfigManager.h/.cpp` (handles `settings.ini` I/O, emits `settingChanged` signal, ensures `output_template` is a filename template, `temporary_downloads_directory` is correctly set, and rewrites `settings.ini` to remove legacy/duplicate keys such as `[%General]` and old `Video` aliases while ensuring all settings (including `SortingRules`) are preserved).
 - **Download Archive**: `src/core/ArchiveManager.h/.cpp` (handles `download_archive.db` I/O).
 - **URL Validation**: `src/core/DownloadManager.h/.cpp`.
-- **Download Queue**: `src/core/DownloadManager.h/.cpp`.
+- **Download Queue**: `src/core/DownloadManager.h/.cpp`. **Provides immediate UI feedback by emitting download items before playlist expansion completes. Single videos show "Checking for playlist..." status which updates to "Queued" once expansion finishes. Gallery downloads appear instantly. Queue state persistence (`saveQueueState`) is deferred via `Qt::QueuedConnection` to avoid blocking the GUI thread.**
 - **Playlist Expansion**: `src/core/PlaylistExpander.h/.cpp` (uses `YtDlpArgsBuilder` for full command construction including deno, cookies, ffmpeg path).
 - **Process Execution (`aria2c`)**: `src/Aria2Daemon.h/.cpp` and `src/Aria2DownloadWorker.h/.cpp`.
 - **Process Execution (`yt-dlp`/`ffmpeg`)**: `src/YtDlpJsonExtractor.h/.cpp` and `src/FfmpegPostProcessor.h/.cpp` (asynchronous metadata and muxing).
@@ -156,7 +162,7 @@ The project follows a **modular, separation-of-concerns design** using C++ and Q
 - **Extractor Loader**: `src/utils/ExtractorJsonParser.h/.cpp` (loads extractor domains from the app directory for clipboard checks).
 - **Download Statistics Display**: `src/ui/MainWindow.h/.cpp` (labels for queued, active, completed counts).
 - **Initial Directory Setup**: `src/ui/MainWindow.h/.cpp` (prompts user for download directories on first launch).
-- **Logging**: `src/utils/LogManager.h/.cpp` (installs a custom message handler for structured logging with log rotation).
+- **Logging**: `src/utils/LogManager.h/.cpp` (installs a custom message handler for structured logging. **Creates one log file per run with timestamp in filename: `MediaDownloader_YYYY-MM-dd_HH-mm-ss.log`. Keeps up to 10 most recent log files, deleting older ones automatically**).
 - **Download Item Widget**: `src/ui/DownloadItemWidget.h/.cpp` (displays thumbnail preview on the left side of the progress bar, loaded from `thumbnail_path` in progress data; updates title from progress data; maintains left-side thumbnail preview requirement).
 
 ---
@@ -205,6 +211,7 @@ Agents MUST NOT:
 - **Update `SPEC.md`, `ARCHITECTURE.MD`, and `TODO.md`** to reflect any changes to functional requirements, system design, or pending tasks.
 - **Discard Invalid Settings**: If any setting loaded from `settings.ini` does not match the current application's expected format, it MUST be discarded and replaced with the default value. The application MUST NOT attempt to migrate or interpret legacy formats.
 - **Update Documentation on Functional Changes**: When you make changes to how the app works (e.g., progress parsing, download pipeline, UI behavior, configuration, external binary handling), you MUST update the relevant MD documentation files (`AGENTS.md`, `SPEC.md`, `ARCHITECTURE.md`, `TODO.md`, `CHANGELOG.md`) to reflect the new behavior. This is a mandatory requirement - do not leave documentation out of sync with the code.
+- **Use Q_INVOKABLE for Deferred Calls**: Methods called via `QMetaObject::invokeMethod` with `Qt::QueuedConnection` MUST be declared as `Q_INVOKABLE` in the header file, even if they are in the `private` or `private slots` sections. Without this, the invocation will fail silently at runtime with a warning like `No such method DownloadManager::saveQueueState()`.
 
 ### You MUST NOT:
 - Change the format of `settings.ini` or the schema of `download_archive.db`.

@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased] - YYYY-MM-DD
 
 ### Added
+- **Immediate queue UI feedback**: Downloads now appear instantly in the Active Downloads tab without waiting for playlist expansion:
+  - Gallery downloads appear immediately with "Queued" status
+  - Video/audio downloads show "Checking for playlist..." during expansion, then update to "Queued"
+  - Playlists replace the placeholder with individual track items
+  - Queue state persistence deferred via `Qt::QueuedConnection` to prevent GUI blocking
 - **Color-coded progress bars**: Download progress bars now use color-coding to provide clear visual feedback on download state:
   - Colorless/default when queued or initializing
   - Light blue (#3b82f6) while actively downloading
@@ -42,6 +47,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Flattened AppData directory structure**: Removed duplicate organization name in `main.cpp` so app data is stored in `%LOCALAPPDATA%\MediaDownloader\` instead of `%LOCALAPPDATA%\MediaDownloader\MediaDownloader\`.
 
 ### Fixed
+- **Sorting Rule dialog smooth scrolling**: Replaced `QListWidget` with `QScrollArea` + `QVBoxLayout` for smooth pixel-level scrolling without item-snapping when multiple conditions overflow the dialog.
+- **Sorting Rule dialog condition text entry size**: Set `CONDITION_VALUE_INPUT_HEIGHT` constant to 100px applied via `setFixedHeight()` for consistent text entry sizing across all conditions.
+- **Sorting Rule dialog overflow**: Fixed condition text entry boxes exceeding dialog bounds. Increased dialog minimum size to 650x500.
+- **Download queue immediate start fix**: Fixed downloads failing to start after immediate queue UI feedback implementation. Items are now correctly added to the download queue before playlist expansion, and `saveQueueState`/`startNextDownload` are properly invokable for deferred execution.
+- **Log cycling**: Changed from size-based rotation to one log file per run with timestamp in filename (`MediaDownloader_YYYY-MM-dd_HH-mm-ss.log`). Automatically keeps only the 10 most recent logs.
 - **Toggle switches not displaying correctly**: Fixed `ToggleSwitch` widget not updating its visual position when `setChecked()` was called with `QSignalBlocker`. The `paintEvent()` now ensures the handle offset matches the checked state.
 - **gallery-dl executable not detected after pip install**: `GalleryDlWorker` now uses `ProcessUtils::findBinary()` to resolve the gallery-dl executable, properly detecting system PATH installations (e.g., via pip) instead of only checking bundled paths.
 - **gallery-dl output template handling**: Simplified gallery-dl template handling. The `-f` flag natively supports path templates with `/` separators, so no splitting is needed.

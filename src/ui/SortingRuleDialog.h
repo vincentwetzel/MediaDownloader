@@ -4,9 +4,10 @@
 #include <QDialog>
 #include <QComboBox>
 #include <QLineEdit>
-#include <QListWidget>
+#include <QScrollArea>
 #include <QVariantMap>
 #include <QPushButton>
+#include <QVBoxLayout>
 
 class SortingRuleDialog : public QDialog
 {
@@ -35,7 +36,9 @@ private:
     QLineEdit *m_subfolderPatternInput;
     QComboBox *m_tokenDropdown;
     QComboBox *m_appliesToDropdown;
-    QListWidget *m_conditionsList;
+    QScrollArea *m_conditionsScrollArea;
+    QWidget *m_conditionsContainer;
+    QVBoxLayout *m_conditionsLayout;
     QPushButton *m_addConditionButton;
 };
 

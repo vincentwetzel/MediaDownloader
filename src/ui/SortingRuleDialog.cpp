@@ -16,26 +16,41 @@
 #include <QStackedWidget>
 #include <QLineEdit>
 #include <QDir>
+#include <QSizePolicy>
+#include <QScrollArea>
+
+// CONSTANT: Height for condition text entry boxes
+static const int CONDITION_VALUE_INPUT_HEIGHT = 100;
 
 // A simple widget for editing a single condition
 class ConditionWidget : public QWidget {
 public:
     ConditionWidget(QWidget *parent = nullptr) : QWidget(parent) {
         QVBoxLayout *mainLayout = new QVBoxLayout(this);
+        mainLayout->setContentsMargins(0, 0, 0, 0);
+        mainLayout->setSpacing(2);
+        
         QHBoxLayout *topLayout = new QHBoxLayout();
+        topLayout->setSpacing(4);
 
         m_fieldCombo = new QComboBox(this);
         m_fieldCombo->addItems({"Uploader", "Title", "Playlist Title", "Duration (seconds)", "Album", "ID"});
         m_fieldCombo->setToolTip("Select the metadata field to examine.");
+        m_fieldCombo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
 
         m_operatorCombo = new QComboBox(this);
         m_operatorCombo->setToolTip("Select the comparison operator.");
+        m_operatorCombo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
         // Items will be populated by onFieldChanged
 
         m_valueInputSingle = new QLineEdit(this);
+        m_valueInputSingle->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        m_valueInputSingle->setFixedHeight(CONDITION_VALUE_INPUT_HEIGHT);
+        
         m_valueInputMulti = new QTextEdit(this);
         m_valueInputMulti->setAcceptRichText(false);
-        m_valueInputMulti->setMinimumHeight(60);
+        m_valueInputMulti->setFixedHeight(CONDITION_VALUE_INPUT_HEIGHT);
+        m_valueInputMulti->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
         m_valueStackedWidget = new QStackedWidget(this);
         m_valueStackedWidget->addWidget(m_valueInputSingle);
@@ -43,6 +58,7 @@ public:
 
         topLayout->addWidget(m_fieldCombo);
         topLayout->addWidget(m_operatorCombo);
+        topLayout->addStretch();
 
         mainLayout->addLayout(topLayout);
         mainLayout->addWidget(m_valueStackedWidget);
@@ -164,7 +180,7 @@ SortingRuleDialog::SortingRuleDialog(const QVariantMap &rule, QWidget *parent) :
 
 void SortingRuleDialog::setupUI() {
     setWindowTitle("Sorting Rule");
-    setMinimumWidth(500);
+    setMinimumSize(650, 500);
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
     QFormLayout *formLayout = new QFormLayout();
 
@@ -212,9 +228,22 @@ void SortingRuleDialog::setupUI() {
     conditionsHeaderLayout->addWidget(m_addConditionButton);
     mainLayout->addLayout(conditionsHeaderLayout);
 
-    m_conditionsList = new QListWidget(this);
-    m_conditionsList->setToolTip("Add one or more conditions. A download must match ALL of them for this rule to apply.");
-    mainLayout->addWidget(m_conditionsList);
+    // Use QScrollArea for smooth pixel-level scrolling instead of QListWidget's item-snapping
+    m_conditionsScrollArea = new QScrollArea(this);
+    m_conditionsScrollArea->setWidgetResizable(true);
+    m_conditionsScrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_conditionsScrollArea->setMinimumHeight(150);
+    m_conditionsScrollArea->setMaximumHeight(400);
+    m_conditionsScrollArea->setToolTip("Add one or more conditions. A download must match ALL of them for this rule to apply.");
+
+    m_conditionsContainer = new QWidget();
+    m_conditionsLayout = new QVBoxLayout(m_conditionsContainer);
+    m_conditionsLayout->setContentsMargins(0, 0, 0, 0);
+    m_conditionsLayout->setSpacing(4);
+    m_conditionsLayout->addStretch(); // Push conditions to top
+
+    m_conditionsScrollArea->setWidget(m_conditionsContainer);
+    mainLayout->addWidget(m_conditionsScrollArea);
 
     QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
     connect(buttonBox, &QDialogButtonBox::accepted, this, &SortingRuleDialog::accept);
@@ -240,7 +269,13 @@ void SortingRuleDialog::setRule(const QVariantMap &rule) {
         m_appliesToDropdown->setCurrentText(rule["applies_to"].toString());
     }
 
-    m_conditionsList->clear();
+    // Clear existing conditions (remove all but the stretch)
+    while (m_conditionsLayout->count() > 1) {
+        QLayoutItem *item = m_conditionsLayout->takeAt(0);
+        if (item->widget()) item->widget()->deleteLater();
+        delete item;
+    }
+
     QVariantList conditions = rule["conditions"].toList();
     for (const QVariant &condVariant : conditions) {
         addCondition(condVariant.toMap());
@@ -255,13 +290,15 @@ QVariantMap SortingRuleDialog::getRule() const {
     rule["applies_to"] = m_appliesToDropdown->currentText();
 
     QVariantList conditions;
-    for (int i = 0; i < m_conditionsList->count(); ++i) {
-        QListWidgetItem *item = m_conditionsList->item(i);
-        QWidget* itemWidget = m_conditionsList->itemWidget(item);
-        for (QObject* child : itemWidget->children()) {
-            if (auto widget = dynamic_cast<ConditionWidget*>(child)) {
-                conditions.append(widget->getCondition());
-                break;
+    // Iterate through layout containers (skip the stretch at the end)
+    for (int i = 0; i < m_conditionsLayout->count() - 1; ++i) {
+        QLayoutItem *item = m_conditionsLayout->itemAt(i);
+        if (auto container = item->widget()) {
+            for (QObject *child : container->children()) {
+                if (auto conditionWidget = dynamic_cast<ConditionWidget*>(child)) {
+                    conditions.append(conditionWidget->getCondition());
+                    break;
+                }
             }
         }
     }
@@ -279,34 +316,30 @@ void SortingRuleDialog::browseTargetFolder() {
 }
 
 void SortingRuleDialog::addCondition(const QVariantMap &condition) {
-    QListWidgetItem *listItem = new QListWidgetItem(m_conditionsList);
-
-    QWidget *containerWidget = new QWidget(m_conditionsList);
-    QHBoxLayout *hbox = new QHBoxLayout(containerWidget);
-    hbox->setContentsMargins(2, 2, 2, 2);
-
-    ConditionWidget *conditionWidget = new ConditionWidget(containerWidget);
+    ConditionWidget *conditionWidget = new ConditionWidget(m_conditionsContainer);
     if (!condition.isEmpty()) {
         conditionWidget->setCondition(condition);
     }
 
-    QPushButton *removeButton = new QPushButton("Remove", containerWidget);
+    QPushButton *removeButton = new QPushButton("Remove");
     removeButton->setStyleSheet("color: red;");
     removeButton->setToolTip("Remove this condition.");
+    removeButton->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 
-    hbox->addWidget(conditionWidget);
+    QHBoxLayout *hbox = new QHBoxLayout();
+    hbox->setContentsMargins(2, 2, 2, 2);
+    hbox->setSpacing(4);
+    hbox->addWidget(conditionWidget, 1);
     hbox->addWidget(removeButton);
 
+    QWidget *containerWidget = new QWidget(m_conditionsContainer);
     containerWidget->setLayout(hbox);
-    listItem->setSizeHint(containerWidget->sizeHint());
 
-    m_conditionsList->addItem(listItem);
-    m_conditionsList->setItemWidget(listItem, containerWidget);
+    // Insert before the stretch
+    m_conditionsLayout->insertWidget(m_conditionsLayout->count() - 1, containerWidget);
 
-    connect(removeButton, &QPushButton::clicked, this, [this, listItem]() {
-        int row = m_conditionsList->row(listItem);
-        m_conditionsList->takeItem(row);
-        delete listItem;
+    connect(removeButton, &QPushButton::clicked, this, [this, containerWidget]() {
+        containerWidget->deleteLater();
     });
 }
 
@@ -325,19 +358,20 @@ void SortingRuleDialog::accept() {
     }
 
     // Sort "Is One Of" values alphabetically
-    for (int i = 0; i < m_conditionsList->count(); ++i) {
-        QListWidgetItem *item = m_conditionsList->item(i);
-        QWidget* itemWidget = m_conditionsList->itemWidget(item);
-        for (QObject* child : itemWidget->children()) {
-            if (auto conditionWidget = dynamic_cast<ConditionWidget*>(child)) {
-                if (conditionWidget->getOperatorText() == "Is One Of") {
-                    QStringList values = conditionWidget->getValueText().split('\n', Qt::SkipEmptyParts);
-                    std::sort(values.begin(), values.end(), [](const QString &s1, const QString &s2) {
-                        return s1.toLower() < s2.toLower(); // Using toLower() for case-insensitive comparison
-                    });
-                    conditionWidget->setValueText(values.join('\n'));
+    for (int i = 0; i < m_conditionsLayout->count() - 1; ++i) {
+        QLayoutItem *item = m_conditionsLayout->itemAt(i);
+        if (auto container = item->widget()) {
+            for (QObject *child : container->children()) {
+                if (auto conditionWidget = dynamic_cast<ConditionWidget*>(child)) {
+                    if (conditionWidget->getOperatorText() == "Is One Of") {
+                        QStringList values = conditionWidget->getValueText().split('\n', Qt::SkipEmptyParts);
+                        std::sort(values.begin(), values.end(), [](const QString &s1, const QString &s2) {
+                            return s1.toLower() < s2.toLower();
+                        });
+                        conditionWidget->setValueText(values.join('\n'));
+                    }
+                    break;
                 }
-                break;
             }
         }
     }
