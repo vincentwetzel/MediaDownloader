@@ -35,23 +35,23 @@ void Aria2DownloadWorker::start(const QString& ytDlpPath, const QString& ffmpegP
     m_saveDir = saveDir;
     m_isCancelled = false;
 
-    emit statusTextChanged("Gathering metadata...");
-    
+    emit statusTextChanged("Extracting media information...");
+
     YtDlpArgsBuilder builder;
     QStringList extractionArgs = builder.build(configManager, url, options);
-    
+
     // Remove conflicting args for JSON extraction
     extractionArgs.removeAll("--print");
     extractionArgs.removeAll("after_move:filepath");
-    
+
     extractionArgs << "--dump-json";
-    
+
     m_extractor->extract(ytDlpPath, extractionArgs);
 }
 
 void Aria2DownloadWorker::onExtractionSuccess(const QString& title, const QString& thumbnailUrl, const QList<DownloadTarget>& targets, const QString& finalFilename, const QMap<QString, QString>& httpHeaders, const QVariantMap& metadata) {
     m_state = State::Downloading;
-    emit statusTextChanged("Starting download...");
+    emit statusTextChanged(QString("Downloading %1 segment(s)...").arg(targets.size()));
 
     m_title = title;
     m_thumbnailUrl = thumbnailUrl;
@@ -187,10 +187,10 @@ void Aria2DownloadWorker::onDownloadProgress(const QString& gid, qint64 complete
             // All parts downloaded! Move to next state.
             m_pollTimer->stop();
             m_state = State::PostProcessing;
-            
-            emit statusTextChanged("Merging files...");
+
+            emit statusTextChanged("Merging segments with ffmpeg...");
             emit progressUpdated(100, "Processing");
-            
+
             QString finalPath = QDir(m_saveDir).filePath(m_finalFileName);
             m_ffmpeg->merge(m_ffmpegPath, m_downloadedParts, finalPath, m_title, m_thumbnailPath, m_downloadedSubtitles);
         }

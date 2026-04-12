@@ -26,17 +26,37 @@ namespace {
     // Helper function for moving gallery-dl directories across different hard drives
     bool copyDirectoryRecursively(const QString &sourceDir, const QString &destDir) {
         QDir source(sourceDir);
-        if (!source.exists()) return false;
+        if (!source.exists()) {
+            qWarning() << "copyDirectoryRecursively: source does not exist:" << sourceDir;
+            return false;
+        }
         QDir dest(destDir);
-        if (!dest.exists()) dest.mkpath(".");
+        if (!dest.exists()) {
+            if (!dest.mkpath(".")) {
+                qWarning() << "copyDirectoryRecursively: failed to create dest dir:" << destDir;
+                return false;
+            }
+        }
         bool success = true;
         QFileInfoList entries = source.entryInfoList(QDir::NoDotAndDotDot | QDir::Dirs | QDir::Files);
         for (const QFileInfo &entry : entries) {
             QString srcPath = entry.absoluteFilePath();
             QString dstPath = dest.absoluteFilePath(entry.fileName());
-            if (entry.isDir()) success &= copyDirectoryRecursively(srcPath, dstPath);
-            else { if (QFile::exists(dstPath)) QFile::remove(dstPath); success &= QFile::copy(srcPath, dstPath); }
+            if (entry.isDir()) {
+                success &= copyDirectoryRecursively(srcPath, dstPath);
+            } else {
+                if (QFile::exists(dstPath)) {
+                    if (!QFile::remove(dstPath)) {
+                        qWarning() << "copyDirectoryRecursively: failed to remove existing file:" << dstPath;
+                    }
+                }
+                if (!QFile::copy(srcPath, dstPath)) {
+                    qWarning() << "copyDirectoryRecursively: failed to copy" << srcPath << "to" << dstPath;
+                    success = false;
+                }
+            }
         }
+        qDebug() << "copyDirectoryRecursively:" << (success ? "SUCCESS" : "FAILED") << "from" << sourceDir << "to" << destDir;
         return success;
     }
 }
@@ -592,7 +612,7 @@ void DownloadManager::proceedWithDownload() {
         GalleryDlArgsBuilder argsBuilder(m_configManager);
         QStringList args = argsBuilder.build(item.url, item.options);
 
-        GalleryDlWorker *worker = new GalleryDlWorker(item.id, args);
+        GalleryDlWorker *worker = new GalleryDlWorker(item.id, args, m_configManager);
         m_activeWorkers[item.id] = worker;
         m_activeItems[item.id] = item;
 
@@ -608,7 +628,7 @@ void DownloadManager::proceedWithDownload() {
         YtDlpArgsBuilder argsBuilder;
         QStringList args = argsBuilder.build(m_configManager, item.url, item.options);
 
-        YtDlpWorker *worker = new YtDlpWorker(item.id, args);
+        YtDlpWorker *worker = new YtDlpWorker(item.id, args, m_configManager);
         m_activeWorkers[item.id] = worker;
         m_activeItems[item.id] = item;
 
@@ -807,7 +827,7 @@ void DownloadManager::finalizeDownload(const QString &id, DownloadItem &item, co
     int stableCount = 0;
     int maxRetries = 20;
 
-    emit downloadProgress(id, {{"status", "Verifying file..."}});
+    emit downloadProgress(id, {{"status", "Verifying download completeness..."}});
 
     if (fileInfo.isFile()) {
         for (int i = 0; i < maxRetries; ++i) {
@@ -824,6 +844,8 @@ void DownloadManager::finalizeDownload(const QString &id, DownloadItem &item, co
             QCoreApplication::processEvents();
         }
     }
+    
+    emit downloadProgress(id, {{"status", "Applying sorting rules..."}});
 
     QString finalDir = m_sortingManager->getSortedDirectory(item.metadata, item.options);
     qDebug() << "finalDir from sorting:" << finalDir;
@@ -854,29 +876,73 @@ void DownloadManager::finalizeDownload(const QString &id, DownloadItem &item, co
     }
 
     if (item.options.value("type").toString() == "gallery") {
-        QDir tempDir(item.tempFilePath);
+        QString tempPath = QDir::fromNativeSeparators(item.tempFilePath);
+        QDir tempDir(tempPath);
+        if (!tempDir.exists()) {
+            qWarning() << "Gallery temp directory does not exist:" << item.tempFilePath;
+            emit downloadFinished(id, false, "Gallery download failed: temp directory missing.");
+            return;
+        }
+
         QFileInfoList entries = tempDir.entryInfoList(QDir::NoDotAndDotDot | QDir::Dirs | QDir::Files);
+        qDebug() << "Gallery download entries:" << entries.size() << "in" << tempPath;
+        for (const QFileInfo &entry : entries) {
+            qDebug() << "  Entry:" << entry.fileName() << (entry.isDir() ? "[dir]" : "[file]") << entry.absoluteFilePath();
+        }
+
         if (entries.size() == 1) {
-            // Move the single sub-directory to the final destination
             QFileInfo entry = entries.first();
-            QString newDestPath = QDir(finalDir).filePath(entry.fileName());
-            if (QDir().rename(entry.absoluteFilePath(), newDestPath)) {
-                ArchiveManager archive(m_configManager);
-                archive.addToArchive(item.url);
-                emit downloadFinalPathReady(id, newDestPath);
-                emit downloadFinished(id, true, "Gallery download completed and moved.");
-                m_completedDownloadsCount++;
-            } else {
-                qWarning() << "Direct rename failed for gallery, attempting recursive copy+remove from" << entry.absoluteFilePath() << "to" << newDestPath;
-                if (copyDirectoryRecursively(entry.absoluteFilePath(), newDestPath)) {
-                    QDir(entry.absoluteFilePath()).removeRecursively();
+            if (entry.isFile()) {
+                // gallery-dl downloaded a single file directly
+                QString newDestPath = QDir(finalDir).filePath(entry.fileName());
+                if (QFile::rename(entry.absoluteFilePath(), newDestPath)) {
                     ArchiveManager archive(m_configManager);
                     archive.addToArchive(item.url);
                     emit downloadFinalPathReady(id, newDestPath);
                     emit downloadFinished(id, true, "Gallery download completed and moved.");
                     m_completedDownloadsCount++;
                 } else {
-                    emit downloadFinished(id, false, "Gallery download completed, but failed to move directory across drives.");
+                    qDebug() << "Direct rename failed for gallery file, attempting copy+remove from" << entry.absoluteFilePath() << "to" << newDestPath;
+                    if (QFile::copy(entry.absoluteFilePath(), newDestPath)) {
+                        QFile::remove(entry.absoluteFilePath());
+                        ArchiveManager archive(m_configManager);
+                        archive.addToArchive(item.url);
+                        emit downloadFinalPathReady(id, newDestPath);
+                        emit downloadFinished(id, true, "Gallery download completed and moved.");
+                        m_completedDownloadsCount++;
+                    } else {
+                        emit downloadFinished(id, false, "Gallery download completed, but failed to move file to final destination. Check log for details.");
+                    }
+                }
+            } else {
+                // gallery-dl downloaded a directory (gallery or collection)
+                QString newDestPath = QDir(finalDir).filePath(entry.fileName());
+                if (QDir().rename(entry.absoluteFilePath(), newDestPath)) {
+                    ArchiveManager archive(m_configManager);
+                    archive.addToArchive(item.url);
+                    emit downloadFinalPathReady(id, newDestPath);
+                    emit downloadFinished(id, true, "Gallery download completed and moved.");
+                    m_completedDownloadsCount++;
+                } else {
+                    qDebug() << "Direct rename failed for gallery, attempting recursive copy+remove from" << entry.absoluteFilePath() << "to" << newDestPath;
+                    if (copyDirectoryRecursively(entry.absoluteFilePath(), newDestPath)) {
+                        if (QDir(entry.absoluteFilePath()).removeRecursively()) {
+                            ArchiveManager archive(m_configManager);
+                            archive.addToArchive(item.url);
+                            emit downloadFinalPathReady(id, newDestPath);
+                            emit downloadFinished(id, true, "Gallery download completed and moved.");
+                            m_completedDownloadsCount++;
+                        } else {
+                            qWarning() << "Failed to remove temp gallery directory:" << entry.absoluteFilePath();
+                            ArchiveManager archive(m_configManager);
+                            archive.addToArchive(item.url);
+                            emit downloadFinalPathReady(id, newDestPath);
+                            emit downloadFinished(id, true, "Gallery download completed (temp cleanup failed).");
+                            m_completedDownloadsCount++;
+                        }
+                    } else {
+                        emit downloadFinished(id, false, "Gallery download completed, but failed to copy files to final destination. Check log for details.");
+                    }
                 }
             }
         } else {
@@ -902,6 +968,8 @@ void DownloadManager::finalizeDownload(const QString &id, DownloadItem &item, co
             }
         }
     } else {
+        emit downloadProgress(id, {{"status", "Moving to final destination..."}});
+        
         if (QFile::exists(destPath) && !QFile::remove(destPath)) {
             qWarning() << "Failed to remove existing destination before move:" << destPath;
             emit downloadFinished(id, false, "Download completed, but failed to replace existing file.");
@@ -915,6 +983,7 @@ void DownloadManager::finalizeDownload(const QString &id, DownloadItem &item, co
         bool moved = QFile::rename(item.tempFilePath, destPath);
         if (!moved) {
             qWarning() << "Direct rename failed, attempting copy+remove from" << item.tempFilePath << "to" << destPath;
+            emit downloadProgress(id, {{"status", "Copying file to destination..."}});
             moved = QFile::copy(item.tempFilePath, destPath);
             if (moved) {
                 if (!QFile::remove(item.tempFilePath)) {

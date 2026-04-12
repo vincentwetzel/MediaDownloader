@@ -7,6 +7,8 @@
 #include <QDesktopServices>
 #include <QDir>
 #include <QFileInfo>
+#include <QPixmap>
+#include <QMovie>
 
 DownloadItemWidget::DownloadItemWidget(const QVariantMap &itemData, QWidget *parent)
     : QWidget(parent), m_itemData(itemData) {
@@ -24,12 +26,26 @@ QVariantMap DownloadItemWidget::getItemData() const {
 void DownloadItemWidget::setupUi() {
     QHBoxLayout *mainLayout = new QHBoxLayout(this);
 
+    // Thumbnail label on the left side
+    m_thumbnailLabel = new QLabel(this);
+    m_thumbnailLabel->setFixedSize(80, 60);
+    m_thumbnailLabel->setStyleSheet("QLabel { background-color: palette(mid); border-radius: 4px; }");
+    m_thumbnailLabel->setAlignment(Qt::AlignCenter);
+    m_thumbnailLabel->setToolTip("Thumbnail preview of the media being downloaded.");
+    m_thumbnailLabel->setScaledContents(false);
+
     m_titleLabel = new QLabel(m_itemData["url"].toString(), this);
     m_titleLabel->setWordWrap(true);
     m_titleLabel->setToolTip("The URL or title of the media being downloaded.");
 
     m_statusLabel = new QLabel("Queued", this);
     m_statusLabel->setToolTip("Current status of this download.");
+    
+    m_progressDetailsLabel = new QLabel("", this);
+    m_progressDetailsLabel->setStyleSheet("QLabel { color: palette(shadow); font-size: 11px; }");
+    m_progressDetailsLabel->setWordWrap(true);
+    m_progressDetailsLabel->setToolTip("Detailed progress information including download speed, ETA, and file sizes.");
+    
     m_progressBar = new QProgressBar(this);
     m_progressBar->setRange(0, 100);
     m_progressBar->setValue(0);
@@ -48,6 +64,7 @@ void DownloadItemWidget::setupUi() {
     infoLayout->addLayout(titleLayout);
     infoLayout->addWidget(m_statusLabel);
     infoLayout->addWidget(m_progressBar);
+    infoLayout->addWidget(m_progressDetailsLabel);
 
     m_pauseResumeButton = new QPushButton("Pause", this);
     m_pauseResumeButton->setToolTip("Pause or resume this download.");
@@ -83,6 +100,7 @@ void DownloadItemWidget::setupUi() {
     moveLayout->setContentsMargins(0, 0, 5, 0);
 
     mainLayout->insertLayout(0, moveLayout);
+    mainLayout->addWidget(m_thumbnailLabel);
     mainLayout->addLayout(infoLayout, 1);
     mainLayout->addLayout(buttonLayout);
 
@@ -105,12 +123,81 @@ void DownloadItemWidget::updateProgress(const QVariantMap &progressData) {
     if (progressData.contains("progress")) {
         int progress = progressData["progress"].toInt();
         if (progress < 0) {
-            m_progressBar->setRange(0, 0); // Indeterminate
+            // Indeterminate state (queued/starting) - colorless/default
+            m_progressBar->setRange(0, 0);
+            m_progressBar->setStyleSheet(""); // Reset to default (colorless)
+            m_progressDetailsLabel->clear();
+        } else if (progress == 100) {
+            // Progress complete - check if still post-processing
+            QString status = progressData.value("status").toString();
+            if (status.contains("Processing", Qt::CaseInsensitive) || 
+                status.contains("Merging", Qt::CaseInsensitive) ||
+                status.contains("Post", Qt::CaseInsensitive)) {
+                // Still in post-processing phase - teal
+                m_progressBar->setRange(0, 100);
+                m_progressBar->setValue(100);
+                m_progressBar->setStyleSheet("QProgressBar::chunk { background-color: #008080; }");
+                m_progressDetailsLabel->setText("Finalizing download...");
+            } else {
+                // Fully completed - green
+                m_progressBar->setRange(0, 100);
+                m_progressBar->setValue(100);
+                m_progressBar->setStyleSheet("QProgressBar::chunk { background-color: #22c55e; }");
+                m_progressDetailsLabel->clear();
+            }
         } else {
+            // Actively downloading - light blue
             m_progressBar->setRange(0, 100);
             m_progressBar->setValue(progress);
+            m_progressBar->setStyleSheet("QProgressBar::chunk { background-color: #3b82f6; }");
+            
+            // Build detailed progress string
+            QStringList details;
+            
+            // Downloaded / Total size
+            if (progressData.contains("downloaded_size") && progressData.contains("total_size")) {
+                QString downloaded = progressData["downloaded_size"].toString();
+                QString total = progressData["total_size"].toString();
+                details << QString("%1 / %2").arg(downloaded, total);
+            }
+            
+            // Speed
+            if (progressData.contains("speed")) {
+                details << QString("Speed: %1").arg(progressData["speed"].toString());
+            }
+            
+            // ETA
+            if (progressData.contains("eta")) {
+                details << QString("ETA: %1").arg(progressData["eta"].toString());
+            }
+            
+            // Set the progress details text
+            m_progressDetailsLabel->setText(details.join("  •  "));
         }
     }
+    if (progressData.contains("thumbnail_path")) {
+        setThumbnail(progressData["thumbnail_path"].toString());
+    }
+}
+
+void DownloadItemWidget::setThumbnail(const QString &imagePath) {
+    if (imagePath.isEmpty()) {
+        return;
+    }
+    
+    QFileInfo fileInfo(imagePath);
+    if (!fileInfo.exists()) {
+        return;
+    }
+    
+    QPixmap pixmap(imagePath);
+    if (pixmap.isNull()) {
+        return;
+    }
+    
+    // Scale the pixmap to fit the label while maintaining aspect ratio
+    QPixmap scaled = pixmap.scaled(m_thumbnailLabel->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    m_thumbnailLabel->setPixmap(scaled);
 }
 
 void DownloadItemWidget::setFinalPath(const QString &path) {

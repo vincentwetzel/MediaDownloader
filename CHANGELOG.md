@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased] - YYYY-MM-DD
 
 ### Added
+- **Color-coded progress bars**: Download progress bars now use color-coding to provide clear visual feedback on download state:
+  - Colorless/default when queued or initializing
+  - Light blue (#3b82f6) while actively downloading
+  - Teal (#008080) during post-processing (merging, metadata embedding)
+  - Green (#22c55e) when download is fully completed
+- **Detailed progress information**: Download items now display comprehensive, real-time progress details comparable to command-line yt-dlp:
+  - Status label shows current download stage (e.g., "Extracting media information...", "Downloading 2 segment(s)...", "Merging segments with ffmpeg...", "Verifying download completeness...", "Applying sorting rules...", "Moving to final destination...")
+  - Progress details below the bar show: downloaded/total size, download speed, and ETA (e.g., "15.3 MiB / 45.7 MiB  •  Speed: 2.4 MiB/s  •  ETA: 0:12")
 - **Single Instance Enforcement**: The application now ensures only one instance can run at a time using `QSystemSemaphore` and `QSharedMemory`.
 - **C++ Port**: Initial release of the C++ version of MediaDownloader.
   - Re-implemented the entire application using C++ and Qt 6.
@@ -22,16 +30,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Asynchronous Engine**: Fully decoupled `yt-dlp` metadata extraction and `ffmpeg` post-processing into their own non-blocking workers to prevent UI freezes.
 - **Automatic Extractor Updates**: `YtDlpUpdater` now automatically regenerates `extractors_yt-dlp.json` using `yt-dlp --list-extractors` to keep auto-paste heuristics perfectly in sync with the binary.
 - **Playable Thumbnail Previews**: Added the ability to click on thumbnail previews in the Active Downloads tab to instantly open the completed media file in the OS default player.
+- **PlaylistExpander full command construction**: `PlaylistExpander` now uses `YtDlpArgsBuilder` to construct the full yt-dlp command (including `--js-runtimes deno:...`, `--cookies-from-browser`, `--ffmpeg-location`) so playlist expansion matches the actual download configuration. Resolves `n challenge solving failed` errors during playlist expansion.
+- **YtDlpWorker diagnostic logging**: Added comprehensive debug logging for process state changes, stderr/stdout data received, and progress parsing to aid in diagnosing download issues.
+- **Download thumbnail previews**: `DownloadItemWidget` now displays a thumbnail preview on the left side of each download item's progress bar. Thumbnails are loaded from the `thumbnail_path` field emitted by `YtDlpWorker` when yt-dlp converts the thumbnail during the download process.
+- **Logging to AppData**: Log files are now stored in the user's AppData configuration directory (`%LOCALAPPDATA%\MediaDownloader\MediaDownloader.log` on Windows), alongside `settings.ini`, instead of the application directory. This ensures logs are preserved across application updates and installations.
+- **Log rotation/cycling**: Implemented automatic log rotation with a maximum of 5 log files. When the current log exceeds 2 MB, it is rotated (`.log` → `.log.1` → `.log.2`, etc.), and the oldest log is automatically deleted. This prevents unbounded disk growth while preserving recent diagnostic history.
+- **Sorting rules metadata fix**: Fixed sorting rules not matching because `uploader` metadata was lost after `readInfoJsonWithRetry` cleared the info.json path. `YtDlpWorker` now caches the full metadata (`m_fullMetadata`) when info.json is successfully parsed, ensuring all fields (including `uploader`, `channel`, `tags`, etc.) are available for sorting rule evaluation when the download completes.
+- **Smart URL download type switching**: The Start tab now automatically detects which extractor (yt-dlp or gallery-dl) supports a pasted URL and switches the download type accordingly. If the URL is yt-dlp exclusive and "Gallery" is selected, it switches to "Video". If gallery-dl exclusive, it switches to "Gallery". If both or neither support it, no change is made.
+- **Binary path caching**: `ProcessUtils` now caches resolved binary paths after the first lookup to avoid repeated PATH scans. The cache is automatically cleared when binaries are installed or overridden via the Advanced Settings Binaries page.
+- **Expanded gallery-dl template tokens**: The Output Templates page now includes a comprehensive list of gallery-dl format tokens (including `{category}`, `{user}`, `{subcategory}`, `{author[...]}`, `{date}`, `{post[...]}`, `{media[...]}`, etc.) for easier filename template creation.
+- **Flattened AppData directory structure**: Removed duplicate organization name in `main.cpp` so app data is stored in `%LOCALAPPDATA%\MediaDownloader\` instead of `%LOCALAPPDATA%\MediaDownloader\MediaDownloader\`.
+
+### Fixed
+- **Toggle switches not displaying correctly**: Fixed `ToggleSwitch` widget not updating its visual position when `setChecked()` was called with `QSignalBlocker`. The `paintEvent()` now ensures the handle offset matches the checked state.
+- **gallery-dl executable not detected after pip install**: `GalleryDlWorker` now uses `ProcessUtils::findBinary()` to resolve the gallery-dl executable, properly detecting system PATH installations (e.g., via pip) instead of only checking bundled paths.
+- **gallery-dl output template handling**: Simplified gallery-dl template handling. The `-f` flag natively supports path templates with `/` separators, so no splitting is needed.
+- **gallery-dl default output template**: Changed the default gallery-dl filename pattern from `{author[name]}/{id}_{filename}.{extension}` to `{category}/{id}_{filename}.{extension}` for better organized downloads that work across all extractors.
+- **gallery-dl progress bar fix**: Fixed the gallery-dl download progress bar not updating. The worker now correctly parses the file path output from gallery-dl and displays the amber "downloading" color on the progress bar.
+- **gallery-dl single file move fix**: Fixed gallery downloads that produce a single file instead of a subdirectory. The app now correctly handles both files and directories when moving gallery downloads to their final destination.
 
 ### Changed
 - **Architecture**: Switched from Python/PyQt6 to C++/Qt6.
 - **Build System**: Switched from PyInstaller to CMake/MSVC.
 - **Extractor loading**: Replaced runtime `yt-dlp --eval` attempts with app-directory `extractors.json` loading.
+- **External binaries workflow**: The Advanced Settings binaries page now reports per-dependency status, preserves manual browse overrides, and offers package-manager or manual-download install actions for discovered/missing tools.
 
 ### Removed
 - **Unused SSL Libraries**: Removed `libssl-3-x64.dll` and `libcrypto-3-x64.dll` from the `bin/` directory to reduce distribution size, as Qt 6 natively uses the Windows SChannel backend.
 
 ### Fixed
+- **Qt6 package discovery in CLion/Ninja builds**: `CMakeLists.txt` now seeds `CMAKE_PREFIX_PATH` from `Qt6_DIR`/`QT_DIR`/`QTDIR` environment variables and common Windows installs such as `C:\Qt\6.*\msvc2022_64`, so `find_package(Qt6 ...)` works even when the IDE does not inherit a Qt kit path.
+- **Unbundled binary path consistency**: `BinariesPage`, `StartTab`, startup checks, and `YtDlpWorker` now resolve the same hyphenated binary config keys and use shared runtime detection instead of assuming bundled-only executables.
+- **Native yt-dlp progress parsing**: `YtDlpWorker` now parses native yt-dlp progress lines with approximate/unknown totals and keeps aria2-compatible progress updates, restoring download percentages and speed reporting when aria2 is unavailable or disabled.
 - **UI/Layout Resizing**: Fixed an issue where the main window could not be resized or snapped to half the screen due to rigid horizontal minimum width constraints in the footer, Start tab, and inactive background tabs.
 - **Misplaced runtime format controls on Start tab**: Removed the accidental per-download "Max Resolution", "Video Codec", and "Audio Codec" override dropdowns from `StartTab`; runtime video/audio selection is now documented and routed through Advanced Settings-driven dialogs instead.
 - **Mixed-mode Advanced Settings confusion**: Video and Audio Advanced Settings now treat `Quality = Select at Runtime` as a full runtime-selection mode and hide the remaining format-default controls on that page so users do not configure both workflows at once.

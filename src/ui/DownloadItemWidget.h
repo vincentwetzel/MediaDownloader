@@ -40,10 +40,13 @@ private slots:
 
 private:
     void setupUi();
+    void setThumbnail(const QString &imagePath);
 
     QVariantMap m_itemData;
+    QLabel *m_thumbnailLabel;
     QLabel *m_titleLabel;
     QLabel *m_statusLabel;
+    QLabel *m_progressDetailsLabel;
     QProgressBar *m_progressBar;
     QPushButton *m_clearButton;
     QPushButton *m_pauseResumeButton;

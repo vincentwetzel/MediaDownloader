@@ -1,4 +1,7 @@
 #include "YtDlpWorker.h"
+#include "core/ConfigManager.h"
+#include "core/ProcessUtils.h"
+
 #include <QDebug>
 #include <QRegularExpression>
 #include <QJsonDocument>
@@ -8,11 +11,10 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QFile>
-#include <QProcessEnvironment>
 #include <cmath> // For pow
 
-YtDlpWorker::YtDlpWorker(const QString &id, const QStringList &args, QObject *parent)
-    : QObject(parent), m_id(id), m_args(args), m_process(nullptr), m_finishEmitted(false), m_videoTitle(QString()),
+YtDlpWorker::YtDlpWorker(const QString &id, const QStringList &args, ConfigManager *configManager, QObject *parent)
+    : QObject(parent), m_id(id), m_args(args), m_configManager(configManager), m_process(nullptr), m_finishEmitted(false), m_videoTitle(QString()),
       m_thumbnailPath(QString()), m_infoJsonPath(QString()), m_infoJsonRetryCount(0) {
 
     m_process = new QProcess(this);
@@ -23,10 +25,14 @@ YtDlpWorker::YtDlpWorker(const QString &id, const QStringList &args, QObject *pa
 }
 
 void YtDlpWorker::start() {
-    const QString ytDlpPath = resolveExecutablePath("yt-dlp.exe");
-    if (ytDlpPath.isEmpty()) {
-        const QString message = QString("Download failed.\nBundled yt-dlp.exe was not found in '%1' or '%1/bin'.")
-                                    .arg(QCoreApplication::applicationDirPath());
+    qDebug() << "[YtDlpWorker] start() called for ID:" << m_id;
+    
+    // Clear any leftover state from previous downloads
+    m_fullMetadata.clear();
+
+    const ProcessUtils::FoundBinary ytDlpBinary = ProcessUtils::findBinary("yt-dlp", m_configManager);
+    if (ytDlpBinary.source == "Not Found" || ytDlpBinary.path.isEmpty()) {
+        const QString message = "Download failed.\nyt-dlp could not be found. Configure it in Advanced Settings -> External Binaries.";
         qWarning() << message;
         if (!m_finishEmitted) {
             m_finishEmitted = true;
@@ -35,16 +41,67 @@ void YtDlpWorker::start() {
         return;
     }
 
+    const QString ytDlpPath = ytDlpBinary.path;
     const QString workingDirPath = QFileInfo(ytDlpPath).absolutePath();
     m_process->setWorkingDirectory(workingDirPath);
-    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-    env.insert("PYTHONUTF8", "1");
-    env.insert("PYTHONIOENCODING", "utf-8");
-    m_process->setProcessEnvironment(env);
+    ProcessUtils::setProcessEnvironment(*m_process);
+    
+    // Force yt-dlp to emit progress to stdout, which it otherwise suppresses when
+    // not attached to a TTY. A `--progress-template` argument seems to have
+    // been used previously, but it is preventing any progress lines from being
+    // emitted. By adding --progress and removing the template, we fall back to
+    // yt-dlp's default progress line format, which the parser is designed to
+    // handle.
+    int pt_index = m_args.indexOf("--progress-template");
+    if (pt_index != -1) {
+        m_args.removeAt(pt_index); // remove flag
+        if (pt_index < m_args.size()) {
+            m_args.removeAt(pt_index); // remove value
+        }
+    }
+    if (!m_args.contains("--progress")) {
+        m_args.prepend("--progress");
+    }
 
-    qDebug() << "Starting yt-dlp with path:" << ytDlpPath << "and arguments:" << m_args;
+    qDebug() << "[YtDlpWorker] Binary path:" << ytDlpPath;
+    qDebug() << "[YtDlpWorker] Working directory:" << workingDirPath;
+    qDebug() << "[YtDlpWorker] Number of arguments:" << m_args.size();
+
+    qDebug() << "Starting yt-dlp with path:" << ytDlpPath << "source:" << ytDlpBinary.source << "and arguments:" << m_args;
     qDebug() << "Working directory set to:" << workingDirPath;
+
+    // Log full command for debugging
+    QString fullCommand = "\"" + ytDlpPath + "\"";
+    for (const QString &arg : m_args) {
+        if (arg.contains(' ')) {
+            fullCommand += " \"" + arg + "\"";
+        } else {
+            fullCommand += " " + arg;
+        }
+    }
+    qDebug() << "Full yt-dlp command:" << fullCommand;
+    
+    // Connect state change signals for diagnostics
+    connect(m_process, &QProcess::stateChanged, [this](QProcess::ProcessState state) {
+        qDebug() << "[YtDlpWorker] Process state changed to:" << state;
+    });
+    connect(m_process, &QProcess::errorOccurred, [this](QProcess::ProcessError error) {
+        qWarning() << "[YtDlpWorker] Process error occurred:" << error << m_process->errorString();
+    });
+    
+    qDebug() << "[YtDlpWorker] Calling m_process->start()...";
     m_process->start(ytDlpPath, m_args);
+    qDebug() << "[YtDlpWorker] start() returned. Process state:" << m_process->state() << "Process ID:" << m_process->processId();
+    
+    // Check if process started successfully
+    if (m_process->state() == QProcess::NotRunning) {
+        qWarning() << "[YtDlpWorker] ERROR: Process failed to start immediately!";
+        qWarning() << "[YtDlpWorker] Process error:" << m_process->error() << m_process->errorString();
+    } else if (m_process->state() == QProcess::Starting) {
+        qDebug() << "[YtDlpWorker] Process is starting...";
+    } else if (m_process->state() == QProcess::Running) {
+        qDebug() << "[YtDlpWorker] Process is running. PID:" << m_process->processId();
+    }
 }
 
 void YtDlpWorker::killProcess() {
@@ -106,28 +163,21 @@ void YtDlpWorker::onProcessFinished(int exitCode, QProcess::ExitStatus exitStatu
 
     QVariantMap metadata;
     if (success) {
-        // Final attempt to extract title from info.json if not already found
-        if ((m_videoTitle.isEmpty()) && !m_infoJsonPath.isEmpty()) {
-            qDebug() << "onProcessFinished: Attempting final title/thumbnail extraction.";
-            readInfoJsonWithRetry(); // This will try to read it one last time
-        }
-
-        // The metadata map is populated from the info.json file if available
-        // This block is for populating metadata for the finished signal, not for UI updates during download
-        if (!m_infoJsonPath.isEmpty()) {
-            QFile jsonFile(m_infoJsonPath);
-            if (jsonFile.exists() && jsonFile.open(QIODevice::ReadOnly)) {
-                QByteArray jsonData = jsonFile.readAll();
-                QJsonDocument doc = QJsonDocument::fromJson(jsonData);
-                if (doc.isObject()) {
-                    metadata = doc.object().toVariantMap();
-                    // Ensure m_videoTitle is consistent with what's in metadata
-                    if (metadata.contains("title")) {
-                        m_videoTitle = metadata["title"].toString();
-                    }
-                }
-                jsonFile.close();
+        // Use the full metadata that was already parsed from info.json during readInfoJsonWithRetry
+        if (!m_fullMetadata.isEmpty()) {
+            metadata = m_fullMetadata;
+            qDebug() << "onProcessFinished: Using cached metadata with" << metadata.size() << "keys. Keys:" << metadata.keys();
+            // Ensure m_videoTitle is consistent with what's in metadata
+            if (metadata.contains("title") && m_videoTitle.isEmpty()) {
+                m_videoTitle = metadata["title"].toString();
             }
+            if (metadata.contains("uploader")) {
+                qDebug() << "onProcessFinished: uploader from metadata:" << metadata["uploader"].toString();
+            } else {
+                qWarning() << "onProcessFinished: uploader NOT found in cached metadata!";
+            }
+        } else {
+            qWarning() << "onProcessFinished: No cached metadata available. Sorting rules may not work.";
         }
     }
 
@@ -166,11 +216,15 @@ void YtDlpWorker::onProcessError(QProcess::ProcessError error) {
 }
 
 void YtDlpWorker::onReadyReadStandardOutput() {
-    parseStandardOutput(m_process->readAllStandardOutput());
+    QByteArray data = m_process->readAllStandardOutput();
+    qDebug() << "[STDOUT] Received" << data.size() << "bytes:" << QString::fromUtf8(data).left(300);
+    parseStandardOutput(data);
 }
 
 void YtDlpWorker::onReadyReadStandardError() {
-    parseStandardError(m_process->readAllStandardError());
+    QByteArray data = m_process->readAllStandardError();
+    qDebug() << "[STDERR] Received" << data.size() << "bytes:" << QString::fromUtf8(data).left(300);
+    parseStandardError(data);
 }
 
 void YtDlpWorker::parseStandardOutput(const QByteArray &output) {
@@ -283,10 +337,19 @@ void YtDlpWorker::readInfoJsonWithRetry() {
     QJsonObject obj = doc.object();
     QVariantMap updateData;
 
+    // Store the full metadata for use in onProcessFinished
+    m_fullMetadata = obj.toVariantMap();
+
     if (m_videoTitle.isEmpty() && obj.contains("title") && obj["title"].isString()) {
         m_videoTitle = obj["title"].toString();
         updateData["title"] = m_videoTitle;
         qDebug() << "Extracted title from info.json:" << m_videoTitle;
+    }
+    
+    // Extract thumbnail path if available
+    if (obj.contains("thumbnail") && obj["thumbnail"].isString()) {
+        // Thumbnail will be downloaded by yt-dlp and we'll get the path
+        // from the command line arguments
     }
 
     if (!updateData.isEmpty()) {
@@ -295,26 +358,38 @@ void YtDlpWorker::readInfoJsonWithRetry() {
 }
 
 double YtDlpWorker::parseSizeStringToBytes(const QString &sizeString) {
-    QRegularExpression re(R"(^([\d\.]+)([KMGT]?iB)(?:/s)?$)");
-    QRegularExpressionMatch match = re.match(sizeString);
-
-    if (match.hasMatch()) {
-        double value = match.captured(1).toDouble();
-        QString unit = match.captured(2);
-
-        double ret = 0.0;
-        if (unit == "KiB")
-            ret = value * 1024;
-        if (unit == "MiB")
-            ret = value * 1024 * 1024;
-        if (unit == "GiB")
-         ret = value * 1024 * 1024 * 1024;
-        if (unit == "TiB")
-            ret = value * 1024 * 1024 * 1024 * 1024;
-        qDebug() << "Converted " << value << unit << " to " << ret << " bytes";
-        return ret;
+    const QString normalized = sizeString.trimmed().remove('~');
+    if (normalized.isEmpty() || normalized.startsWith("Unknown", Qt::CaseInsensitive)) {
+        return 0.0;
     }
-    return 0.0; // Return 0 for unparseable strings
+
+    static const QRegularExpression re(R"(^([\d\.]+)\s*([KMGTPE]?i?B)(?:/s)?$)", QRegularExpression::CaseInsensitiveOption);
+    const QRegularExpressionMatch match = re.match(normalized);
+    if (!match.hasMatch()) {
+        return 0.0;
+    }
+
+    const double value = match.captured(1).toDouble();
+    const QString unit = match.captured(2).toUpper();
+
+    static const QMap<QString, double> multipliers = {
+        {"B", 1.0},
+        {"KB", 1000.0},
+        {"MB", 1000.0 * 1000.0},
+        {"GB", 1000.0 * 1000.0 * 1000.0},
+        {"TB", 1000.0 * 1000.0 * 1000.0 * 1000.0},
+        {"PB", 1000.0 * 1000.0 * 1000.0 * 1000.0 * 1000.0},
+        {"KIB", 1024.0},
+        {"MIB", 1024.0 * 1024.0},
+        {"GIB", 1024.0 * 1024.0 * 1024.0},
+        {"TIB", 1024.0 * 1024.0 * 1024.0 * 1024.0},
+        {"PIB", 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0}
+    };
+
+    const double multiplier = multipliers.value(unit, 0.0);
+    const double bytes = value * multiplier;
+    qDebug() << "Converted" << value << unit << "to" << bytes << "bytes";
+    return bytes;
 }
 
 QString YtDlpWorker::formatBytes(double bytes) {
@@ -334,17 +409,18 @@ QString YtDlpWorker::formatBytes(double bytes) {
 }
 
 void YtDlpWorker::handleOutputLine(const QString &line) {
-    if (line.isEmpty()) {
+    const QString normalizedLine = normalizeConsoleLine(line);
+    if (normalizedLine.isEmpty()) {
         return;
     }
 
-    m_allOutputLines.append(line); // Store all output lines
+    m_allOutputLines.append(normalizedLine); // Store all output lines
 
-    emit outputReceived(m_id, line);
-    qDebug().noquote() << "yt-dlp (processed line):" << line;
+    emit outputReceived(m_id, normalizedLine);
+    qDebug().noquote() << "yt-dlp (processed line):" << normalizedLine;
 
     static QRegularExpression thumbnailRegex("\\[ThumbnailsConvertor\\] Converting thumbnail \"([^\"]+)\" to jpg");
-    QRegularExpressionMatch thumbnailMatch = thumbnailRegex.match(line);
+    QRegularExpressionMatch thumbnailMatch = thumbnailRegex.match(normalizedLine);
     if (thumbnailMatch.hasMatch()) {
         QString webpPath = thumbnailMatch.captured(1);
         m_thumbnailPath = QDir::toNativeSeparators(webpPath.replace(".webp", ".jpg"));
@@ -356,7 +432,7 @@ void YtDlpWorker::handleOutputLine(const QString &line) {
 
     // 1. Capture the info.json file path and store it, then initiate retry mechanism
     static QRegularExpression infoJsonRegex(R"(\[info\] Writing video metadata as JSON to:\s*(.*\.info\.json))");
-    QRegularExpressionMatch infoJsonMatch = infoJsonRegex.match(line);
+    QRegularExpressionMatch infoJsonMatch = infoJsonRegex.match(normalizedLine);
     if (infoJsonMatch.hasMatch()) {
         m_infoJsonPath = infoJsonMatch.captured(1).trimmed();
         // Normalize path separators if necessary, although QFile should handle it
@@ -366,92 +442,113 @@ void YtDlpWorker::handleOutputLine(const QString &line) {
         readInfoJsonWithRetry(); // Start the retry mechanism
     }
 
-    // Try to parse yt-dlp's --progress-template output first
-    if (line.startsWith("download:")) {
-        static QRegularExpression re(
-            R"(download:\[download\]\s+([\d\.]+%)\s+of\s+([\d\.]+[a-zA-Z]+)\s+at\s+([\d\.]+[a-zA-Z/s]+)\s+ETA\s+([\d:]+))"
-        );
-        QRegularExpressionMatch match = re.match(line);
-        if (match.hasMatch()) {
-            QVariantMap progressData;
-            QString percentStr = match.captured(1);
-            percentStr.remove('%');
-            double percentage = percentStr.toDouble();
-            double totalBytes = parseSizeStringToBytes(match.captured(2));
-
-            progressData["progress"] = percentage;
-            progressData["downloaded_size"] = formatBytes(totalBytes * (percentage / 100.0));
-            progressData["total_size"] = formatBytes(totalBytes);
-            progressData["speed"] = formatBytes(parseSizeStringToBytes(match.captured(3))) + "/s";
-            progressData["eta"] = match.captured(4);
-            if (!m_videoTitle.isEmpty()) {
-                progressData["title"] = m_videoTitle;
-            }
-            if (!m_thumbnailPath.isEmpty()) {
-                progressData["thumbnail_path"] = m_thumbnailPath;
-            }
-            emit progressUpdated(m_id, progressData);
-            qDebug() << "yt-dlp: Progress match found (yt-dlp template)!";
-        } else {
-            qDebug() << "yt-dlp: Progress line did not match yt-dlp template regex:" << line;
-        }
-    }
-    // If not yt-dlp's template, try to parse aria2c's raw output
-    else if (line.startsWith("[#") && (line.contains("MiB/") || line.contains("KiB/"))) { // Heuristic to quickly identify aria2c progress lines
-        static QRegularExpression ariaRe(
-            R"(\[#\w+\s+([\d\.]+[KMGT]?iB)/([\d\.]+[KMGT]?iB)\(([\d\.]+)%\)(?:\s+CN:\d+)?(?:\s+DL:([\d\.]+[KMGT]?iB(?:/s)?))?(?:\s+ETA:([\d\w:]+))?\])"
-        );
-        QRegularExpressionMatch ariaMatch = ariaRe.match(line);
-        if (ariaMatch.hasMatch()) {
-            QVariantMap progressData;
-            double downloadedBytes = parseSizeStringToBytes(ariaMatch.captured(1));
-            double totalBytes = parseSizeStringToBytes(ariaMatch.captured(2));
-
-            progressData["progress"] = ariaMatch.captured(3).toDouble(); // Percentage
-            progressData["downloaded_size"] = formatBytes(downloadedBytes); // Formatted downloaded size
-            progressData["total_size"] = formatBytes(totalBytes);         // Formatted total size
-
-            QString speedString = ariaMatch.captured(4);
-            double speedBytes = parseSizeStringToBytes(speedString);
-            progressData["speed"] = formatBytes(speedBytes) + "/s"; // Formatted speed
-
-            QString eta = ariaMatch.captured(5);
-            progressData["eta"] = eta.isEmpty() ? "N/A" : eta;                // ETA (can be empty)
-            if (!m_videoTitle.isEmpty()) {
-                progressData["title"] = m_videoTitle;
-            }
-            if (!m_thumbnailPath.isEmpty()) {
-                progressData["thumbnail_path"] = m_thumbnailPath;
-            }
-            emit progressUpdated(m_id, progressData);
-            qDebug() << "yt-dlp: Progress match found (aria2c raw)!";
-        } else {
-            qDebug() << "yt-dlp: Progress line did not match aria2c raw regex:" << line;
-        }
+    if (!parseYtDlpProgressLine(normalizedLine)) {
+        parseAria2ProgressLine(normalizedLine);
     }
 
 
-    if (line.startsWith("[download] Destination: ")) {
-        QString filename = line.mid(24).trimmed();
+    if (normalizedLine.startsWith("[download] Destination: ")) {
+        QString filename = normalizedLine.mid(24).trimmed();
         if (m_originalDownloadedFilename.isEmpty()) {
             m_originalDownloadedFilename = filename;
         }
     }
 }
 
-
-QString YtDlpWorker::resolveExecutablePath(const QString &name) const {
-    const QString appDir = QCoreApplication::applicationDirPath();
-    const QStringList candidates = {
-        QDir(appDir).filePath(name),
-        QDir(QDir(appDir).filePath("bin")).filePath(name)
-    };
-
-    for (const QString &candidate : candidates) {
-        if (QFile::exists(candidate)) {
-            return candidate;
-        }
+bool YtDlpWorker::parseYtDlpProgressLine(const QString &line) {
+    QString normalized = line.trimmed();
+    
+    if (!normalized.startsWith("[download]")) {
+        qDebug() << "parseYtDlpProgressLine: Line does not start with [download]:" << line;
+        return false;
     }
 
-    return QString();
+    static const QRegularExpression progressRegex(
+        R"(^\[download\]\s+([\d\.]+)%\s+of\s+(?:~\s*)?((?:Unknown total size)|(?:[\d\.]+\s*[KMGTPE]?i?B))(?:\s+at\s+((?:Unknown B/s)|(?:Unknown)|(?:[\d\.]+\s*[KMGTPE]?i?B/s)|(?:[\d\.]+\s*[KMGTPE]?B/s)))?(?:\s+ETA\s+([^\s]+))?.*$)");
+    static const QRegularExpression completedRegex(
+        R"(^\[download\]\s+100(?:\.0+)?%\s+of\s+(?:~\s*)?((?:Unknown total size)|(?:[\d\.]+\s*[KMGTPE]?i?B))(?:\s+in\s+([^\s]+)(?:\s+at\s+((?:Unknown B/s)|(?:Unknown)|(?:[\d\.]+\s*[KMGTPE]?i?B/s)|(?:[\d\.]+\s*[KMGTPE]?B/s)))?)?.*$)");
+
+    qDebug() << "parseYtDlpProgressLine: Trying to match progress line:" << normalized;
+
+    QRegularExpressionMatch match = progressRegex.match(normalized);
+    bool matchedCompletedFormat = false;
+    if (!match.hasMatch()) {
+        match = completedRegex.match(normalized);
+        matchedCompletedFormat = match.hasMatch();
+    }
+    if (!match.hasMatch()) {
+        qDebug() << "parseYtDlpProgressLine: Failed to match progress regex. Line:" << normalized;
+        return false;
+    }
+    
+    qDebug() << "parseYtDlpProgressLine: Successfully parsed progress. Percentage:" << match.captured(1);
+
+    QVariantMap progressData;
+    double percentage = matchedCompletedFormat ? 100.0 : match.captured(1).toDouble();
+    const QString totalString = matchedCompletedFormat ? match.captured(1) : match.captured(2);
+    const QString speedString = matchedCompletedFormat ? match.captured(3) : match.captured(3);
+    const QString etaString = matchedCompletedFormat ? QStringLiteral("0:00") : match.captured(4);
+
+    const double totalBytes = parseSizeStringToBytes(totalString);
+    const double downloadedBytes = totalBytes > 0.0 ? (totalBytes * (percentage / 100.0)) : 0.0;
+    const double speedBytes = parseSizeStringToBytes(speedString);
+
+    progressData["progress"] = percentage;
+    progressData["downloaded_size"] = downloadedBytes > 0.0 ? formatBytes(downloadedBytes) : QString("N/A");
+    progressData["total_size"] = totalBytes > 0.0 ? formatBytes(totalBytes) : totalString;
+    progressData["speed"] = speedBytes > 0.0 ? formatBytes(speedBytes) + "/s" : (speedString.isEmpty() ? QString("Unknown") : speedString);
+    progressData["speed_bytes"] = speedBytes;
+    progressData["eta"] = etaString.isEmpty() ? QString("Unknown") : etaString;
+    if (!m_videoTitle.isEmpty()) {
+        progressData["title"] = m_videoTitle;
+    }
+    if (!m_thumbnailPath.isEmpty()) {
+        progressData["thumbnail_path"] = m_thumbnailPath;
+    }
+
+    emit progressUpdated(m_id, progressData);
+    qDebug() << "yt-dlp: Progress match found (native/template).";
+    return true;
+}
+
+bool YtDlpWorker::parseAria2ProgressLine(const QString &line) {
+    if (!line.startsWith("[#")) {
+        return false;
+    }
+
+    static const QRegularExpression ariaRegex(
+        R"(\[#\w+\s+([\d\.]+\s*[KMGTPE]?i?B)/([\d\.]+\s*[KMGTPE]?i?B)\(([\d\.]+)%\)(?:\s+CN:\d+)?(?:\s+DL:((?:[\d\.]+\s*[KMGTPE]?i?B(?:/s)?)|(?:0B/s)))?(?:\s+ETA:([\d\w:]+))?\])");
+    const QRegularExpressionMatch match = ariaRegex.match(line);
+    if (!match.hasMatch()) {
+        return false;
+    }
+
+    QVariantMap progressData;
+    const double downloadedBytes = parseSizeStringToBytes(match.captured(1));
+    const double totalBytes = parseSizeStringToBytes(match.captured(2));
+    const double speedBytes = parseSizeStringToBytes(match.captured(4));
+
+    progressData["progress"] = match.captured(3).toDouble();
+    progressData["downloaded_size"] = formatBytes(downloadedBytes);
+    progressData["total_size"] = formatBytes(totalBytes);
+    progressData["speed"] = speedBytes > 0.0 ? formatBytes(speedBytes) + "/s" : QString("0 B/s");
+    progressData["speed_bytes"] = speedBytes;
+    progressData["eta"] = match.captured(5).isEmpty() ? QString("N/A") : match.captured(5);
+    if (!m_videoTitle.isEmpty()) {
+        progressData["title"] = m_videoTitle;
+    }
+    if (!m_thumbnailPath.isEmpty()) {
+        progressData["thumbnail_path"] = m_thumbnailPath;
+    }
+
+    emit progressUpdated(m_id, progressData);
+    qDebug() << "yt-dlp: Progress match found (aria2c raw).";
+    return true;
+}
+
+QString YtDlpWorker::normalizeConsoleLine(const QString &line) const {
+    QString normalized = line;
+    static const QRegularExpression ansiRegex(R"(\x1B\[[0-9;]*[A-Za-z])");
+    normalized.remove(ansiRegex);
+    return normalized.trimmed();
 }
