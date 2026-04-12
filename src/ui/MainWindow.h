@@ -10,7 +10,6 @@
 #include <QVariantMap>
 #include <QThread> // Include QThread
 #include <QClipboard> // Include QClipboard
-#include "core/version.h"
 
 // Forward declarations
 class QEvent;
@@ -34,7 +33,7 @@ public:
     explicit MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent = nullptr);
     ~MainWindow();
 
-    QString appVersion() const { return QString(APP_VERSION_STRING); }
+    QString appVersion() const;
 
 protected:
     void closeEvent(QCloseEvent *event) override;

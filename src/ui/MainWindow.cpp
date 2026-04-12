@@ -1,3 +1,4 @@
+#include "core/version.h"
 #include "MainWindow.h"
 #include "StartTab.h"
 #include "ActiveDownloadsTab.h"
@@ -44,8 +45,6 @@
 #include <QComboBox>
 #include <QSizePolicy>
 #include <QStandardPaths>
-
-#include "core/version.h"
 
 const QString REPO_URL = "https://api.github.com/repos/vincentwetzel/MediaDownloader";
 const QString GITHUB_PROJECT_URL = "https://github.com/vincentwetzel/MediaDownloader";
@@ -262,6 +261,10 @@ MainWindow::~MainWindow() {
         m_startupThread->quit();
         m_startupThread->wait();
     }
+}
+
+QString MainWindow::appVersion() const {
+    return QString(APP_VERSION_STRING);
 }
 
 void MainWindow::setupUI() {
