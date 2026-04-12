@@ -420,7 +420,18 @@ QList<BinariesPage::InstallOption> BinariesPage::buildInstallOptions(const QStri
     const QString display = displayName(binaryName);
 
     auto addOptionIfPresent = [&](const QString &program, const QStringList &arguments, const QString &description) {
-        if (QStandardPaths::findExecutable(program).isEmpty()) {
+        // QStandardPaths::findExecutable searches PATH, but on Windows winget
+        // lives in the WindowsApps execution-alias directory which is NOT in PATH.
+        // Check the WindowsApps shim as a fallback so winget options still appear.
+        bool found = !QStandardPaths::findExecutable(program).isEmpty();
+        if (!found) {
+            static const QString windowsApps = QProcessEnvironment::systemEnvironment().value("LOCALAPPDATA")
+                + "/Microsoft/WindowsApps/" + program + ".exe";
+            if (QFile::exists(windowsApps)) {
+                found = true;
+            }
+        }
+        if (!found) {
             return;
         }
 
