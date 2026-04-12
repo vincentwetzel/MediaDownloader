@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(MediaDownloader VERSION 1.0.5 LANGUAGES CXX)
+project(MediaDownloader VERSION 1.0.6 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -77,8 +77,9 @@ list(FILTER SOURCES EXCLUDE REGEX ".*/src/core/FfmpegPostProcessor\\.(cpp|h)$")
 # This ensures that #include "utils/..." or "core/..." works regardless of
 # which directory the source file is located in.
 include_directories(
-    src
-    ${CMAKE_CURRENT_BINARY_DIR}/src   # Generated headers (version.h, etc.)
+    ${CMAKE_CURRENT_BINARY_DIR}/src   # Generated headers first (version.h, etc.)
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}       # Helps the RC compiler find relative paths like "src/resources/icon.ico"
 )
 
 # --- Version Header ---
@@ -87,6 +88,14 @@ include_directories(
 configure_file(
     src/core/version.h.in
     ${CMAKE_CURRENT_BINARY_DIR}/src/core/version.h
+    @ONLY
+)
+
+# Generate the .rc file from a template so the RC compiler never sees
+# C++ Qt headers (on Windows version.h matches Version.h case-insensitively).
+configure_file(
+    MediaDownloader.rc.in
+    ${CMAKE_CURRENT_BINARY_DIR}/MediaDownloader.rc
     @ONLY
 )
 
@@ -111,8 +120,8 @@ add_executable(MediaDownloader
     # Qt resource file for icons, etc.
     src/ui/resources.qrc
 
-    # Windows application icon and metadata
-    MediaDownloader.rc
+    # Windows application icon and version metadata (generated from template)
+    ${CMAKE_CURRENT_BINARY_DIR}/MediaDownloader.rc
 )
 
 # --- Link Libraries ---
