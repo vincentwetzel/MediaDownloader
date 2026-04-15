@@ -1,7 +1,7 @@
-# MediaDownloader C++ Architecture
+# LzyDownloader C++ Architecture
 
 ## 1. Overview
-This document outlines the architecture for the C++ port of MediaDownloader. The application is built with **Qt 6 (Widgets)** and provides a graphical interface for downloading media using **yt-dlp** and **gallery-dl**. The design prioritizes performance, stability, and seamless compatibility with the original Python version.
+This document outlines the architecture for the C++ port of LzyDownloader. The application is built with **Qt 6 (Widgets)** and provides a graphical interface for downloading media using **yt-dlp** and **gallery-dl**. The design prioritizes performance, stability, and seamless compatibility with the original Python version.
 
 ## 2. System Design
 
@@ -12,6 +12,7 @@ The application ensures that only one instance can run at a time. This is achiev
 - **UI Layer (`src/ui/`):** Handles user interaction, input, and visual feedback using Qt Widgets.
   - **AdvancedSettingsTab navigation**: The left-side category list is a compact `QListWidget` whose stylesheet is rebuilt from `QPalette` values whenever the palette changes so it remains consistent with both light and dark themes.
   - **Runtime format selection**: Advanced Settings can defer the entire video/audio format decision until enqueue time by setting `Quality` to `Select at Runtime`; `DownloadManager` fetches format metadata and `MainWindow` presents `FormatSelectionDialog`, which enqueues one item per selected format.
+  - **UI Builders**: `MainWindowUiBuilder` and `StartTabUiBuilder` classes are introduced to encapsulate the creation and layout of UI elements for `MainWindow` and `StartTab` respectively, improving modularity.
   - **Sorting Rule Dialog**: The dialog for creating/editing sorting rules uses a `QScrollArea` with `QVBoxLayout` instead of `QListWidget` for smooth pixel-level scrolling without item-snapping. The scroll area is capped at 150-400px height with 4px spacing between conditions. Condition widgets use a `CONDITION_VALUE_INPUT_HEIGHT` constant (100px) for consistent text entry sizing via `setFixedHeight()`. Dialog minimum size is 650x500px.
 - **Core Logic (`src/core/`):** Manages download queues, file operations, configuration, and external process execution.
 - **Utilities (`src/utils/`):** Provides helper functions for tasks like string manipulation and URL normalization.
@@ -32,19 +33,20 @@ The application ensures that only one instance can run at a time. This is achiev
 5.  **Queue Update:** For single videos, status updates from "Checking for playlist..." to "Queued". For playlists, placeholder is removed and individual track items are added.
 6.  **Execution:** `DownloadManager` spawns a worker (`YtDlpWorker` or `GalleryDlWorker`) for each item via deferred `QMetaObject::invokeMethod` call to avoid GUI thread blocking.
 7.  **Progress:** The worker parses native yt-dlp progress from `stderr` (`[download] XX.X% of YY.YMiB at ZZ.ZMiB/s ETA 0:00`) or aria2 progress (`[#XXXXX ...]`) and emits progress signals (`progressUpdated`, `speedChanged`, etc.). **YtDlpWorker includes diagnostic logging for process state changes, stderr/stdout data received, and progress parsing.**
-8.  **UI Update:** `ActiveDownloadsTab` receives signals and updates the corresponding progress bars, labels, and displays a thumbnail preview on the left side of the download GUI element. **Thumbnails are loaded from the `thumbnail_path` field in progress data, which is emitted by `YtDlpWorker` when yt-dlp converts the thumbnail during the download process.** Progress bars are color-coded: colorless (queued), light blue (downloading), teal (post-processing), green (completed). Progress details (percentage, downloaded/total size, speed, ETA) are painted centered directly on the progress bar using the custom `ProgressLabelBar` widget.
+8.  **UI Update:** `ActiveDownloadsTab` receives signals and updates the corresponding progress bars, labels, and displays a thumbnail preview on the left side of the download GUI element. **Thumbnails are loaded from the `thumbnail_path` field in progress data, which is emitted by `YtDlpWorker` when yt-dlp converts the thumbnail during the download process.** For scheduled livestreams in a `[wait]` state, `YtDlpWorker` fetches pre-wait metadata via the YouTube oEmbed API (or a fallback background process) to instantly populate the title and thumbnail while a countdown is displayed. Progress bars are color-coded: colorless (queued), light blue (downloading), teal (post-processing), green (completed). Progress details (percentage, downloaded/total size, speed, ETA) are painted centered directly on the progress bar using the custom `ProgressLabelBar` widget.
 9.  **Post-Processing:** Upon success, `DownloadManager` performs post-processing (e.g., embedding track numbers for audio playlists) and moves the file to the final output directory. Queue state persistence is deferred via `Qt::QueuedConnection`.
 
 ## 3. Directory Structure
 
 ```
-MediaDownloader/
+LzyDownloader/
 ├── CMakeLists.txt              # Build System Configuration
 ├── main.cpp                    # Application Entry Point
 ├── src/
 │   ├── core/                   # Core Business Logic
 │   │   ├── ConfigManager.h/cpp   # Settings persistence (INI)
 │   │   ├── ArchiveManager.h/cpp  # Download history (SQLite)
+│   │   ├── DownloadQueueState.h/cpp # Manages persistence of download queue state
 │   │   ├── DownloadManager.h/cpp # Queue & Lifecycle Management
 │   │   ├── YtDlpWorker.h/cpp     # yt-dlp Process Wrapper + progress parser (stderr)
 │   │   ├── PlaylistExpander.h/cpp # Playlist Expansion (uses YtDlpArgsBuilder)
@@ -59,6 +61,8 @@ MediaDownloader/
 │   ├── ui/                     # User Interface (Qt Widgets)
 │   │   ├── advanced_settings/
 │   │   │   ├── BinariesPage.h/cpp # External binary status + install actions
+│   │   ├── MainWindowUiBuilder.h/cpp # Builds UI for MainWindow
+│   │   ├── StartTabUiBuilder.h/cpp # Builds UI for StartTab
 │   │   ├── FormatSelectionDialog.h/cpp # Runtime format picker
 │   │   ├── RuntimeSelectionDialog.h/cpp # Runtime subtitle picker
 │   │   ├── DownloadItemWidget.h/cpp # Individual download item widget (displays thumbnail on left side of progress bar)
@@ -80,7 +84,7 @@ MediaDownloader/
   - Provides default configuration values using an internal `m_defaultSettings` map.
   - **Ensures 100% format compatibility with the Python version's INI file.**
   - Emits `settingChanged` signal when a setting is modified.
-  - Rewrites `settings.ini` into a canonical layout on save so legacy sections such as `[%General]` and deprecated duplicate aliases such as `Video/quality` do not persist on disk.
+  - Automatically prunes legacy and dead keys from `settings.ini` on startup, ensuring the configuration file remains clean and canonical.
 
 ### 4.2 ArchiveManager (`src/core/ArchiveManager.h`)
 - **Responsibilities:**
@@ -96,6 +100,7 @@ MediaDownloader/
   - Handles the file lifecycle (Temp -> Final).
   - Uses `yt-dlp --print after_move:filepath` as the authoritative final output path source and moves files using Qt-native rename/copy fallback for Unicode-safe, cross-volume behavior.
   - Coordinates `YtDlpWorker` and `GalleryDlWorker` instances.
+  - Delegates queue state saving/loading to `DownloadQueueState`.
   - Handles playlist expansion via `PlaylistExpander`.
   - Performs post-processing (renaming, metadata embedding).
   - **Defers queue state persistence (`saveQueueState`) and download initiation (`startNextDownload`) via `QMetaObject::invokeMethod` with `Qt::QueuedConnection` to prevent GUI thread blocking.** These methods MUST be declared as `Q_INVOKABLE` in the header file.
@@ -103,6 +108,13 @@ MediaDownloader/
 ### 4.4 YtDlpWorker (`src/core/YtDlpWorker.h`)
 - **Responsibilities:**
   - Executes `yt-dlp` commands using `QProcess`.
+
+### 4.4b DownloadQueueState (`src/core/DownloadQueueState.h`)
+- **Responsibilities:**
+  - Manages the persistence of the download queue, active, and paused items.
+  - Saves the current state to a JSON backup file (`downloads_backup.json`) in the application's configuration directory.
+  - Loads the state from the backup file on startup.
+  - Emits `resumeDownloadsRequested` to `DownloadManager` to prompt the user about resuming previous downloads.
   - Resolves `yt-dlp` through configured overrides, system discovery, or bundled fallback paths.
   - Forces UTF-8 process I/O environment (`PYTHONUTF8`, `PYTHONIOENCODING`) to preserve Unicode output text.
   - Emits explicit failure results when `QProcess` cannot start, preventing stuck in-progress UI states.
@@ -133,7 +145,7 @@ MediaDownloader/
 ### 4.7 LogManager (`src/utils/LogManager.h`)
 - **Responsibilities:**
   - Installs a custom Qt message handler to capture debug output.
-  - Writes logs to `%LOCALAPPDATA%\MediaDownloader\MediaDownloader_YYYY-MM-dd_HH-mm-ss.log` (or equivalent platform-specific config directory), alongside `settings.ini`.
+  - Writes logs to `%LOCALAPPDATA%\LzyDownloader\LzyDownloader_YYYY-MM-dd_HH-mm-ss.log` (or equivalent platform-specific config directory), alongside `settings.ini`.
   - **One log file per run:** Each application startup creates a new log file with a timestamp in the filename.
   - Implements **automatic cleanup on startup:** keeps only the 10 most recent log files, deleting older ones to prevent unbounded disk growth.
   - Designed for **NSIS release deployment**: logs are stored in user data directories, not the installation directory, ensuring they persist across application updates.
@@ -150,8 +162,8 @@ MediaDownloader/
 ## 6. Deployment
 - **Build System:** CMake.
 - **Qt Configure Resilience:** The build should succeed in IDE-driven configure runs by auto-detecting common Windows Qt SDK locations before `find_package(Qt6 ...)` executes.
-- **Installer:** NSIS will be used to create a Windows installer (`MediaDownloader-Setup.exe`).
-- **Executable Name:** The final executable will be named `MediaDownloader.exe` to ensure a seamless update from the Python version.
+- **Installer:** NSIS will be used to create a Windows installer (`LzyDownloader-Setup.exe`).
+- **Executable Name:** The final executable will be named `LzyDownloader.exe` to ensure a seamless update from the Python version.
 - **Bundling:** All dependencies (Qt runtime DLLs, binaries) will be included in the installation directory.
 - **Qt Image Format Plugins:** Windows deployments must include the required `plugins/imageformats` codecs for active-download artwork and converted thumbnails, including `qjpeg`, `qpng`, `qwebp`, and `qico` (plus debug variants when available).
 - **User Data Preservation:** The NSIS installer MUST NOT overwrite user data files (`settings.ini`, `download_archive.db`, or log files). These are stored in platform-specific user data directories (e.g., `%APPDATA%` on Windows), separate from the installation directory, ensuring they persist across application updates.

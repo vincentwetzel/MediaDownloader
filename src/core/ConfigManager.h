@@ -25,6 +25,7 @@ signals:
 
 private:
     void initializeDefaultSettings();
+    void cleanUpLegacyKeys();
 
     QSettings *m_settings;
     QMap<QString, QMap<QString, QVariant>> m_defaultSettings;

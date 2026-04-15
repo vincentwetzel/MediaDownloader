@@ -2,6 +2,7 @@
 #include "MainWindow.h"
 #include "StartTab.h"
 #include "ActiveDownloadsTab.h"
+#include "MainWindowUiBuilder.h" // Include the new UI builder
 #include "AdvancedSettingsTab.h"
 #include "SortingTab.h"
 
@@ -44,37 +45,23 @@
 #include <QStyleHints>
 #include <QComboBox>
 #include <QSizePolicy>
+#include <QPushButton>
 #include <QStandardPaths>
+#include <QDateTime>
 
-const QString REPO_URL = "https://api.github.com/repos/vincentwetzel/MediaDownloader";
-const QString GITHUB_PROJECT_URL = "https://github.com/vincentwetzel/MediaDownloader";
+const QString REPO_URL = "https://api.github.com/repos/vincentwetzel/LzyDownloader";
+const QString GITHUB_PROJECT_URL = "https://github.com/vincentwetzel/LzyDownloader";
 const QString DEVELOPER_DISCORD_URL_PART1 = "https://discord.gg/";
 const QString DEVELOPER_DISCORD_URL_PART2 = "NfWaqK";
 const QString DEVELOPER_DISCORD_URL_PART3 = "gYRG";
 
 MainWindow::MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent)
-    : QMainWindow(parent),
-      m_configManager(nullptr),
-      m_archiveManager(nullptr),
-      m_downloadManager(nullptr),
-      m_appUpdater(nullptr),
-      m_urlValidator(nullptr),
-      m_startupWorker(nullptr),
-      m_startupThread(nullptr),
-      m_extractorJsonParser(extractorJsonParser),
-      m_runtimeExtractor(nullptr),
-      m_clipboard(nullptr),
-      m_tabWidget(nullptr),
-      m_activeDownloadsTab(nullptr),
-      m_advancedSettingsTab(nullptr),
-      m_startTab(nullptr),
-      m_speedLabel(nullptr),
-      m_queuedDownloadsLabel(nullptr),
-      m_activeDownloadsLabel(nullptr),
-      m_completedDownloadsLabel(nullptr),
-      m_trayIcon(nullptr),
-      m_trayMenu(nullptr),
-      m_silentUpdateCheck(false)
+    : QMainWindow(parent), m_configManager(nullptr), m_archiveManager(nullptr), m_downloadManager(nullptr),
+      m_appUpdater(nullptr), m_urlValidator(nullptr), m_startupWorker(nullptr), m_startupThread(nullptr),
+      m_extractorJsonParser(extractorJsonParser), m_runtimeExtractor(nullptr), m_uiBuilder(nullptr),
+      m_clipboard(nullptr), m_startTab(nullptr), m_activeDownloadsTab(nullptr),
+      m_advancedSettingsTab(nullptr), m_trayIcon(nullptr), m_trayMenu(nullptr),
+      m_silentUpdateCheck(false), m_lastAutoPasteTimestamp(0)
 {
     // Initialize core components
     QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
@@ -118,6 +105,7 @@ MainWindow::MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent
     connect(m_runtimeExtractor, &YtDlpJsonExtractor::extractionFailed, this, &MainWindow::onRuntimeInfoError);
 
     // Apply theme before UI setup
+    m_uiBuilder = new MainWindowUiBuilder(m_configManager, this); // Initialize UI builder
     applyTheme(m_configManager->get("General", "theme", "System").toString());
 
     setupUI();
@@ -177,11 +165,17 @@ MainWindow::MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent
     connect(m_downloadManager, &DownloadManager::playlistExpansionStarted,
             m_activeDownloadsTab, &ActiveDownloadsTab::addExpandingPlaylist);
     connect(m_downloadManager, &DownloadManager::playlistExpansionFinished,
-            m_activeDownloadsTab, &ActiveDownloadsTab::removeExpandingPlaylist);
+            m_activeDownloadsTab, &ActiveDownloadsTab::removeExpandingPlaylist); // Corrected: removeExpandingPlaylist
     connect(m_downloadManager, &DownloadManager::queueFinished, this, &MainWindow::onQueueFinished);
     connect(m_downloadManager, &DownloadManager::totalSpeedUpdated, this, &MainWindow::updateTotalSpeed);
     connect(m_downloadManager, &DownloadManager::videoQualityWarning, this, &MainWindow::onVideoQualityWarning);
     connect(m_downloadManager, &DownloadManager::downloadStatsUpdated, this, &MainWindow::onDownloadStatsUpdated);
+    
+    // Connect duplicate detection signal to StartTab
+    connect(m_downloadManager, &DownloadManager::duplicateDownloadDetected, m_startTab, &StartTab::onDuplicateDownloadDetected);
+
+    // Connect yt-dlp error popup signal
+    connect(m_downloadManager, &DownloadManager::ytDlpErrorPopupRequested, this, &MainWindow::onYtDlpErrorPopup);
 
     // Handle requests for runtime format selection
     connect(m_downloadManager, &DownloadManager::formatSelectionRequested, this, 
@@ -230,7 +224,7 @@ MainWindow::MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent
             msgBox.setIcon(QMessageBox::Warning);
             msgBox.setWindowTitle("Missing Required Binaries");
             msgBox.setText("The following required binaries could not be found:\n" + missingBinaries.join(", "));
-            msgBox.setInformativeText("MediaDownloader requires these tools to function correctly.\n\n"
+            msgBox.setInformativeText("LzyDownloader requires these tools to function correctly.\n\n"
                                       "Install them with your preferred package manager or use the 'Advanced Settings -> External Binaries' page "
                                       "to browse to their installed locations.");
 
@@ -239,7 +233,7 @@ MainWindow::MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent
             msgBox.exec();
 
             if (msgBox.clickedButton() == fixButton) {
-                m_tabWidget->setCurrentWidget(m_advancedSettingsTab);
+                m_uiBuilder->tabWidget()->setCurrentWidget(m_advancedSettingsTab);
                 m_advancedSettingsTab->navigateToCategory("External Binaries");
             }
         }
@@ -263,137 +257,37 @@ MainWindow::~MainWindow() {
     }
 }
 
-QString MainWindow::appVersion() const {
-    return QString(APP_VERSION_STRING);
-}
-
 void MainWindow::setupUI() {
-    setWindowTitle("MediaDownloader v" + QString(APP_VERSION_STRING));
-    setMinimumWidth(850);
-    resize(850, 600);
+    setWindowTitle("LzyDownloader v" + QString(APP_VERSION_STRING));
 
     QWidget *centralWidget = new QWidget(this);
     setCentralWidget(centralWidget);
 
     QVBoxLayout *mainLayout = new QVBoxLayout(centralWidget);
 
-    m_tabWidget = new QTabWidget(this);
-    mainLayout->addWidget(m_tabWidget);
-    
-    QComboBox *languageCombo = new QComboBox(this);
-    languageCombo->setToolTip("Select Application Language");
-    QStringList languagesWithFlags = {
-        "🇺🇸 English", "🇪🇸 Spanish", "🇵🇹 Portuguese", "🇷🇺 Russian", "🇩🇪 German", "🇫🇷 French",
-        "🇮🇹 Italian", "🇨🇳 Mandarin", "🇮🇳 Hindi", "🇧🇩 Bengali", "🇯🇵 Japanese", "🇵🇰 Western Punjabi",
-        "🇹🇷 Turkish", "🇻🇳 Vietnamese", "🇭🇰 Yue Chinese", "🇪🇬 Egyptian Arabic", "🇨🇳 Wu Chinese",
-        "🇮🇳 Marathi", "🇮🇳 Telugu", "🇰🇷 Korean", "🇮🇳 Tamil", "🇵🇰 Urdu", "🇮🇩 Indonesian",
-        "🇮🇩 Javanese", "🇮🇷 Iranian Persian", "🇳🇬 Hausa", "🇮🇳 Gujarati", "🇱🇧 Levantine Arabic",
-        "🇮🇳 Bhojpuri"
-    };
-    languageCombo->addItems(languagesWithFlags);
-    
-    QString savedLang = m_configManager->get("General", "language", "🇺🇸 English").toString();
-    int index = languageCombo->findText(savedLang);
-    if (index >= 0) languageCombo->setCurrentIndex(index);
-    m_tabWidget->setCornerWidget(languageCombo, Qt::TopRightCorner);
-    connect(languageCombo, &QComboBox::currentTextChanged, this, [this](const QString &text) {
-        if (m_configManager->get("General", "language", "🇺🇸 English").toString() != text) {
-            m_configManager->set("General", "language", text);
-            QMessageBox::information(this, "Language Changed", "Language changed to " + text + ".\n\nPlease restart the application for changes to take full effect.");
-        }
-    });
-
     m_startTab = new StartTab(m_configManager, m_extractorJsonParser, this);
     m_activeDownloadsTab = new ActiveDownloadsTab(m_configManager, this);
     m_advancedSettingsTab = new AdvancedSettingsTab(m_configManager, this);
     SortingTab *sortingTab = new SortingTab(m_configManager, this);
 
-    m_tabWidget->addTab(m_startTab, "Start Download");
-    m_tabWidget->addTab(m_activeDownloadsTab, "Active Downloads");
-    m_tabWidget->addTab(sortingTab, "Sorting Rules");
-    m_tabWidget->addTab(m_advancedSettingsTab, "Advanced Settings");
+    m_uiBuilder->build(this, mainLayout, m_startTab, m_activeDownloadsTab, m_advancedSettingsTab, sortingTab);
 
-    // Dynamically adjust size policies to prevent hidden tabs from forcing a large minimum window width.
-    // This ensures that only the currently visible tab influences the window's minimum size.
-    connect(m_tabWidget, &QTabWidget::currentChanged, this, [this](int index) {
-        for (int i = 0; i < m_tabWidget->count(); ++i) {
-            if (QWidget *widget = m_tabWidget->widget(i)) {
-                widget->setSizePolicy(i == index ? QSizePolicy::Preferred : QSizePolicy::Ignored, QSizePolicy::Preferred);
-            }
-        }
-        m_tabWidget->currentWidget()->updateGeometry();
-    });
-
-    // Set initial state for all but the first tab
-    for (int i = 1; i < m_tabWidget->count(); ++i) {
-        if (QWidget *widget = m_tabWidget->widget(i)) {
-            widget->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-        }
-    }
-
-    QVBoxLayout *footerContainer = new QVBoxLayout();
-    QHBoxLayout *footerTopRow = new QHBoxLayout();
-    QLabel *githubLink = new QLabel(QString("<a href=\"%1\">Source Code</a>").arg(GITHUB_PROJECT_URL));
-    githubLink->setOpenExternalLinks(true);
-    githubLink->setToolTip("Visit the project's source code repository on GitHub.");
-
-    QLabel *discordLink = new QLabel(QString("<a href=\"%1%2%3\"><img src=\":/ui/assets/discord.png\" alt=\"Developer Discord\" width=\"24\" height=\"24\"></a>")
-                                         .arg(DEVELOPER_DISCORD_URL_PART1)
-                                         .arg(DEVELOPER_DISCORD_URL_PART2)
-                                         .arg(DEVELOPER_DISCORD_URL_PART3));
-    discordLink->setOpenExternalLinks(true);
-    discordLink->setToolTip("Join the developer Discord server.");
-
-    m_queuedDownloadsLabel = new QLabel("Queued: 0", this);
-    m_queuedDownloadsLabel->setToolTip("Number of downloads waiting to start.");
-    m_activeDownloadsLabel = new QLabel("Active: 0", this);
-    m_activeDownloadsLabel->setToolTip("Number of currently active downloads.");
-    m_completedDownloadsLabel = new QLabel("Completed: 0", this);
-    m_completedDownloadsLabel->setToolTip("Number of successfully completed downloads.");
-    m_speedLabel = new QLabel("Current Speed: 0.00 MB/s", this);
-    m_speedLabel->setToolTip("Total download speed across all active transfers.");
-
-    QLabel *exitAfterLabel = new QLabel("Exit after all downloads complete:", this);
-    ToggleSwitch *exitAfterSwitch = new ToggleSwitch(this);
-    exitAfterSwitch->setToolTip("If switched on, the application will automatically close once all your downloads are finished.");
-    exitAfterSwitch->setChecked(m_configManager->get("General", "exit_after", false).toBool());
-
-    connect(exitAfterSwitch, &ToggleSwitch::toggled, this, [this](bool checked){
+    // Connect signals from the builder's widgets
+    connect(m_uiBuilder->exitAfterSwitch(), &ToggleSwitch::toggled, this, [this](bool checked){
         m_configManager->set("General", "exit_after", checked);
         m_configManager->save();
     });
 
-    footerTopRow->addWidget(githubLink);
-    footerTopRow->addSpacing(20);
-    footerTopRow->addWidget(discordLink);
-    footerTopRow->addStretch();
-    footerTopRow->addWidget(exitAfterLabel);
-    footerTopRow->addWidget(exitAfterSwitch);
-
-    QHBoxLayout *footerBottomRow = new QHBoxLayout();
-    footerBottomRow->addStretch();
-    footerBottomRow->addWidget(m_queuedDownloadsLabel);
-    footerBottomRow->addSpacing(10);
-    footerBottomRow->addWidget(m_activeDownloadsLabel);
-    footerBottomRow->addSpacing(10);
-    footerBottomRow->addWidget(m_completedDownloadsLabel);
-    footerBottomRow->addSpacing(20);
-    footerBottomRow->addWidget(m_speedLabel);
-
-    footerContainer->addLayout(footerTopRow);
-    footerContainer->addLayout(footerBottomRow);
-    mainLayout->addLayout(footerContainer);
-
     connect(m_startTab, &StartTab::downloadRequested, this, &MainWindow::onDownloadRequested);
     connect(m_startTab, &StartTab::navigateToExternalBinaries, this, [this]() {
-        m_tabWidget->setCurrentWidget(m_advancedSettingsTab);
+        m_uiBuilder->tabWidget()->setCurrentWidget(m_advancedSettingsTab);
     });
     connect(m_advancedSettingsTab, &AdvancedSettingsTab::themeChanged, this, &MainWindow::applyTheme);
 }
 
 void MainWindow::setupTrayIcon() {
     m_trayIcon = new QSystemTrayIcon(QIcon(":/app-icon"), this);
-    m_trayIcon->setToolTip("MediaDownloader");
+    m_trayIcon->setToolTip("LzyDownloader");
 
     m_trayMenu = new QMenu(this);
     QAction *showAction = m_trayMenu->addAction("Show");
@@ -475,11 +369,36 @@ void MainWindow::handleClipboardAutoPaste(bool forceEnqueue)
         return;
     }
 
+    // Enforce a cooldown period (5 seconds) to prevent rapid re-triggering
+    qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (now - m_lastAutoPasteTimestamp < 5000) {
+        return;
+    }
+
+    // Get the URL from clipboard to check before pasting
+    const QString clipboardText = m_clipboard->text().trimmed();
+    if (clipboardText.isEmpty()) {
+        return;
+    }
+
+    // Check if this is the same URL we just auto-pasted
+    if (clipboardText == m_lastAutoPastedUrl) {
+        return;
+    }
+
+    // Try to auto-paste (this validates and sets the URL in the input)
     if (m_startTab->tryAutoPasteFromClipboard()) {
-        if (m_tabWidget->currentWidget() != m_startTab) {
-            m_tabWidget->setCurrentWidget(m_startTab);
+        // Update tracking
+        m_lastAutoPastedUrl = clipboardText;
+        m_lastAutoPasteTimestamp = QDateTime::currentMSecsSinceEpoch();
+
+        // Switch to Start tab if not already there
+        if (m_uiBuilder->tabWidget()->currentWidget() != m_startTab) {
+            m_uiBuilder->tabWidget()->setCurrentWidget(m_startTab);
         }
         m_startTab->focusUrlInput();
+        
+        // Only auto-enqueue if forceEnqueue is true AND this is a new URL
         if (forceEnqueue) {
             m_startTab->onDownloadButtonClicked(); // Trigger download
         }
@@ -503,13 +422,27 @@ void MainWindow::onDownloadRequested(const QString &url, const QVariantMap &opti
         return;
     }
 
-    bool runtimeVideo = m_configManager->get("Video", "video_multistreams", "Default Stream").toString() == "Select at Runtime" && options.value("type").toString() == "video";
+    QVariantMap mutableOptions = options;
+    bool overrideArchive = mutableOptions.value("override_archive", m_configManager->get("General", "override_archive", false)).toBool();
+
+    if (!overrideArchive && m_archiveManager && m_archiveManager->isInArchive(url)) {
+        QMessageBox::StandardButton reply;
+        reply = QMessageBox::question(this, "Duplicate Download",
+                                      QString("The following URL is already in your download history:\n%1\n\nDo you want to download it again?").arg(url),
+                                      QMessageBox::Yes | QMessageBox::No);
+        if (reply == QMessageBox::No) {
+            return;
+        }
+        mutableOptions["override_archive"] = true;
+    }
+
+    bool runtimeVideo = m_configManager->get("Video", "video_multistreams", "Default Stream").toString() == "Select at Runtime" && mutableOptions.value("type").toString() == "video";
     bool runtimeAudio = m_configManager->get("Audio", "audio_multistreams", "Default Stream").toString() == "Select at Runtime"; // Audio tracks apply to video and audio types
     bool runtimeSubs = m_configManager->get("Subtitles", "languages", "en").toString().split(',').contains("runtime");
 
     if (runtimeVideo || runtimeAudio || runtimeSubs) {
         m_pendingUrl = url;
-        m_pendingOptions = options;
+        m_pendingOptions = mutableOptions;
         statusBar()->showMessage("Fetching media info for runtime selection...");
         QString ytDlpPath = ProcessUtils::findBinary("yt-dlp", m_configManager).path;
         QStringList args;
@@ -520,13 +453,13 @@ void MainWindow::onDownloadRequested(const QString &url, const QVariantMap &opti
 
     static QRegularExpression fastTrackRe(R"(^(https?://)?(www\.)?(youtube\.com|youtu\.be|music\.youtube\.com|tiktok\.com|instagram\.com|twitter\.com|x\.com)/)");
     if (fastTrackRe.match(url).hasMatch()) {
-        m_downloadManager->enqueueDownload(url, options);
-        m_tabWidget->setCurrentWidget(m_activeDownloadsTab);
+        m_downloadManager->enqueueDownload(url, mutableOptions); // Corrected: m_downloadManager
+        m_uiBuilder->tabWidget()->setCurrentWidget(m_activeDownloadsTab);
         return;
     }
 
     m_pendingUrl = url;
-    m_pendingOptions = options;
+    m_pendingOptions = mutableOptions;
 
     m_urlValidator->validate(url);
 }
@@ -545,9 +478,9 @@ void MainWindow::onRuntimeInfoReady(const QVariantMap &info) {
         if (runtimeSubs) {
             QStringList subs = dialog.getSelectedSubtitles();
             if (!subs.isEmpty()) opts["runtime_subtitles"] = subs.join(',');
-        }
-        m_downloadManager->enqueueDownload(m_pendingUrl, opts);
-        m_tabWidget->setCurrentWidget(m_activeDownloadsTab);
+            } // Corrected: m_downloadManager
+            m_downloadManager->enqueueDownload(m_pendingUrl, opts); // Corrected: m_downloadManager
+            m_uiBuilder->tabWidget()->setCurrentWidget(m_activeDownloadsTab);
     }
     m_pendingUrl.clear();
     m_pendingOptions.clear();
@@ -562,8 +495,8 @@ void MainWindow::onRuntimeInfoError(const QString &error) {
 
 void MainWindow::onValidationFinished(bool isValid, const QString &error) {
     if (isValid) {
-        m_downloadManager->enqueueDownload(m_pendingUrl, m_pendingOptions);
-        m_tabWidget->setCurrentWidget(m_activeDownloadsTab);
+        m_downloadManager->enqueueDownload(m_pendingUrl, m_pendingOptions); // Corrected: m_downloadManager
+        m_uiBuilder->tabWidget()->setCurrentWidget(m_activeDownloadsTab);
     } else {
         QMessageBox::warning(this, "Invalid URL", "The URL could not be validated:\n" + error);
     }
@@ -578,12 +511,14 @@ void MainWindow::onQueueFinished() {
 
     // Notify the user that the queue has finished
     if (m_trayIcon && m_trayIcon->isVisible()) {
-        m_trayIcon->showMessage("Downloads Complete", "All queued media downloads have finished.", QSystemTrayIcon::Information, 3000);
+        m_trayIcon->showMessage("Downloads Complete", "All queued media downloads have finished.",
+                                QSystemTrayIcon::Information, 3000);
     }
 
-    bool exitAfter = m_pendingOptions.value("exit_after", m_configManager->get("General", "exit_after", false)).toBool();
+    bool exitAfter = m_configManager->get("General", "exit_after", false).toBool();
     if (exitAfter) {
-        QCoreApplication::quit();
+        qInfo() << "Queue finished and 'exit after' is enabled. Waiting 2 seconds before quitting to allow for final file cleanup.";
+        QTimer::singleShot(2000, this, &QCoreApplication::quit);
     }
 }
 
@@ -642,14 +577,83 @@ void MainWindow::applyTheme(const QString &themeName) {
 }
 
 void MainWindow::updateTotalSpeed(double speed) {
-    double speedMb = speed / (1024.0 * 1024.0);
-    m_speedLabel->setText(QString("Current Speed: %1 MB/s").arg(speedMb, 0, 'f', 2));
+    double speedMb = speed / (1024.0 * 1024.0); // Corrected: m_uiBuilder->speedLabel()
+    m_uiBuilder->speedLabel()->setText(QString("Current Speed: %1 MB/s").arg(speedMb, 0, 'f', 2));
 }
 
-void MainWindow::onDownloadStatsUpdated(int queued, int active, int completed) {
-    m_queuedDownloadsLabel->setText(QString("Queued: %1").arg(queued));
-    m_activeDownloadsLabel->setText(QString("Active: %1").arg(active));
-    m_completedDownloadsLabel->setText(QString("Completed: %1").arg(completed));
+void MainWindow::onDownloadStatsUpdated(int queued, int active, int completed, int errors) {
+    m_uiBuilder->queuedDownloadsLabel()->setText(QString("Queued: %1").arg(queued));
+    m_uiBuilder->activeDownloadsLabel()->setText(QString("Active: %1").arg(active));
+    m_uiBuilder->completedDownloadsLabel()->setText(QString("Completed: %1").arg(completed));
+    m_uiBuilder->errorDownloadsLabel()->setText(QString("Errors: %1").arg(errors));
+}
+
+void MainWindow::onYtDlpErrorPopup(const QString &id, const QString &errorType, const QString &userMessage, const QString &rawError, const QVariantMap &itemData) {
+    Q_UNUSED(id);
+
+    // Clean up the raw error string to make it more user-friendly
+    QString cleanError = rawError;
+    if (cleanError.startsWith("ERROR: ")) {
+        cleanError = cleanError.mid(7); // Remove "ERROR: "
+    }
+    // Remove "[extractor] " prefix if present (e.g. "[youtube] ")
+    cleanError.remove(QRegularExpression("^\\[[^\\]]+\\]\\s*"));
+
+    if (errorType == "scheduled_livestream") {
+        QMessageBox msgBox(this);
+        msgBox.setWindowTitle("Scheduled Livestream");
+        msgBox.setText(userMessage);
+        if (!cleanError.isEmpty()) {
+            msgBox.setInformativeText(cleanError);
+        }
+        msgBox.setIcon(QMessageBox::Information);
+
+        QPushButton *waitButton = msgBox.addButton("Wait and Download When Available", QMessageBox::AcceptRole);
+        msgBox.addButton(QMessageBox::Cancel);
+
+        msgBox.exec();
+
+        if (msgBox.clickedButton() == waitButton) {
+            QVariantMap newItemData = itemData;
+            QVariantMap options = newItemData["options"].toMap();
+            options["wait_for_video"] = true;
+
+            // Dynamically adjust wait time based on how far away the stream is.
+            int minWait, maxWait;
+            if (cleanError.contains("hour", Qt::CaseInsensitive)) {
+                minWait = 1800; // 30 minutes
+                maxWait = 3600; // 60 minutes
+            } else if (cleanError.contains("second", Qt::CaseInsensitive)) {
+                minWait = 5;    // 5 seconds
+                maxWait = 15;   // 15 seconds
+            } else { // Default to configured values for "minutes" or unknown units
+                minWait = m_configManager->get("Livestream", "wait_for_video_min").toInt();
+                maxWait = m_configManager->get("Livestream", "wait_for_video_max").toInt();
+            }
+            options["livestream_wait_min"] = minWait;
+            options["livestream_wait_max"] = maxWait;
+
+            newItemData["options"] = options;
+            
+            m_downloadManager->restartDownloadWithOptions(newItemData);
+        }
+    } else {
+        // Generic error handling
+        QString title;
+        if (errorType == "private") title = "Private Video";
+        else if (errorType == "unavailable") title = "Video Unavailable";
+        else if (errorType == "geo_restricted") title = "Geo-Restricted Video";
+        else if (errorType == "members_only") title = "Members-Only Video";
+        else if (errorType == "age_restricted") title = "Age-Restricted Video";
+        else if (errorType == "content_removed") title = "Content Removed";
+        else title = "Download Error";
+
+        QMessageBox msgBox(QMessageBox::Warning, title, userMessage, QMessageBox::Ok, this);
+        if (!cleanError.isEmpty()) {
+            msgBox.setInformativeText(cleanError);
+        }
+        msgBox.exec();
+    }
 }
 
 void MainWindow::setYtDlpVersion(const QString &version) {

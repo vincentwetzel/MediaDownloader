@@ -27,6 +27,8 @@ void YtDlpJsonExtractor::getInfo(const QString &url)
     args << "--dump-json" << "--no-playlist" << url;
 
     QString program = ProcessUtils::findBinary("yt-dlp", m_configManager).path;
+    
+    qDebug() << "YtDlpJsonExtractor executing command:" << program << args;
     m_process->start(program, args);
 }
 
@@ -35,7 +37,15 @@ void YtDlpJsonExtractor::onProcessFinished(int exitCode, QProcess::ExitStatus ex
     if (exitStatus == QProcess::CrashExit || exitCode != 0) {
         QString stderrOutput = m_process->readAllStandardError();
         qWarning() << "YtDlpJsonExtractor failed. Exit code:" << exitCode << "Stderr:" << stderrOutput;
-        emit error("Failed to extract information. Error: " + stderrOutput);
+        QString cleanError = "Unknown error";
+        QStringList lines = stderrOutput.split('\n');
+        for (const QString &line : lines) {
+            if (line.startsWith("ERROR:")) {
+                cleanError = line.trimmed();
+                break;
+            }
+        }
+        emit error("Failed to extract information.\n" + cleanError);
         return;
     }
 

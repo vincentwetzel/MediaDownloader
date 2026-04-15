@@ -10,10 +10,10 @@
 #include <QSharedMemory>
 
 int main(int argc, char *argv[]) {
-    QSystemSemaphore semaphore("MediaDownloaderSemaphore", 1);
+    QSystemSemaphore semaphore("LzyDownloaderSemaphore", 1);
     semaphore.acquire();
 
-    QSharedMemory sharedMemory("MediaDownloaderSingleInstance");
+    QSharedMemory sharedMemory("LzyDownloaderSingleInstance");
     if (!sharedMemory.create(1)) {
         semaphore.release();
         return 0;
@@ -22,8 +22,8 @@ int main(int argc, char *argv[]) {
     QApplication a(argc, argv);
     a.setWindowIcon(QIcon(":/app-icon"));
 
-    a.setOrganizationName("MediaDownloader");
-    a.setApplicationName("MediaDownloader");
+    a.setOrganizationName("");
+    a.setApplicationName("LzyDownloader");
 
     QStringList libraryPaths = QApplication::libraryPaths();
     libraryPaths.prepend(a.applicationDirPath());

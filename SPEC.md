@@ -1,10 +1,13 @@
-# MediaDownloader C++ Specification
+# LzyDownloader C++ Specification
 
 ## 1. Overview
-This document outlines the specifications for the C++ port of the MediaDownloader application. The goal is to create a drop-in replacement for the existing Python application, ensuring 100% feature parity and seamless transition for users.
+This document outlines the specifications for the C++ port of the LzyDownloader application. The goal is to create a drop-in replacement for the existing Python application, ensuring 100% feature parity and seamless transition for users.
 
 ### 1.1 Documentation Requirement
 - **Mandatory**: When any agent or developer makes changes to how the app works (e.g., progress parsing, download pipeline, UI behavior, configuration, external binary handling), they MUST update the relevant MD documentation files (`AGENTS.md`, `SPEC.md`, `ARCHITECTURE.md`, `TODO.md`, `CHANGELOG.md`) to reflect the new behavior. Documentation MUST stay in sync with the code.
+
+### 1.2 File Size Constraints
+- **Context Preservation**: To ensure optimal performance with AI agents and preserve context usage, no single file (source code, headers, or documentation) should exceed **500 lines** in length. When a file approaches this limit, it must be refactored or split into smaller, focused modules.
 
 ## 2. Core Requirements
 
@@ -15,8 +18,11 @@ This document outlines the specifications for the C++ port of the MediaDownloade
 - **File Format**: `settings.ini` (INI format).
 - **Location**: Application root directory or user data directory.
 - **Parsing**: Must handle raw strings (no interpolation).
-- **Canonicalization**: The app must rewrite `settings.ini` into a canonical layout on save so each persisted setting name appears only once, legacy sections like `[%General]` are removed, and deprecated aliases fall back to the canonical key names.
-- **Keys**: Must support all keys from the Python version's `ConfigManager`, including:
+- **Legacy Support**: Backwards compatibility with the Python application's settings file is NO LONGER required. The application uses standard Qt `QSettings` behavior and automatically prunes unrecognised or legacy keys on startup to maintain a clean configuration file.
+    - `restrict_filenames`, `exit_after`.
+
+**Required settings keys include:**
+    - `output_template`.
     - `subtitles_embed`, `subtitles_write`, `subtitles_langs`, etc.
     - `restrict_filenames`, `exit_after`.
     - `convert_thumbnails`, `high_quality_thumbnail`.
@@ -29,6 +35,7 @@ This document outlines the specifications for the C++ port of the MediaDownloade
     - `embed_chapters`, `embed_metadata`, `embed_thumbnail`.
     - `video_quality`, `video_ext`, `vcodec`, `audio_quality`, `audio_ext`, `acodec`.
     - `lock_settings` for video and audio.
+    - `livestream/live_from_start`, `livestream/wait_for_video`, `livestream/download_as`, `livestream/use_part`, `livestream/quality`, `livestream/convert_to`.
 
 ### 2.3. Archive Compatibility
 - **Database**: `download_archive.db` (SQLite).
@@ -39,8 +46,8 @@ This document outlines the specifications for the C++ port of the MediaDownloade
 - **Main Window**: Tabbed interface with a footer containing links to GitHub and Discord.
 - **Start Tab**:
     - URL Input.
-    - Clipboard auto-paste: when the URL field is focused/clicked, the app checks the clipboard against the extractor-domain list stored next to `MediaDownloader.exe` and auto-pastes a matching URL.
-    - If `auto_paste_on_focus` is enabled, focusing or hovering the app window will switch to Start Download and auto-paste when a valid clipboard URL is detected.
+    - Clipboard auto-paste: when the URL field is focused/clicked, the app checks the clipboard against the extractor-domain list stored next to `LzyDownloader.exe` and auto-pastes a matching URL.
+    - If `auto_paste_on_focus` is enabled, focusing or hovering the app window will switch to Start Download and auto-paste when a valid clipboard URL is detected. This logic is now handled by `src/ui/StartTabUrlHandler.h/.cpp`.
     - Download Type dropdown, including "View Formats".
     - No per-download runtime quality/codec override dropdowns may appear on the Start tab; runtime format selection must be driven by Advanced Settings and download-time dialogs.
     - Video Settings group with quality, codec, extension, and audio codec defaults. Choosing `Quality = Select at Runtime` must hide the other video-format defaults on that page and defer the whole format decision to the runtime picker. Includes a "Lock Video Settings" checkbox.
@@ -56,6 +63,7 @@ This document outlines the specifications for the C++ port of the MediaDownloade
         - **Output Template**: Filename Pattern (with "Insert token...", "Save", and "Reset" buttons). The "Save" button validates the pattern using `yt-dlp`.
         - **Download Options**: External Downloader (aria2c), Enable SponsorBlock, Restrict filenames, Embed video chapters, Auto-paste URL when app is focused.
         - **Metadata / Thumbnails**: Embed metadata, Embed thumbnail, Use high-quality thumbnail converter, Convert thumbnails to.
+        - **Livestream Settings**: Record from beginning, Wait for video (with min/max intervals). The app dynamically scales these wait intervals for streams hours away vs seconds away. Download As (MPEG-TS or MKV), Use .part files, Quality, Convert To.
         - **Subtitles**: Subtitle language (using full words in a combo box), Embed subtitles in video, Write subtitles (separate file), Include automatically-generated subtitles, Subtitle file format (greyed out if "Embed subtitles in video" is selected).
         - **External Binaries**: Per-binary status rows for `yt-dlp`, `ffmpeg`, `ffprobe`, `gallery-dl`, `aria2c`, and `deno`, with auto-detection status, manual `Browse` overrides, and `Install` actions that offer detected package-manager commands plus manual-download links.
         - **Updates**: `yt-dlp` version (display only), Update `yt-dlp` (always to nightly), `gallery-dl` version (display only), Update `gallery-dl`.
@@ -102,12 +110,20 @@ This document outlines the specifications for the C++ port of the MediaDownloade
     - "Applying sorting rules..." (during directory sorting)
     - "Moving to final destination..." / "Copying file to destination..." (during file movement)
     - "Embedding metadata..." (during metadata embedding for audio playlists)
+    - "Next check in MM:SS" (while waiting for a scheduled livestream)
   - **Progress Details**: Below the progress bar, display formatted details including:
     - File sizes: "Downloaded / Total" (e.g., "15.3 MiB / 45.7 MiB")
     - Download speed (e.g., "Speed: 2.4 MiB/s")
     - Estimated time remaining (e.g., "ETA: 0:12")
   - All information MUST be separated by bullet points (•) for readability
   - Workers MUST emit detailed progress data including speed, ETA, downloaded_size, and total_size
+- **Immediate Queue UI Feedback**: Downloads MUST appear in the Active Downloads tab immediately upon queuing:
+  - **Gallery downloads**: Appear instantly with "Queued" status
+  - **Video/Audio downloads**: Appear instantly with "Checking for playlist..." status while playlist expansion runs asynchronously
+    - **Queue state persistence**: `DownloadQueueState` class handles saving/loading queue state, deferring calls via `Qt::QueuedConnection` to prevent GUI thread blocking.
+  - **Single videos**: Status updates from "Checking for playlist..." to "Queued" once expansion completes. `DownloadQueueManager` handles updating the placeholder item.
+  - **Playlists**: Placeholder item is removed and replaced with individual items for each track
+  - Queue state persistence (handled by `DownloadQueueManager`) MUST be deferred via `Qt::QueuedConnection` to prevent GUI thread blocking
 - **Runtime Format Selection**: When Advanced Settings `Quality` is set to `Select at Runtime` for video or audio downloads, the app must asynchronously fetch format metadata with `yt-dlp` and present a structured selection dialog. Selecting multiple formats must enqueue one download per selected format.
 - **Encoding Robustness**: Worker process environment must force UTF-8 text output (`PYTHONUTF8=1`, `PYTHONIOENCODING=utf-8`) so Unicode filenames are preserved in stdout/stderr parsing.
 
@@ -125,12 +141,15 @@ This document outlines the specifications for the C++ port of the MediaDownloade
 - **Dependency Management**:
   - Provides a UI for users to see the status of external binaries (`yt-dlp`, `ffmpeg`, etc.), manually locate them, or trigger an installation process.
   - The installation process will guide the user through automated (package manager) or manual (web download) methods.
-- **Executable Name**: Must be `MediaDownloader.exe`.
+- **Executable Name**: Must be `LzyDownloader.exe`.
 - **Binaries**: The application does not bundle external binaries. It requires the user to have `ffmpeg`, `ffprobe`, `deno`, and `yt-dlp` installed. `gallery-dl` and `aria2c` are optional.
 - **Qt Image Plugins**: Windows builds must deploy the Qt `imageformats` plugins required to display active-download thumbnails and converted artwork, including JPEG, PNG, WebP, and ICO support.
 
 ### 2.8. Logging
-- A structured, rotating file logger (`MediaDownloader.log`) must be implemented to capture application output for debugging.
+- A structured file logger (`LzyDownloader_YYYY-MM-dd_HH-mm-ss.log`) must be implemented to capture application output for debugging.
+- **One log file per run**: Each application launch creates a new log file with a timestamp in the filename.
+- **Log retention**: The application automatically keeps only the 10 most recent log files, deleting older ones on startup.
+- Log files must be stored in the user's AppData configuration directory (`%LOCALAPPDATA%\LzyDownloader\` on Windows).
 
 ## 3. Technical Stack
 - **Language**: C++20

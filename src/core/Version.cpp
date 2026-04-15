@@ -1,4 +1,5 @@
 #include "Version.h"
+#include <QStringList>
 
 Version::Version(const QString &versionString) {
     QStringList parts = versionString.split('.');

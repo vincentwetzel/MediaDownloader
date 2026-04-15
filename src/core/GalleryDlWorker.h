@@ -5,11 +5,13 @@
 #include <QStringList>
 #include <QVariantMap>
 
+class ConfigManager;
+
 class GalleryDlWorker : public QObject
 {
     Q_OBJECT
 public:
-    explicit GalleryDlWorker(const QString &id, const QStringList &args, QObject *parent = nullptr);
+    explicit GalleryDlWorker(const QString &id, const QStringList &args, ConfigManager *configManager, QObject *parent = nullptr);
     void start();
     void killProcess();
 
@@ -27,6 +29,7 @@ private slots:
 private:
     QString resolveExecutablePath(const QString &name) const;
 
+    ConfigManager *m_configManager;
     QString m_id;
     QStringList m_args;
     QProcess *m_process;

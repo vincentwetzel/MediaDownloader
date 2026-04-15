@@ -6,21 +6,15 @@
 #include <QMap>
 #include <QTimer>
 #include "ConfigManager.h"
+#include "DownloadItem.h"
 
 // Forward declarations
 class SortingManager;
 class ArchiveManager;
 class PlaylistExpander;
-
-struct DownloadItem {
-    QString id;
-    QString url;
-    QVariantMap options;
-    QString tempFilePath;
-    QString originalDownloadedFilePath;
-    QVariantMap metadata;
-    int playlistIndex = -1;
-};
+class DownloadFinalizer;
+class DownloadQueueManager;
+class DownloadQueueState;
 
 class DownloadManager : public QObject {
     Q_OBJECT
@@ -29,16 +23,27 @@ public:
     explicit DownloadManager(ConfigManager *configManager, QObject *parent = nullptr);
     ~DownloadManager();
 
-public slots:
+    enum DuplicateStatus {
+        NotDuplicate,
+        DuplicateInQueue,
+        DuplicateActive,
+        DuplicatePaused,
+        DuplicateCompleted
+    };
+    Q_ENUM(DuplicateStatus)
+
+    // Public API for adding/managing downloads
     void enqueueDownload(const QString &url, const QVariantMap &options);
-    void cancelDownload(const QString &id);
-    void retryDownload(const QVariantMap &itemData);
-    void resumeDownload(const QVariantMap &itemData);
-    void pauseDownload(const QString &id);
-    void unpauseDownload(const QString &id);
-    void moveDownloadUp(const QString &id);
-    void moveDownloadDown(const QString &id);
+    void cancelDownload(const QString &id); // Handles active workers, delegates to queue manager for queued/paused
+    void pauseDownload(const QString &id);   // Handles active workers, delegates to queue manager for queued
+    void unpauseDownload(const QString &id); // Delegates to queue manager
+    void restartDownloadWithOptions(const QVariantMap &itemData);
+    void retryDownload(const QVariantMap &itemData); // Delegates to queue manager
+    void resumeDownload(const QVariantMap &itemData); // Delegates to queue manager
+    void moveDownloadUp(const QString &id);   // Delegates to queue manager
+    void moveDownloadDown(const QString &id); // Delegates to queue manager
     void onWorkerOutputReceived(const QString &id, const QString &output);
+    void processPlaylistSelection(const QString &url, const QString &action, const QVariantMap &options, const QList<QVariantMap> &expandedItems);
     void resumeDownloadWithFormat(const QString &url, const QVariantMap &options, const QString &formatId);
 
 signals:
@@ -47,7 +52,8 @@ signals:
     void downloadPaused(const QString &id);
     void downloadResumed(const QString &id);
     void downloadProgress(const QString &id, const QVariantMap &progressData);
-    void downloadFinished(const QString &id, bool success, const QString &message);
+    void playlistActionRequested(const QString &url, int itemCount, const QVariantMap &options, const QList<QVariantMap> &expandedItems);
+    void resumeDownloadsRequested(const QJsonArray &arr);
     void downloadCancelled(const QString &id);
     void downloadFinalPathReady(const QString &id, const QString &path);
     void playlistExpansionStarted(const QString &url);
@@ -55,25 +61,31 @@ signals:
     void queueFinished();
     void totalSpeedUpdated(double speed);
     void videoQualityWarning(const QString &url, const QString &message);
-    void downloadStatsUpdated(int queued, int active, int completed);
+    void downloadStatsUpdated(int queued, int active, int completed, int errors);
     void formatSelectionRequested(const QString &url, const QVariantMap &options, const QVariantMap &infoDict);
     void formatSelectionFailed(const QString &url, const QString &message);
+    void ytDlpErrorPopupRequested(const QString &id, const QString &errorType, const QString &userMessage, const QString &rawError, const QVariantMap &itemData);
+    void duplicateDownloadDetected(const QString &url, const QString &reason);
+    void downloadFinished(const QString &id, bool success, const QString &message);
 
 private slots:
     void onPlaylistDetected(const QString &url, int itemCount, const QVariantMap &options, const QList<QVariantMap> &expandedItems);
     void onPlaylistExpanded(const QString &originalUrl, const QList<QVariantMap> &expandedItems, const QString &error);
+    void onPlaylistExpansionPlaceholderRemoved(const QString &id);
+    void onPlaylistExpansionPlaceholderUpdated(const QString &id, const QVariantMap &itemData);
     void startNextDownload();
     void onSleepTimerTimeout();
     void onWorkerProgress(const QString &id, const QVariantMap &progressData);
     void onWorkerFinished(const QString &id, bool success, const QString &message, const QString &finalFilename, const QString &originalDownloadedFilename, const QVariantMap &metadata);
     void onGalleryDlWorkerFinished(const QString &id, bool success, const QString &message, const QString &finalFilename, const QVariantMap &metadata);
     void onMetadataEmbedded(const QString &id, bool success, const QString &error);
+    void onYtDlpErrorDetected(const QString &id, const QString &errorType, const QString &userMessage, const QString &rawError);
+    void onFinalizationComplete(const QString &id, bool success, const QString &message); // Handles active item removal, stats update, and next download
+    void onQueueCountsChanged(int queued, int paused);
+    void onRequestStartNextDownload();
 
 private:
-    Q_INVOKABLE void saveQueueState();
-    Q_INVOKABLE void loadQueueState();
     void proceedWithDownload();
-    void finalizeDownload(const QString &id, DownloadItem &item, const QString &filePath);
     void checkQueueFinished();
     void updateTotalSpeed();
     void emitDownloadStats();
@@ -81,14 +93,11 @@ private:
 
     ConfigManager *m_configManager;
     SortingManager *m_sortingManager;
-    ArchiveManager *m_archiveManager;
-    QQueue<DownloadItem> m_downloadQueue;
-    QMap<QString, DownloadItem> m_pausedItems;
+    ArchiveManager *m_archiveManager; // Keep for direct archive access
+    DownloadFinalizer *m_finalizer;
     QMap<QString, QObject*> m_activeWorkers;
     QMap<QString, DownloadItem> m_activeItems;
     QMap<QString, QObject*> m_activeEmbedders;
-    QMap<QString, double> m_workerSpeeds;
-    QMap<QString, QString> m_pendingExpansions; // Maps queue ID to URL during playlist expansion
 
     int m_maxConcurrentDownloads;
     enum SleepMode { NoSleep, ShortSleep, LongSleep };
@@ -96,8 +105,14 @@ private:
     QTimer *m_sleepTimer;
 
     int m_queuedDownloadsCount;
+    int m_pausedDownloadsCount; // Track paused count for stats
     int m_activeDownloadsCount;
     int m_completedDownloadsCount;
+    int m_errorDownloadsCount;
+    QMap<QString, double> m_workerSpeeds;
+
+    DownloadQueueState *m_queueState;
+    DownloadQueueManager *m_queueManager; // New member for queue management
 };
 
 #endif // DOWNLOADMANAGER_H

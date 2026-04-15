@@ -1,13 +1,16 @@
 #include "GalleryDlWorker.h"
+#include "ProcessUtils.h"
+#include "core/ConfigManager.h"
 #include <QCoreApplication>
 #include <QDir>
 #include <QDebug>
 #include <QFile>
 #include <QRegularExpression>
 #include <QFileInfo>
+#include <QProcess>
 
-GalleryDlWorker::GalleryDlWorker(const QString &id, const QStringList &args, QObject *parent)
-    : QObject(parent), m_id(id), m_args(args)
+GalleryDlWorker::GalleryDlWorker(const QString &id, const QStringList &args, ConfigManager *configManager, QObject *parent)
+    : QObject(parent), m_configManager(configManager), m_id(id), m_args(args)
 {
     m_process = new QProcess(this);
 
@@ -24,6 +27,12 @@ void GalleryDlWorker::start()
         emit finished(m_id, false, "gallery-dl executable was not found.", QString(), QVariantMap());
         return;
     }
+
+    // Emit initial progress
+    emit progressUpdated(m_id, {
+        {"progress", 0},
+        {"status", "Starting gallery-dl..."}
+    });
 
     m_process->setWorkingDirectory(QFileInfo(galleryDlPath).absolutePath());
     m_process->start(galleryDlPath, m_args);
@@ -42,18 +51,27 @@ void GalleryDlWorker::onReadyReadStandardOutput()
     const QStringList lines = QString::fromUtf8(m_outputBuffer).split(QRegularExpression("[\\r\\n]"), Qt::SkipEmptyParts);
     m_outputBuffer.clear();
 
-    QRegularExpression re(R"(\[gallery-dl\]\[debug\] Writing to '([^']+)'.*)");
+    // Match file paths that gallery-dl outputs (e.g., "J:\temp_downloads\...\file.jpg")
+    QRegularExpression pathRe(R"((?:[A-Za-z]:[/\\]|[/\\][/\\][\w.]+[/\\])[^\n]+\.(?:jpg|jpeg|png|gif|webp|webm|mp4|mkv|avi|mov|pdf|zip|txt|mp3|ogg|flac|wav|svg|bmp|tiff|gifv|mpd|m3u8|vtt|ass|srt|json|xml|html|torrent|cbz|cbr|epub))", QRegularExpression::CaseInsensitiveOption);
+
     for (const QString &line : lines) {
         emit outputReceived(m_id, line);
-        QRegularExpressionMatch match = re.match(line);
-        if (!match.hasMatch()) {
-            continue;
+
+        // Check if this line contains a downloaded file path
+        QRegularExpressionMatch match = pathRe.match(line);
+        if (match.hasMatch()) {
+            QString filePath = match.captured(0).trimmed();
+            if (!filePath.isEmpty() && filePath != m_lastFile) {
+                m_lastFile = filePath;
+                QFileInfo fi(m_lastFile);
+                // Emit full progress with "processing" color
+                emit progressUpdated(m_id, {
+                    {"progress", 100},
+                    {"status", "Downloading: " + fi.fileName()},
+                    {"current_file", m_lastFile}
+                });
+            }
         }
-        m_lastFile = match.captured(1);
-        emit progressUpdated(m_id, {
-            {"progress", 50},
-            {"status", "Downloading: " + QFileInfo(m_lastFile).fileName()}
-        });
     }
 }
 
@@ -76,6 +94,12 @@ void GalleryDlWorker::onProcessFinished(int exitCode, QProcess::ExitStatus exitS
         emit finished(m_id, false, "gallery-dl failed: " + stderrOutput, QString(), QVariantMap());
         return;
     }
+
+    // Emit final progress before finishing
+    emit progressUpdated(m_id, {
+        {"progress", 100},
+        {"status", "Finalizing..."}
+    });
 
     QString outputDirectory;
     for (int i = 0; i < m_args.size(); ++i) {
@@ -101,17 +125,17 @@ void GalleryDlWorker::onProcessError(QProcess::ProcessError processError)
 
 QString GalleryDlWorker::resolveExecutablePath(const QString &name) const
 {
-    const QString appDir = QCoreApplication::applicationDirPath();
-    const QStringList candidates = {
-        QDir(appDir).filePath(name),
-        QDir(QDir(appDir).filePath("bin")).filePath(name)
-    };
-
-    for (const QString &candidate : candidates) {
-        if (QFile::exists(candidate)) {
-            return candidate;
-        }
+    // Remove .exe suffix for ProcessUtils
+    QString baseName = name;
+    if (baseName.endsWith(".exe")) {
+        baseName.chop(4);
     }
-
-    return QString();
+    
+    ProcessUtils::FoundBinary found = ProcessUtils::findBinary(baseName, m_configManager);
+    
+    if (found.source == "Not Found" || found.source == "Invalid Custom") {
+        return QString();
+    }
+    
+    return found.path;
 }

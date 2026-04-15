@@ -1,6 +1,6 @@
 #include "StartupWorker.h"
-#include <QCoreApplication>
-#include <QFile>
+#include "core/ProcessUtils.h"
+
 #include <QDebug>
 #include <QMetaObject>
 
@@ -41,26 +41,23 @@ void StartupWorker::start() {
 }
 
 void StartupWorker::logBinaryPaths() {
-    QString appDir = QCoreApplication::applicationDirPath();
-    QStringList binaries = {"yt-dlp.exe", "ffmpeg.exe", "ffprobe.exe", "gallery-dl.exe", "aria2c.exe", "deno.exe"};
-
+    const QStringList binaries = {"yt-dlp", "ffmpeg", "ffprobe", "gallery-dl", "aria2c", "deno"};
     for (const QString &binary : binaries) {
-        QString path = appDir + "/" + binary;
-        if (QFile::exists(path)) {
-            qInfo() << QString("Found bundled %1: %2").arg(binary, path);
+        const ProcessUtils::FoundBinary foundBinary = ProcessUtils::findBinary(binary, m_configManager);
+        if (foundBinary.source == "Not Found") {
+            qWarning() << "Binary not found:" << binary;
         } else {
-            qWarning() << QString("Bundled %1 not found at %2").arg(binary, path);
+            qInfo() << "Binary resolved:" << binary << "source:" << foundBinary.source << "path:" << foundBinary.path;
         }
     }
 }
 
 void StartupWorker::checkBinaries() {
-    QStringList binaries = {"yt-dlp.exe", "ffmpeg.exe", "ffprobe.exe", "gallery-dl.exe"};
     QStringList missing;
-    QString appDir = QCoreApplication::applicationDirPath();
-
-    for (const QString &binary : binaries) {
-        if (!QFile::exists(appDir + "/" + binary)) {
+    const QStringList requiredBinaries = {"yt-dlp", "ffmpeg", "ffprobe", "deno"};
+    for (const QString &binary : requiredBinaries) {
+        QString source = ProcessUtils::findBinary(binary, m_configManager).source;
+        if (source == "Not Found" || source == "Invalid Custom") {
             missing << binary;
         }
     }

@@ -49,6 +49,16 @@ void YtDlpUpdater::stop() {
 void YtDlpUpdater::fetchVersion() {
     m_process = new QProcess(); // No parent
     connect(m_process, &QProcess::finished, this, &YtDlpUpdater::onVersionFetchFinished);
+    connect(m_process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
+        if (error == QProcess::FailedToStart) {
+            emit versionFetched("Not Found");
+            emit updateFinished(Updater::UpdateStatus::Error, "Failed to start yt-dlp to check version.");
+            if (m_process) {
+                m_process->deleteLater();
+                m_process = nullptr;
+            }
+        }
+    });
     // Ensure the process deletes itself when it's done.
     connect(m_process, &QProcess::finished, m_process, &QObject::deleteLater);
 
@@ -95,7 +105,7 @@ void YtDlpUpdater::onReleaseCheckFinished() {
 
     if (downloadUrl.isValid()) {
         QNetworkRequest request(downloadUrl);
-        request.setHeader(QNetworkRequest::UserAgentHeader, "MediaDownloader");
+        request.setHeader(QNetworkRequest::UserAgentHeader, "LzyDownloader");
         QNetworkReply *dlReply = m_networkManager->get(request);
         dlReply->setProperty("newVersion", remoteVersionTag);
         connect(dlReply, &QNetworkReply::finished, this, &YtDlpUpdater::onDownloadFinished);
@@ -156,7 +166,7 @@ void YtDlpUpdater::onVersionFetchFinished(int exitCode, QProcess::ExitStatus exi
         QString repo = "yt-dlp/yt-dlp-nightly-builds";
         QUrl url("https://api.github.com/repos/" + repo + "/releases/latest");
         QNetworkRequest request(url);
-        request.setHeader(QNetworkRequest::UserAgentHeader, "MediaDownloader");
+        request.setHeader(QNetworkRequest::UserAgentHeader, "LzyDownloader");
         QNetworkReply *reply = m_networkManager->get(request);
         connect(reply, &QNetworkReply::finished, this, &YtDlpUpdater::onReleaseCheckFinished);
     } else {

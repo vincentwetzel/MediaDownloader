@@ -85,7 +85,7 @@ void AppUpdater::onDownloadFinished(QNetworkReply *reply) {
     }
 
     QString tempPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
-    QString installerPath = tempPath + "/MediaDownloader-Setup.exe";
+    QString installerPath = tempPath + "/LzyDownloader-Setup.exe";
 
     QFile installerFile(installerPath);
     if (!installerFile.open(QIODevice::WriteOnly)) {

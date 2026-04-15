@@ -1,4 +1,4 @@
-# MediaDownloader (C++ Port)
+# LzyDownloader (C++ Port)
 
 A lightweight, high-performance desktop application for downloading media (video and audio) from online platforms using **yt-dlp**.
 
@@ -22,13 +22,13 @@ A lightweight, high-performance desktop application for downloading media (video
 
 ### Windows (Recommended)
 
-Download the latest installer from [Releases](https://github.com/vincentwetzel/MediaDownloader/releases):
+Download the latest installer from [Releases](https://github.com/vincentwetzel/LzyDownloader/releases):
 
-1. Download `MediaDownloader-Setup-X.X.X.exe`
+1. Download `LzyDownloader-Setup-X.X.X.exe`
 2. Run the installer
 3. Launch from Start Menu or desktop shortcut
 
-**Note for existing users:** The installer will automatically replace your existing Python version of MediaDownloader. Your settings and download history will be preserved.
+**Note for existing users:** The installer will automatically replace your existing Python version of LzyDownloader. Your settings and download history will be preserved.
 
 ### From Source
 
@@ -36,8 +36,8 @@ Requires CMake, a C++20 compatible compiler (MSVC recommended on Windows), and Q
 
 ```bash
 # Clone the repo
-git clone https://github.com/vincentwetzel/MediaDownloader.git
-cd MediaDownloader
+git clone https://github.com/vincentwetzel/LzyDownloader.git
+cd LzyDownloader
 
 # Configure and build
 cmake -B build
@@ -46,7 +46,7 @@ cmake --build build --config Release
 
 ## Usage
 
-1. **Launch the app** (`MediaDownloader.exe`)
+1. **Launch the app** (`LzyDownloader.exe`)
 2. **Enter a URL** in the "Start Download" tab
 3. **Configure options** (quality, format, SponsorBlock, etc.)
 4. **Click Download** to start
@@ -69,31 +69,33 @@ All settings are saved to `settings.ini` and persist between sessions. The forma
 The application is built using **C++20** and the **Qt 6** framework.
 
 ```
-MediaDownloader/
+LzyDownloader/
 ├── CMakeLists.txt              # Build System Configuration
 ├── main.cpp                    # Application Entry Point
 ├── src/
 │   ├── core/                   # Core Business Logic
 │   │   ├── ConfigManager.h/cpp   # Settings persistence (INI)
 │   │   ├── ArchiveManager.h/cpp  # Download history (SQLite)
+│   │   ├── DownloadQueueState.h/cpp # Manages persistence of download queue state
 │   │   ├── DownloadManager.h/cpp # Queue & Lifecycle Management
+│   │   ├── DownloadFinalizer.h/cpp # File Verification & Moving
 │   │   ├── YtDlpWorker.h/cpp     # QProcess Wrapper & Parsing
 │   │   └── ...
 │   ├── ui/                     # User Interface (Qt Widgets)
 │   │   ├── MainWindow.h/cpp      # Main Window & Signal Hub
-│   │   ├── StartTab.h/cpp        # Input Tab
+│   │   ├── MainWindowUiBuilder.h/cpp # Builds UI for MainWindow
+│   │   ├── StartTab.h/cpp        # Input Tab (Orchestrates helper classes for URL handling, download actions, and command preview)
+│   │   ├── StartTabUiBuilder.h/cpp # Builds UI for StartTab
+│   │   ├── StartTabDownloadActions.h/cpp # Handles download actions and format checking
+│   │   ├── StartTabUrlHandler.h/cpp # Manages URL input and clipboard
+│   │   ├── StartTabCommandPreviewUpdater.h/cpp # Updates command preview
 │   │   ├── ActiveDownloadsTab.h/cpp # Progress Tab
 │   │   └── ...
 │   └── utils/                  # Helper Modules
 │       └── StringUtils.h/cpp   # String/URL utilities
-├── bin/                        # External Binaries
-│   ├── yt-dlp.exe
-│   ├── ffmpeg.exe
-│   ├── ffprobe.exe
-│   ├── gallery-dl.exe
-│   ├── aria2c.exe
-│   └── deno.exe
 ```
+
+**Note:** External binaries (yt-dlp, ffmpeg, ffprobe, gallery-dl, aria2c, deno) are not bundled with the application. Users must install them separately or configure paths in Advanced Settings.
 
 ## Contributing
 

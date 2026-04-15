@@ -7,7 +7,7 @@
 #include <QMenu>
 #include <QLabel>
 #include <QCloseEvent>
-#include <QVariantMap>
+#include <QVariant>
 #include <QThread> // Include QThread
 #include <QClipboard> // Include QClipboard
 
@@ -25,6 +25,7 @@ class StartTab;
 class SortingTab;
 class ExtractorJsonParser;
 class YtDlpJsonExtractor;
+class MainWindowUiBuilder;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -47,11 +48,12 @@ private slots:
     void onVideoQualityWarning(const QString &url, const QString &message);
     void applyTheme(const QString &themeName);
     void updateTotalSpeed(double speed);
-    void onDownloadStatsUpdated(int queued, int active, int completed);
+    void onDownloadStatsUpdated(int queued, int active, int completed, int errors);
     void setYtDlpVersion(const QString &version);
     void onClipboardChanged(); // New slot for clipboard changes
-        void onRuntimeInfoReady(const QVariantMap &info);
-        void onRuntimeInfoError(const QString &error);
+    void onRuntimeInfoReady(const QVariantMap &info);
+    void onRuntimeInfoError(const QString &error);
+    void onYtDlpErrorPopup(const QString &id, const QString &errorType, const QString &userMessage, const QString &rawError, const QVariantMap &itemData);
 
 private:
     void setupUI();
@@ -69,6 +71,7 @@ private:
     QThread *m_startupThread; // New thread for the startup worker
     ExtractorJsonParser *m_extractorJsonParser;
     YtDlpJsonExtractor *m_runtimeExtractor;
+    MainWindowUiBuilder *m_uiBuilder;
     QClipboard *m_clipboard; // New QClipboard member
 
     QTabWidget *m_tabWidget;
@@ -79,6 +82,7 @@ private:
     QLabel *m_queuedDownloadsLabel;
     QLabel *m_activeDownloadsLabel;
     QLabel *m_completedDownloadsLabel;
+    QLabel *m_errorDownloadsLabel;
 
     QSystemTrayIcon *m_trayIcon;
     QMenu *m_trayMenu;
@@ -86,6 +90,8 @@ private:
     QString m_pendingUrl;
     QVariantMap m_pendingOptions;
     bool m_silentUpdateCheck;
+    QString m_lastAutoPastedUrl; // Track last auto-pasted URL to prevent duplicates
+    qint64 m_lastAutoPasteTimestamp; // Timestamp of last auto-paste to enforce cooldown
 };
 
 #endif // MAINWINDOW_H

@@ -18,12 +18,17 @@
 class QEvent;
 class QFocusEvent;
 class ToggleSwitch;
+class StartTabUiBuilder;
+class StartTabUrlHandler;
+class StartTabDownloadActions;
+class StartTabCommandPreviewUpdater;
 
 class StartTab : public QWidget {
     Q_OBJECT
 
 public:
     explicit StartTab(ConfigManager *configManager, ExtractorJsonParser *extractorJsonParser, QWidget *parent = nullptr);
+    ~StartTab() override;
     bool tryAutoPasteFromClipboard();
     void focusUrlInput();
 
@@ -34,47 +39,41 @@ protected:
 
 signals:
     void downloadRequested(const QString &url, const QVariantMap &options);
+    void navigateToExternalBinaries();
+    void urlInputTextChanged(const QString &text);
 
 public slots: // Changed from private slots:
     void onDownloadButtonClicked();
-    void onViewFormatsFinished(int exitCode, QProcess::ExitStatus exitStatus);
-    void openDownloadsFolder();
-    void onDownloadTypeChanged(int index);
     void onExtractorsReady();
     void updateCommandPreview();
-
-private slots:
-    void onClipboardChangedWhileDialogIsOpen();
-    void onTypeSelectionDialogFinished(int result);
+    void onDuplicateDownloadDetected(const QString &url, const QString &reason);
 
 private:
     void setupUI();
     void loadSettings();
-    void checkFormats(const QString &url);
-    QString resolveExecutablePath(const QString &name) const;
-    bool checkClipboardForUrl();
     void applyUrlInputStyleSheet();
     void applyCommandPreviewStyleSheet(); // Added this line
+    void updateDynamicUI();
+
+    enum class ExtractorSupport {
+        None,
+        YtDlpOnly,
+        GalleryDlOnly,
+        Both
+    };
 
     ConfigManager *m_configManager;
     ExtractorJsonParser *m_extractorJsonParser;
     YtDlpArgsBuilder *m_ytDlpArgsBuilder;
     GalleryDlArgsBuilder *m_galleryDlArgsBuilder;
 
-    // UI Elements
-    QTextEdit *m_urlInput;
-    QPushButton *m_openDownloadsFolderButton;
-    QComboBox *m_downloadTypeCombo;
-    QPushButton *m_downloadButton;
-    QTextEdit *m_commandPreview;
-
-    // Operational Controls
-    QComboBox *m_playlistLogicCombo;
-    QComboBox *m_maxConcurrentCombo;
-    QComboBox *m_rateLimitCombo;
-    ToggleSwitch *m_overrideDuplicateCheck;
+    StartTabUiBuilder *m_uiBuilder;
+    StartTabUrlHandler *m_urlHandler;
+    StartTabDownloadActions *m_downloadActions;
+    StartTabCommandPreviewUpdater *m_commandPreviewUpdater;
 
     QMessageBox *m_typeSelectionDialog = nullptr;
+    QString m_lastAutoSwitchedUrl;
 };
 
 #endif // STARTTAB_H

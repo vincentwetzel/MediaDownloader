@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(MediaDownloader VERSION 1.0.13 LANGUAGES CXX)
+project(LzyDownloader VERSION 1.0.14 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -60,18 +60,19 @@ file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS
     "src/*.h"
 )
 
-# The project currently contains two different YtDlpJsonExtractor
-# implementations with the same class name. Keep the original top-level
-# extractor that Aria2DownloadWorker and MainWindow use, and exclude the
-# duplicate core variant from this target to avoid ODR/link conflicts.
-list(FILTER SOURCES EXCLUDE REGEX ".*/src/core/YtDlpJsonExtractor\\.(cpp|h)$")
+# Filter out specific duplicate implementations to avoid ODR/link conflicts.
+# The project uses top-level implementations for YtDlpJsonExtractor, Aria2Daemon,
+# and FfmpegPostProcessor, and excludes their counterparts in the 'src/core/' directory.
+set(EXCLUDED_SOURCES_REGEXES
+    ".*/src/core/YtDlpJsonExtractor\\.(cpp|h)$"
+    ".*/src/core/Aria2Daemon\\.(cpp|h)$"
+    ".*/src/core/FfmpegPostProcessor\\.(cpp|h)$"
+)
 
-# Likewise, the target contains legacy top-level Aria2/ffmpeg pipeline classes
-# plus newer core-side classes with the same names. The app currently uses the
-# top-level variants, so exclude the duplicate core implementations from the
-# target to keep AUTOMOC from generating conflicting meta-object code.
-list(FILTER SOURCES EXCLUDE REGEX ".*/src/core/Aria2Daemon\\.(cpp|h)$")
-list(FILTER SOURCES EXCLUDE REGEX ".*/src/core/FfmpegPostProcessor\\.(cpp|h)$")
+foreach(REGEX_PATTERN IN LISTS EXCLUDED_SOURCES_REGEXES)
+    list(FILTER SOURCES EXCLUDE REGEX "${REGEX_PATTERN}")
+endforeach()
+
 
 # --- Include Directories ---
 # This ensures that #include "utils/..." or "core/..." works regardless of
@@ -94,18 +95,26 @@ configure_file(
 # Generate the .rc file from a template so the RC compiler never sees
 # C++ Qt headers (on Windows version.h matches Version.h case-insensitively).
 configure_file(
-    MediaDownloader.rc.in
-    ${CMAKE_CURRENT_BINARY_DIR}/MediaDownloader.rc
+    LzyDownloader.rc.in
+    ${CMAKE_CURRENT_BINARY_DIR}/LzyDownloader.rc
     @ONLY
 )
 
 # --- Executable Target ---
-add_executable(MediaDownloader
+add_executable(LzyDownloader
     # Use WIN32 for GUI applications on Windows to avoid a console window
     # WIN32 # Temporarily disabled to allow console output for debugging
 
     # Application entry point
     main.cpp
+
+    # Refactored Root-level classes
+    StartTabUrlHandler.cpp
+    StartTabUrlHandler.h
+    StartTabDownloadActions.cpp
+    StartTabDownloadActions.h
+    StartTabCommandPreviewUpdater.cpp
+    StartTabCommandPreviewUpdater.h
 
     # All source and header files gathered by the glob
     ${SOURCES}
@@ -121,11 +130,11 @@ add_executable(MediaDownloader
     src/ui/resources.qrc
 
     # Windows application icon and version metadata (generated from template)
-    ${CMAKE_CURRENT_BINARY_DIR}/MediaDownloader.rc
+    ${CMAKE_CURRENT_BINARY_DIR}/LzyDownloader.rc
 )
 
 # --- Link Libraries ---
-target_link_libraries(MediaDownloader PRIVATE
+target_link_libraries(LzyDownloader PRIVATE
     Qt6::Widgets
     Qt6::Network
     Qt6::Sql
@@ -136,15 +145,15 @@ target_link_libraries(MediaDownloader PRIVATE
 # --- Deployment of Resources ---
 # This section ensures that required data files are copied to the build
 # output directory, so the application can find them at runtime.
-add_custom_command(TARGET MediaDownloader POST_BUILD
+add_custom_command(TARGET LzyDownloader POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
     "${CMAKE_CURRENT_SOURCE_DIR}/extractors_yt-dlp.json"
-    "$<TARGET_FILE_DIR:MediaDownloader>"
+    "$<TARGET_FILE_DIR:LzyDownloader>"
     COMMENT "Copying yt-dlp extractor list to output directory")
-add_custom_command(TARGET MediaDownloader POST_BUILD
+add_custom_command(TARGET LzyDownloader POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
     "${CMAKE_CURRENT_SOURCE_DIR}/extractors_gallery-dl.json"
-    "$<TARGET_FILE_DIR:MediaDownloader>"
+    "$<TARGET_FILE_DIR:LzyDownloader>"
     COMMENT "Copying gallery-dl extractor list to output directory")
 
 # --- Windows Specific Deployment (Qt Plugins) ---
@@ -158,13 +167,13 @@ if(WIN32)
     find_program(WINDEPLOYQT_EXECUTABLE windeployqt HINTS "${_qt_bin_dir}")
 
     if(WINDEPLOYQT_EXECUTABLE)
-        add_custom_command(TARGET MediaDownloader POST_BUILD
+        add_custom_command(TARGET LzyDownloader POST_BUILD
             COMMAND "${WINDEPLOYQT_EXECUTABLE}"
-            --dir "$<TARGET_FILE_DIR:MediaDownloader>"
+            --dir "$<TARGET_FILE_DIR:LzyDownloader>"
             --no-translations
             --no-compiler-runtime
             --no-opengl-sw
-            "$<TARGET_FILE:MediaDownloader>"
+            "$<TARGET_FILE:LzyDownloader>"
             COMMENT "Running windeployqt to copy Qt dependencies..."
         )
     else()

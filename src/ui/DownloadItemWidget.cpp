@@ -110,6 +110,7 @@ void DownloadItemWidget::updateProgress(const QVariantMap &progressData) {
         m_titleLabel->setText(progressData["title"].toString());
     }
     if (progressData.contains("status")) {
+        m_statusLabel->setStyleSheet("");
         m_statusLabel->setText(progressData["status"].toString());
     }
     if (progressData.contains("progress")) {
@@ -197,10 +198,16 @@ void DownloadItemWidget::setFinished(bool success, const QString &message) {
     m_isFinished = true;
     m_isSuccessful = success;
     m_clearButton->show();
-    m_statusLabel->setText(message);
+
     if (!success) {
         m_retryButton->show();
+        m_statusLabel->setStyleSheet("color: #dc2626;");
+        m_progressBar->setStyleSheet("QProgressBar { color: #dc2626; }");
+        m_progressBar->setProgressText("Download failed");
+    } else {
+        m_statusLabel->setStyleSheet("");
     }
+    m_statusLabel->setText(message);
 }
 
 void DownloadItemWidget::setCancelled() {
@@ -212,7 +219,10 @@ void DownloadItemWidget::setCancelled() {
     m_isFinished = true;
     m_isSuccessful = false;
     m_clearButton->show();
+    m_statusLabel->setStyleSheet("color: #dc2626;");
     m_statusLabel->setText("Cancelled");
+    m_progressBar->setStyleSheet("QProgressBar { color: #dc2626; }");
+    m_progressBar->setProgressText("Cancelled");
 }
 
 void DownloadItemWidget::setPaused(bool paused) {

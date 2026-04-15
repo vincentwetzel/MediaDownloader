@@ -9,6 +9,8 @@
 #include <QProcess>
 #include <QPushButton>
 #include <QTimer>
+#include <QDesktopServices>
+#include <QDir>
 #include "core/ConfigManager.h"
 
 ActiveDownloadsTab::ActiveDownloadsTab(ConfigManager *configManager, QWidget *parent)
@@ -24,6 +26,37 @@ void ActiveDownloadsTab::setupUi() {
     m_pauseResumeAllButton = new QPushButton("Pause All", this);
     m_cancelAllButton = new QPushButton("Cancel All", this);
     m_clearCompletedButton = new QPushButton("Clear Completed", this);
+    
+    // Add folder buttons for quick access to download directories
+    QPushButton *openTempFolderButton = new QPushButton("Open Temporary Folder", this);
+    openTempFolderButton->setToolTip("Click here to open the folder where active downloads are temporarily stored.");
+    connect(openTempFolderButton, &QPushButton::clicked, this, [this]() {
+        QString tempDir = m_configManager->get("Paths", "temporary_downloads_directory").toString();
+        if (tempDir.isEmpty() || !QDir(tempDir).exists()) {
+            QMessageBox::warning(this, "Folder Not Found",
+                                 "The temporary downloads directory is not set or does not exist.\n"
+                                 "Please configure it in the Advanced Settings tab.");
+            return;
+        }
+        QDesktopServices::openUrl(QUrl::fromLocalFile(tempDir));
+    });
+    
+    QPushButton *openDownloadsFolderButton = new QPushButton("Open Downloads Folder", this);
+    openDownloadsFolderButton->setToolTip("Click here to open the folder where all your finished downloads are saved.");
+    connect(openDownloadsFolderButton, &QPushButton::clicked, this, [this]() {
+        QString downloadsDir = m_configManager->get("Paths", "completed_downloads_directory").toString();
+        if (downloadsDir.isEmpty() || !QDir(downloadsDir).exists()) {
+            QMessageBox::warning(this, "Folder Not Found",
+                                 "The downloads directory is not set or does not exist.\n"
+                                 "Please configure it in the Advanced Settings tab.");
+            return;
+        }
+        QDesktopServices::openUrl(QUrl::fromLocalFile(downloadsDir));
+    });
+    
+    toolbarLayout->addWidget(openTempFolderButton);
+    toolbarLayout->addWidget(openDownloadsFolderButton);
+    toolbarLayout->addSpacing(10);
     toolbarLayout->addWidget(m_pauseResumeAllButton);
     toolbarLayout->addWidget(m_cancelAllButton);
     toolbarLayout->addWidget(m_clearCompletedButton);

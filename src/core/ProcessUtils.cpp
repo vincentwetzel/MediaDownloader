@@ -78,10 +78,10 @@ FoundBinary findBinary(const QString& name, ConfigManager* configManager)
     }
 
     FoundBinary result = resolveBinary(name, configManager);
-    
+
     // Cache the result
     s_binaryCache.insert(name, result);
-    
+
     return result;
 }
 
@@ -93,15 +93,17 @@ FoundBinary resolveBinary(const QString& name, ConfigManager* configManager)
     QString exeName = name;
 #endif
 
+    // Test QStandardPaths::findExecutable
     QString systemPath = QStandardPaths::findExecutable(exeName);
-    QString bundledPathBin = QDir(QCoreApplication::applicationDirPath()).filePath("bin/" + exeName);
-    QString bundledPathRoot = QDir(QCoreApplication::applicationDirPath()).filePath(exeName);
+
+    qDebug() << "[ProcessUtils] resolveBinary:" << name << "- systemPath:" << systemPath;
 
     // 1. Check config override
     QString configKey = name + "_path";
     QString customPath = configManager->get("Binaries", configKey, "").toString().trimmed();
 
     if (!customPath.isEmpty()) {
+        qDebug() << "[ProcessUtils] Custom path configured for" << name << ":" << customPath;
         if (!QFileInfo::exists(customPath)) {
             return {QDir::toNativeSeparators(customPath), "Invalid Custom"};
         }
@@ -111,18 +113,13 @@ FoundBinary resolveBinary(const QString& name, ConfigManager* configManager)
         if (!systemPath.isEmpty() && canonicalCustom == QFileInfo(systemPath).canonicalFilePath()) {
             return {QDir::toNativeSeparators(systemPath), "System PATH"};
         }
-        if (QFileInfo::exists(bundledPathBin) && canonicalCustom == QFileInfo(bundledPathBin).canonicalFilePath()) {
-            return {QDir::toNativeSeparators(bundledPathBin), "Bundled"};
-        }
-        if (QFileInfo::exists(bundledPathRoot) && canonicalCustom == QFileInfo(bundledPathRoot).canonicalFilePath()) {
-            return {QDir::toNativeSeparators(bundledPathRoot), "Bundled"};
-        }
 
         return {QDir::toNativeSeparators(customPath), "Custom"};
     }
 
     // 2. Check system PATH first (allows users to provide their own unbundled binaries)
     if (!systemPath.isEmpty()) {
+        qDebug() << "[ProcessUtils] Found" << name << "in System PATH:" << systemPath;
         return {QDir::toNativeSeparators(systemPath), "System PATH"};
     }
 
@@ -130,17 +127,24 @@ FoundBinary resolveBinary(const QString& name, ConfigManager* configManager)
     //     These tools often install to a user-local path that isn't in PATH.
     QString userToolPath = findCommonUserTool(exeName);
     if (!userToolPath.isEmpty()) {
+        qDebug() << "[ProcessUtils] Found" << name << "in User Local:" << userToolPath;
         return {QDir::toNativeSeparators(userToolPath), "User Local"};
     }
 
-    // 3. Check bundled paths (first in 'bin' subdirectory, then app root)
-    if (QFileInfo::exists(bundledPathBin)) {
-        return {QDir::toNativeSeparators(bundledPathBin), "Bundled"};
+    qDebug() << "[ProcessUtils]" << name << "NOT FOUND - searching all PATH directories for" << exeName;
+    
+    // Final diagnostic: manually search PATH
+    QString pathEnv = QProcessEnvironment::systemEnvironment().value("PATH");
+    QStringList pathDirs = pathEnv.split(QDir::listSeparator(), Qt::SkipEmptyParts);
+    qDebug() << "[ProcessUtils] PATH contains" << pathDirs.size() << "directories";
+    for (const QString& dir : pathDirs) {
+        QString candidate = QDir(dir).filePath(exeName);
+        if (QFileInfo::exists(candidate)) {
+            qDebug() << "[ProcessUtils] FOUND" << name << "at" << candidate << "(in PATH dir:" << dir << ")";
+            return {QDir::toNativeSeparators(candidate), "System PATH"};
+        }
     }
-    if (QFileInfo::exists(bundledPathRoot)) {
-        return {QDir::toNativeSeparators(bundledPathRoot), "Bundled"};
-    }
-
+    
     return {name, "Not Found"};
 }
 

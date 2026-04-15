@@ -6,6 +6,7 @@
 #include <QHeaderView>
 #include <QVariantList>
 #include <QCheckBox>
+#include <QTableWidget>
 
 FormatSelectionDialog::FormatSelectionDialog(const QVariantMap &infoDict, const QVariantMap &options, QWidget *parent)
     : QDialog(parent) {

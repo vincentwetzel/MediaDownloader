@@ -2,6 +2,7 @@
 #include <QFileInfo>
 #include <QDir>
 #include <QDebug>
+#include <QFile>
 
 MetadataEmbedder::MetadataEmbedder(QObject *parent) : QObject(parent) {
     m_process = new QProcess(this);

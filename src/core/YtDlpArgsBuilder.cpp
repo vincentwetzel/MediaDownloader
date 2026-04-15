@@ -4,6 +4,7 @@
 #include <QRegularExpression>
 #include <QStandardPaths>
 #include <QCoreApplication>
+#include <QFileInfo>
 #include <QFile>
 #include <QDebug>
 
@@ -57,7 +58,51 @@ QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString 
     QString finalOutputExtension;
 
     // --- Format Selection ---
-    if (downloadType == "video") {
+    bool isLivestream = options.value("is_live", false).toBool() || options.value("wait_for_video", false).toBool();
+
+    if (isLivestream) {
+        QString quality = configManager->get("Livestream", "quality", "best").toString();
+        
+        if (quality.toLower() == "best" || quality.toLower() == "worst") {
+            rawArgs << "-f" << quality.toLower();
+        } else {
+            QString res = quality.split(' ').first().remove('p');
+            rawArgs << "-f" << QString("bestvideo[height<=?%1]+bestaudio/best").arg(res);
+        }
+
+        QString downloadAs = configManager->get("Livestream", "download_as", "MPEG-TS").toString();
+        if (downloadAs == "MPEG-TS") {
+            rawArgs << "--hls-use-mpegts";
+            finalOutputExtension = "ts"; // With --hls-use-mpegts, the output is .ts for HLS streams.
+        } else {
+            rawArgs << "--merge-output-format" << "mkv";
+            finalOutputExtension = "mkv";
+        }
+
+        QString convertTo = configManager->get("Livestream", "convert_to", "None").toString();
+        if (convertTo != "None" && !convertTo.isEmpty()) {
+            rawArgs << "--remux-video" << convertTo.toLower();
+            finalOutputExtension = convertTo.toLower();
+        }
+        
+        if (configManager->get("Livestream", "live_from_start", false).toBool()) rawArgs << "--live-from-start";
+        else rawArgs << "--no-live-from-start";
+
+        if (configManager->get("Livestream", "wait_for_video", true).toBool() || options.value("wait_for_video", false).toBool()) {
+            int minWait = options.value("livestream_wait_min", configManager->get("Livestream", "wait_for_video_min")).toInt();
+            int maxWait = options.value("livestream_wait_max", configManager->get("Livestream", "wait_for_video_max")).toInt();
+
+            rawArgs << QString("--wait-for-video=%1-%2")
+                       .arg(minWait)
+                       .arg(maxWait);
+        } else {
+            rawArgs << "--no-wait-for-video";
+        }
+
+        if (configManager->get("Livestream", "use_part", true).toBool()) rawArgs << "--part";
+        else rawArgs << "--no-part";
+
+    } else if (downloadType == "video") {
         QString videoQuality = options.contains("video_quality") ? options.value("video_quality").toString() : configManager->get("Video", "video_quality", "1080p (HD)").toString();
         QString videoCodecSetting = options.contains("video_codec") ? options.value("video_codec").toString() : configManager->get("Video", "video_codec", "Default").toString();
         QString audioCodecSetting = options.contains("video_audio_codec") ? options.value("video_audio_codec").toString() : configManager->get("Video", "video_audio_codec", "Default").toString();
@@ -129,8 +174,9 @@ QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString 
 
     // --- General Options ---
     if (configManager->get("General", "sponsorblock", false).toBool()) rawArgs << "--sponsorblock-remove" << "all";
-    if (configManager->get("Metadata", "use_aria2c", false).toBool()) {
-        QString aria2cPath = ProcessUtils::findBinary("aria2c", configManager).path;
+    const ProcessUtils::FoundBinary aria2Binary = ProcessUtils::findBinary("aria2c", configManager);
+    if (configManager->get("Metadata", "use_aria2c", false).toBool() && aria2Binary.source != "Not Found") {
+        QString aria2cPath = aria2Binary.path;
         rawArgs << "--external-downloader" << aria2cPath;
         rawArgs << "--external-downloader-args" << "aria2c:--summary-interval=1";
     }
@@ -149,9 +195,17 @@ QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString 
     bool embedThumb = configManager->get("Metadata", "embed_thumbnail", true).toBool();
     bool genFolderJpg = (downloadType == "audio" && configManager->get("Metadata", "generate_folder_jpg", false).toBool() && options.value("playlist_index", -1).toInt() > 0);
 
-    if (embedThumb && supportedThumbnailExts.contains(finalOutputExtension, Qt::CaseInsensitive)) {
-        rawArgs << "--embed-thumbnail";
+    bool canEmbed = embedThumb && supportedThumbnailExts.contains(finalOutputExtension, Qt::CaseInsensitive);
+    // We want to write a thumbnail for the UI even if we can't embed it.
+    bool shouldWrite = (downloadType == "video" || isLivestream || genFolderJpg);
 
+    if (canEmbed) {
+        rawArgs << "--embed-thumbnail";
+    } else if (shouldWrite) {
+        rawArgs << "--write-thumbnail";
+    }
+
+    if (canEmbed || shouldWrite) {
         QStringList ppaArgs;
         if (configManager->get("Metadata", "high_quality_thumbnail", false).toBool()) {
             ppaArgs << "-q:v 0";
@@ -167,14 +221,16 @@ QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString 
         }
 
         QString convertThumb = configManager->get("Metadata", "convert_thumbnail_to", "jpg").toString();
-        if (convertThumb != "None") rawArgs << "--convert-thumbnails" << convertThumb;
-    } else if (genFolderJpg) {
-        // Force conversion to jpg if we just want a folder.jpg but no embedding
-        rawArgs << "--convert-thumbnails" << "jpg";
+        if (convertThumb != "None") {
+            rawArgs << "--convert-thumbnails" << convertThumb;
+        } else if (genFolderJpg && !canEmbed) {
+            // If we are only writing for folder.jpg, we must convert to jpg.
+            rawArgs << "--convert-thumbnails" << "jpg";
+        }
     }
 
     QString tempPath = configManager->get("Paths", "temporary_downloads_directory").toString();
-    if (tempPath.isEmpty()) tempPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/MediaDownloader";
+    if (tempPath.isEmpty()) tempPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/LzyDownloader";
 
     if (genFolderJpg) {
         rawArgs << "--write-thumbnail";
@@ -260,7 +316,7 @@ QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString 
     rawArgs << "-o" << QDir(tempPath).filePath(outputTemplate);
 
     // --- Print final filepath ---
-    rawArgs << "--print" << "after_move:filepath";
+    rawArgs << "--print" << "after_move:LZY_FINAL_PATH:%(filepath)s";
 
     return rawArgs;
 }

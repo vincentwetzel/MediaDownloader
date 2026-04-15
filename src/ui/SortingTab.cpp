@@ -7,6 +7,8 @@
 #include <QHeaderView>
 #include <QDebug>
 #include <QDir>
+#include <QTableWidget>
+#include <QPushButton>
 
 SortingTab::SortingTab(ConfigManager *configManager, QWidget *parent)
     : QWidget(parent), m_configManager(configManager) {

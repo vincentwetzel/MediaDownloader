@@ -24,6 +24,7 @@ signals:
 public slots:
     void setGalleryDlVersion(const QString &version);
     void setYtDlpVersion(const QString &version);
+    void navigateToCategory(const QString &categoryTitle);
 
 private slots:
     void restoreDefaults();

@@ -52,7 +52,7 @@ void init() {
     QString logPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     QDir().mkpath(logPath);
 
-    QString logFilePath = logPath + "/MediaDownloader.log";
+    QString logFilePath = logPath + "/LzyDownloader.log";
 
     // Rotation logic
     QFile oldLog(logFilePath);

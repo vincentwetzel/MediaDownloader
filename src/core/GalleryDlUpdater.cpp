@@ -46,6 +46,16 @@ void GalleryDlUpdater::stop() {
 void GalleryDlUpdater::fetchVersion() {
     m_process = new QProcess(); // No parent
     connect(m_process, &QProcess::finished, this, &GalleryDlUpdater::onVersionCheckFinished);
+    connect(m_process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
+        if (error == QProcess::FailedToStart) {
+            emit versionFetched("Not Found");
+            emit updateFinished(Updater::UpdateStatus::Error, "Failed to start gallery-dl to check version.");
+            if (m_process) {
+                m_process->deleteLater();
+                m_process = nullptr;
+            }
+        }
+    });
     connect(m_process, &QProcess::finished, m_process, &QObject::deleteLater);
 
     QString appDir = QCoreApplication::applicationDirPath();
@@ -91,7 +101,7 @@ void GalleryDlUpdater::onReleaseCheckFinished() {
 
     if (downloadUrl.isValid()) {
         QNetworkRequest request(downloadUrl);
-        request.setHeader(QNetworkRequest::UserAgentHeader, "MediaDownloader");
+        request.setHeader(QNetworkRequest::UserAgentHeader, "LzyDownloader");
         QNetworkReply *dlReply = m_networkManager->get(request);
         dlReply->setProperty("newVersion", remoteVersionForDisplay);
         connect(dlReply, &QNetworkReply::finished, this, &GalleryDlUpdater::onDownloadFinished);
@@ -150,7 +160,7 @@ void GalleryDlUpdater::onVersionCheckFinished(int exitCode, QProcess::ExitStatus
 
         QUrl url("https://api.github.com/repos/mikf/gallery-dl/releases/latest");
         QNetworkRequest request(url);
-        request.setHeader(QNetworkRequest::UserAgentHeader, "MediaDownloader");
+        request.setHeader(QNetworkRequest::UserAgentHeader, "LzyDownloader");
         QNetworkReply *reply = m_networkManager->get(request);
         connect(reply, &QNetworkReply::finished, this, &GalleryDlUpdater::onReleaseCheckFinished);
     } else {

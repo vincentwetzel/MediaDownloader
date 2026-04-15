@@ -18,6 +18,9 @@
 #include <QDir>
 #include <QSizePolicy>
 #include <QScrollArea>
+#include <QComboBox>
+#include <QPushButton>
+#include <QRegularExpression>
 
 // CONSTANT: Height for condition text entry boxes
 static const int CONDITION_VALUE_INPUT_HEIGHT = 100;

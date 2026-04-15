@@ -8,6 +8,7 @@
 #include <QRegularExpression>
 #include <QDebug>
 #include <QFileInfo>
+#include <algorithm>
 
 ArchiveManager::ArchiveManager(ConfigManager *configManager, QObject *parent)
     : QObject(parent), m_configManager(configManager) {

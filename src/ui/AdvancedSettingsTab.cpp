@@ -2,6 +2,7 @@
 #include "advanced_settings/ConfigurationPage.h"
 #include "advanced_settings/VideoSettingsPage.h"
 #include "advanced_settings/AudioSettingsPage.h"
+#include "advanced_settings/LivestreamSettingsPage.h"
 #include "advanced_settings/AuthenticationPage.h"
 #include "advanced_settings/OutputTemplatesPage.h"
 #include "advanced_settings/DownloadOptionsPage.h"
@@ -103,10 +104,11 @@ void AdvancedSettingsTab::setupUI() {
         QString tooltip;
     };
 
-    const std::array<PageDescriptor, 10> descriptors = {{
+    const std::array<PageDescriptor, 11> descriptors = {{
         { "Configuration", configPage, "General application settings, download locations, and theme." },
         { "Video Settings", new VideoSettingsPage(m_configManager, this), "Control video codec, resolution, and formats." },
         { "Audio Settings", new AudioSettingsPage(m_configManager, this), "Adjust audio codecs, quality, and extensions." },
+        { "Livestream Settings", new LivestreamSettingsPage(m_configManager, this), "Configure livestream recording, quality, and post-download conversion." },
         { "Authentication", new AuthenticationPage(m_configManager, this), "Manage browser cookies and credential access." },
         { "Output Templates", new OutputTemplatesPage(m_configManager, this), "Define how downloaded files are named and organized." },
         { "Download Options", new DownloadOptionsPage(m_configManager, this), "Set concurrency, rate limits, and temporary directory behavior." },
@@ -174,6 +176,13 @@ void AdvancedSettingsTab::setGalleryDlVersion(const QString &version) {
 void AdvancedSettingsTab::setYtDlpVersion(const QString &version) {
     if (auto page = m_stackedWidget->findChild<UpdatesPage*>()) {
         page->setYtDlpVersion(version);
+    }
+}
+
+void AdvancedSettingsTab::navigateToCategory(const QString &categoryTitle) {
+    QList<QListWidgetItem *> items = m_categoryList->findItems(categoryTitle, Qt::MatchExactly);
+    if (!items.isEmpty()) {
+        m_categoryList->setCurrentItem(items.first());
     }
 }
 

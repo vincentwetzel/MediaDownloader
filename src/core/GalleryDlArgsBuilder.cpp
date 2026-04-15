@@ -1,4 +1,6 @@
 #include "GalleryDlArgsBuilder.h"
+#include "core/ProcessUtils.h"
+
 #include <QDir>
 #include <QStandardPaths>
 
@@ -11,17 +13,18 @@ QStringList GalleryDlArgsBuilder::build(const QString &url, const QVariantMap &o
     args << "--verbose";
     args << url;
 
-    // Output path
+    // Output path - gallery-dl's --directory sets the base download directory
     QString tempPath = m_configManager->get("Paths", "temporary_downloads_directory").toString();
     if (tempPath.isEmpty()) {
-        tempPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/MediaDownloader";
+        tempPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/LzyDownloader";
     }
     tempPath += "/" + options.value("id").toString();
     QDir().mkpath(tempPath);
     args << "--directory" << tempPath;
 
-    // Filename
-    QString filenameTemplate = m_configManager->get("General", "gallery_output_template", "{filename}.{extension}").toString();
+    // Filename template - gallery-dl's -f supports full path templates with '/'
+    // It creates subdirectories relative to --directory automatically
+    QString filenameTemplate = m_configManager->get("General", "gallery_output_template", "{category}/{subcategory}/{id}_{filename}.{extension}").toString();
     args << "-f" << filenameTemplate;
 
     // Cookies
@@ -31,7 +34,8 @@ QStringList GalleryDlArgsBuilder::build(const QString &url, const QVariantMap &o
     }
 
     // External Downloader
-    if (m_configManager->get("Metadata", "use_aria2c", false).toBool()) {
+    if (m_configManager->get("Metadata", "use_aria2c", false).toBool()
+        && ProcessUtils::findBinary("aria2c", m_configManager).source != "Not Found") {
         args << "-o" << "downloader.program=aria2c";
     }
 

@@ -12,9 +12,71 @@
 #include <QFileInfo>
 #include <QFile>
 #include <cmath> // For pow
+#include <QTimer>
+#include <QProcess>
+#include <QVariantList>
+#include <QNetworkAccessManager>
+#include <QNetworkRequest>
+#include <QNetworkReply>
+#include <QUrl>
+
+static void calculateUnifiedProgress(QObject* worker, const QVariantMap& fullMetadata, 
+                                     double& percentage, double& downloadedBytes, 
+                                     double& totalBytes) {
+    double overallTotal = 0;
+    if (fullMetadata.contains("requested_downloads")) {
+        QVariantList reqs = fullMetadata["requested_downloads"].toList();
+        for (const QVariant &req : reqs) {
+            QVariantMap reqMap = req.toMap();
+            if (reqMap.contains("filesize") && reqMap["filesize"].toDouble() > 0) {
+                overallTotal += reqMap["filesize"].toDouble();
+            } else if (reqMap.contains("filesize_approx") && reqMap["filesize_approx"].toDouble() > 0) {
+                overallTotal += reqMap["filesize_approx"].toDouble();
+            }
+        }
+    }
+
+    double lastDownloaded = worker->property("lastDownloadedBytes").toDouble();
+    double lastTotal = worker->property("lastTotalBytes").toDouble();
+    double accumulated = worker->property("accumulatedBytes").toDouble();
+
+    // Detect new stream by checking if downloaded bytes dropped significantly
+    if (downloadedBytes < lastDownloaded && lastDownloaded > 0 && (lastDownloaded - downloadedBytes) > lastTotal * 0.1) {
+        accumulated += lastTotal > 0 ? lastTotal : lastDownloaded;
+        worker->setProperty("accumulatedBytes", accumulated);
+        lastTotal = totalBytes; // Reset lastTotal for the new stream
+    }
+
+    worker->setProperty("lastDownloadedBytes", downloadedBytes);
+    if (totalBytes > 0) {
+        worker->setProperty("lastTotalBytes", totalBytes);
+    }
+
+    double displayDownloaded = accumulated + downloadedBytes;
+    double displayTotal = overallTotal > 0 ? overallTotal : (accumulated + totalBytes);
+
+    // Fallback max size to prevent total from shrinking
+    double maxTotal = worker->property("maxTotalBytes").toDouble();
+    if (displayTotal > maxTotal) {
+        maxTotal = displayTotal;
+        worker->setProperty("maxTotalBytes", maxTotal);
+    }
+    if (displayTotal < maxTotal) {
+        displayTotal = maxTotal;
+    }
+
+    if (displayTotal > 0) {
+        percentage = (displayDownloaded / displayTotal) * 100.0;
+        if (percentage > 100.0) percentage = 100.0;
+        if (percentage < 0.0) percentage = 0.0;
+    }
+
+    downloadedBytes = displayDownloaded;
+    totalBytes = displayTotal;
+}
 
 YtDlpWorker::YtDlpWorker(const QString &id, const QStringList &args, ConfigManager *configManager, QObject *parent)
-    : QObject(parent), m_id(id), m_args(args), m_configManager(configManager), m_process(nullptr), m_finishEmitted(false), m_videoTitle(QString()),
+    : QObject(parent), m_id(id), m_args(args), m_configManager(configManager), m_process(nullptr), m_finishEmitted(false), m_errorEmitted(false), m_videoTitle(QString()),
       m_thumbnailPath(QString()), m_infoJsonPath(QString()), m_infoJsonRetryCount(0) {
 
     m_process = new QProcess(this);
@@ -125,30 +187,6 @@ void YtDlpWorker::onProcessFinished(int exitCode, QProcess::ExitStatus exitStatu
         m_outputBuffer.clear();
     }
 
-    // New logic to find the final filename from collected output lines
-    for (int i = m_allOutputLines.size() - 1; i >= 0; --i) {
-        const QString& line = m_allOutputLines.at(i);
-        // Check if the line looks like a file path and not a yt-dlp message
-        if (!line.isEmpty() &&
-            (line.contains('/') || line.contains('\\')) && // Must contain path separators
-            !line.startsWith("[") && // Exclude yt-dlp messages like [debug], [info], [download]
-            !line.contains("url = /s/player/") && // Exclude the incorrect URL capture
-            !line.contains("command line:") && // Exclude ffmpeg/aria2c command lines
-            !line.contains("Invoking") && // Exclude Invoking downloader lines
-            !line.contains("Destination:") && // Exclude [download] Destination: lines
-            !line.contains("Writing video metadata as JSON to:") && // Exclude info.json path line
-            !line.contains("Writing video thumbnail") && // Exclude thumbnail path line
-            !line.contains("Writing video subtitles") && // Exclude subtitle path line
-            !line.contains("Merging formats into") && // Exclude merging line
-            !line.contains("Embedding subtitles in") && // Exclude embedding subtitles line
-            !line.contains("Adding metadata to") // Exclude adding metadata line
-            ) {
-            m_finalFilename = line;
-            qDebug() << "Captured Final Path (after_move:filepath) from collected output:" << m_finalFilename;
-            break; // Found the last path, stop searching
-        }
-    }
-
 
     m_finishEmitted = true;
     bool success = (exitStatus == QProcess::NormalExit && exitCode == 0 && !m_finalFilename.isEmpty());
@@ -158,7 +196,9 @@ void YtDlpWorker::onProcessFinished(int exitCode, QProcess::ExitStatus exitStatu
         qDebug() << "Final filename captured:" << m_finalFilename;
     } else {
         qWarning() << "Could not determine final filename. Download may have failed or produced no output.";
-        message += "\nCould not determine final filename.";
+        if (exitCode == 0 && exitStatus == QProcess::NormalExit) {
+            message += "\nCould not determine final filename.";
+        }
     }
 
     QVariantMap metadata;
@@ -179,12 +219,31 @@ void YtDlpWorker::onProcessFinished(int exitCode, QProcess::ExitStatus exitStatu
         } else {
             qWarning() << "onProcessFinished: No cached metadata available. Sorting rules may not work.";
         }
+
+        // CRITICAL FIX: Emit 100% progress update before finished signal to ensure
+        // the UI progress bar reaches 100% and turns green, not stuck at <100%
+        QVariantMap finalProgressData;
+        finalProgressData["progress"] = 100;
+        finalProgressData["status"] = "Complete";
+        if (!m_videoTitle.isEmpty()) {
+            finalProgressData["title"] = m_videoTitle;
+        }
+        if (!m_thumbnailPath.isEmpty()) {
+            finalProgressData["thumbnail_path"] = m_thumbnailPath;
+        }
+        emit progressUpdated(m_id, finalProgressData);
     }
 
     if (!success) {
-        // Ensure stderr is also read as UTF-8
-        QString errorOutput = QString::fromUtf8(m_process->readAllStandardError());
-        message += "\n" + errorOutput.left(200);
+        if (!m_errorLines.isEmpty()) {
+            message += "\n" + m_errorLines.join("\n").left(200);
+        } else {
+            // Fallback: Ensure stderr is also read as UTF-8
+            QString errorOutput = QString::fromUtf8(m_process->readAllStandardError());
+            if (!errorOutput.isEmpty()) {
+                message += "\n" + errorOutput.left(200);
+            }
+        }
     }
 
     // Ensure m_videoTitle is included in the metadata for the finished signal
@@ -346,10 +405,19 @@ void YtDlpWorker::readInfoJsonWithRetry() {
         qDebug() << "Extracted title from info.json:" << m_videoTitle;
     }
     
-    // Extract thumbnail path if available
-    if (obj.contains("thumbnail") && obj["thumbnail"].isString()) {
-        // Thumbnail will be downloaded by yt-dlp and we'll get the path
-        // from the command line arguments
+    // Extract thumbnail path if available from the info.json
+    if (m_thumbnailPath.isEmpty() && obj.contains("thumbnails") && obj["thumbnails"].isArray()) {
+        QJsonArray thumbnails = obj["thumbnails"].toArray();
+        // yt-dlp adds a "filepath" key to the thumbnail entry it downloaded.
+        for (const QJsonValue &thumbValue : thumbnails) {
+            QJsonObject thumbObj = thumbValue.toObject();
+            if (thumbObj.contains("filepath") && thumbObj["filepath"].isString()) {
+                m_thumbnailPath = QDir::toNativeSeparators(thumbObj["filepath"].toString());
+                updateData["thumbnail_path"] = m_thumbnailPath;
+                qDebug() << "Extracted thumbnail path from info.json:" << m_thumbnailPath;
+                break; // Found it
+            }
+        }
     }
 
     if (!updateData.isEmpty()) {
@@ -417,7 +485,312 @@ void YtDlpWorker::handleOutputLine(const QString &line) {
     m_allOutputLines.append(normalizedLine); // Store all output lines
 
     emit outputReceived(m_id, normalizedLine);
-    qDebug().noquote() << "yt-dlp (processed line):" << normalizedLine;
+    // qDebug().noquote() << "yt-dlp (processed line):" << normalizedLine;
+
+    if (normalizedLine.startsWith("LZY_FINAL_PATH:")) {
+        m_finalFilename = normalizedLine.mid(15).trimmed(); // 15 is length of "LZY_FINAL_PATH:"
+        qDebug() << "Captured precise Final Path:" << m_finalFilename;
+        return; // No need to process this line further
+    }
+
+    // Parse ERROR: lines from stderr for specific error types
+    if (normalizedLine.startsWith("ERROR:")) {
+        m_errorLines.append(normalizedLine);
+        
+        // Check for private video error
+        if (normalizedLine.contains("private", Qt::CaseInsensitive) || 
+            normalizedLine.contains("This video is private", Qt::CaseInsensitive)) {
+            if (!m_errorEmitted) {
+                m_errorEmitted = true;
+                emit ytDlpErrorDetected(m_id, "private", 
+                    "This video is private and cannot be downloaded.", 
+                    normalizedLine);
+            }
+        }
+        // Check for unavailable video error
+        else if (normalizedLine.contains("unavailable", Qt::CaseInsensitive) ||
+                 normalizedLine.contains("Video is unavailable", Qt::CaseInsensitive) ||
+                 normalizedLine.contains("This video is no longer available", Qt::CaseInsensitive) ||
+                 normalizedLine.contains("does not exist", Qt::CaseInsensitive)) {
+            if (!m_errorEmitted) {
+                m_errorEmitted = true;
+                emit ytDlpErrorDetected(m_id, "unavailable",
+                    "This video is unavailable or has been removed.",
+                    normalizedLine);
+            }
+        }
+        // Check for geo-restriction error
+        else if (normalizedLine.contains("geo", Qt::CaseInsensitive) && 
+                 (normalizedLine.contains("restrict", Qt::CaseInsensitive) ||
+                  normalizedLine.contains("unavailable in your country", Qt::CaseInsensitive))) {
+            if (!m_errorEmitted) {
+                m_errorEmitted = true;
+                emit ytDlpErrorDetected(m_id, "geo_restricted",
+                    "This video is not available in your region.",
+                    normalizedLine);
+            }
+        }
+        // Check for members-only error
+        else if (normalizedLine.contains("members", Qt::CaseInsensitive) &&
+                 normalizedLine.contains("only", Qt::CaseInsensitive)) {
+            if (!m_errorEmitted) {
+                m_errorEmitted = true;
+                emit ytDlpErrorDetected(m_id, "members_only",
+                    "This video is exclusive to channel members.",
+                    normalizedLine);
+            }
+        }
+        // Check for age-restriction error
+        else if (normalizedLine.contains("age", Qt::CaseInsensitive) &&
+                 (normalizedLine.contains("restrict", Qt::CaseInsensitive) ||
+                  normalizedLine.contains("verify your age", Qt::CaseInsensitive) ||
+                  normalizedLine.contains("confirm your age", Qt::CaseInsensitive))) {
+            if (!m_errorEmitted) {
+                m_errorEmitted = true;
+                emit ytDlpErrorDetected(m_id, "age_restricted",
+                    "This video requires age verification. Try enabling cookies from your browser.",
+                    normalizedLine);
+            }
+        }
+        // Check for content removed/unavailable (e.g., deleted tweet)
+        else if (normalizedLine.contains("Requested tweet is unavailable", Qt::CaseInsensitive) ||
+                 normalizedLine.contains("This content is no longer available", Qt::CaseInsensitive) ||
+                 normalizedLine.contains("The requested content was removed", Qt::CaseInsensitive) ||
+                 normalizedLine.contains("Suspended", Qt::CaseInsensitive)) {
+            if (!m_errorEmitted) {
+                m_errorEmitted = true;
+                emit ytDlpErrorDetected(m_id, "content_removed",
+                    "The requested content is unavailable or has been removed by the uploader.",
+                    normalizedLine);
+            }
+        }
+        // Check for scheduled livestream/premiere
+        else if (normalizedLine.contains("Premieres in", Qt::CaseInsensitive) ||
+                 normalizedLine.contains("live event will begin", Qt::CaseInsensitive) ||
+                 normalizedLine.contains("is upcoming", Qt::CaseInsensitive)) {
+            if (!m_errorEmitted) {
+                m_errorEmitted = true;
+                emit ytDlpErrorDetected(m_id, "scheduled_livestream",
+                    "This video is a scheduled livestream or premiere that has not started yet.\n\nWould you like to wait for the video to begin and download it automatically?",
+                    normalizedLine);
+            }
+        }
+    }
+
+    // Parse post-processing operations (so the UI doesn't look "stuck" after the final small stream)
+    if (normalizedLine.startsWith("[Merger]")) {
+        emit progressUpdated(m_id, {{"progress", 100.0}, {"status", "Merging segments with ffmpeg..."}});
+    } else if (normalizedLine.startsWith("[ExtractAudio]")) {
+        emit progressUpdated(m_id, {{"progress", 100.0}, {"status", "Extracting audio..."}});
+    } else if (normalizedLine.startsWith("[VideoConvertor]")) {
+        emit progressUpdated(m_id, {{"progress", 100.0}, {"status", "Converting video format..."}});
+    } else if (normalizedLine.startsWith("[Metadata]")) {
+        emit progressUpdated(m_id, {{"progress", 100.0}, {"status", "Applying metadata..."}});
+    } else if (normalizedLine.startsWith("[FixupM3u8]")) {
+        emit progressUpdated(m_id, {{"progress", 100.0}, {"status", "Fixing stream timestamps..."}});
+    }
+
+    // If we are waiting for a scheduled livestream, fetch metadata in the background so the UI 
+    // can show the title and thumbnail instead of just the URL during the long wait.
+    if (normalizedLine.startsWith("[wait]", Qt::CaseInsensitive) || normalizedLine.startsWith("[download] Waiting for video", Qt::CaseInsensitive)) {
+        if (m_videoTitle.isEmpty() && !property("fetchingPreWaitMetadata").toBool()) {
+            setProperty("fetchingPreWaitMetadata", true);
+            
+            QString url;
+            for (const QString &arg : m_args) {
+                if (arg.startsWith("http")) { url = arg; break; }
+            }
+            if (url.isEmpty()) {
+                for (const QString &arg : m_args) {
+                    // Grab the first non-flag argument as a fallback URL
+                    if (!arg.startsWith("-")) { url = arg; break; }
+                }
+            }
+            
+            // Fast-path: YouTube oEmbed API avoids spawning a yt-dlp process and bypassing 
+            // the ExtractorError completely for upcoming livestreams.
+            if (url.contains("youtube.com") || url.contains("youtu.be")) {
+                qDebug() << "[YtDlpWorker] Detected [wait] state. Using YouTube oEmbed API for pre-wait metadata...";
+                QNetworkAccessManager *manager = new QNetworkAccessManager(this);
+                QUrl oembedUrl("https://www.youtube.com/oembed?url=" + url + "&format=json");
+                QNetworkRequest request(oembedUrl);
+                QNetworkReply *reply = manager->get(request);
+                connect(reply, &QNetworkReply::finished, this, [this, reply, manager]() {
+                    if (reply->error() == QNetworkReply::NoError) {
+                        QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
+                        if (doc.isObject()) {
+                            QJsonObject obj = doc.object();
+                            m_videoTitle = obj.value("title").toString();
+                            QString thumbUrl = obj.value("thumbnail_url").toString();
+                            
+                            qDebug() << "[YtDlpWorker] oEmbed title:" << m_videoTitle << "thumb:" << thumbUrl;
+                            
+                            QVariantMap progressData;
+                            progressData["progress"] = -1;
+                            progressData["status"] = "Waiting for livestream to start...";
+                            progressData["title"] = m_videoTitle;
+                            if (!m_thumbnailPath.isEmpty()) {
+                                progressData["thumbnail_path"] = m_thumbnailPath;
+                            }
+                            emit progressUpdated(m_id, progressData);
+
+                            if (!thumbUrl.isEmpty() && m_thumbnailPath.isEmpty()) {
+                                QNetworkRequest thumbReq((QUrl(thumbUrl)));
+                                QNetworkReply *thumbReply = manager->get(thumbReq);
+                                connect(thumbReply, &QNetworkReply::finished, this, [this, thumbReply, manager]() {
+                                    if (thumbReply->error() == QNetworkReply::NoError) {
+                                        QString tempDir = m_configManager->get("Paths", "temporary_downloads_directory").toString();
+                                        QString newThumbPath = QDir(tempDir).filePath(m_id + "_wait_thumbnail.jpg");
+                                        QFile file(newThumbPath);
+                                        if (file.open(QIODevice::WriteOnly)) {
+                                            file.write(thumbReply->readAll());
+                                            file.close();
+                                            m_thumbnailPath = newThumbPath;
+                                            qDebug() << "[YtDlpWorker] oEmbed thumbnail downloaded to:" << m_thumbnailPath;
+                                            
+                                            QVariantMap pd;
+                                            pd["progress"] = -1;
+                                            pd["status"] = "Waiting for livestream to start...";
+                                            pd["title"] = m_videoTitle;
+                                            pd["thumbnail_path"] = m_thumbnailPath;
+                                            emit progressUpdated(m_id, pd);
+                                        }
+                                    }
+                                    thumbReply->deleteLater();
+                                    manager->deleteLater();
+                                });
+                            } else {
+                                manager->deleteLater();
+                            }
+                        } else {
+                            manager->deleteLater();
+                        }
+                    } else {
+                        qWarning() << "[YtDlpWorker] oEmbed API failed:" << reply->errorString();
+                        manager->deleteLater();
+                    }
+                    reply->deleteLater();
+                });
+                return;
+            }
+
+            // Fallback for non-YouTube sites
+            qDebug() << "[YtDlpWorker] Detected [wait] state. Fetching pre-wait metadata via yt-dlp in background...";
+            QProcess *fetchProcess = new QProcess(this);
+            ProcessUtils::setProcessEnvironment(*fetchProcess);
+            
+            QString ytDlpPath = ProcessUtils::findBinary("yt-dlp", m_configManager).path;
+            QStringList fetchArgs;
+            
+            fetchArgs << "--dump-single-json" << "--flat-playlist" << "--ignore-errors" << url;
+            int cookieIdx = m_args.indexOf("--cookies-from-browser");
+            if (cookieIdx != -1 && cookieIdx + 1 < m_args.size()) {
+                fetchArgs << "--cookies-from-browser" << m_args[cookieIdx + 1];
+            }
+
+            qDebug() << "[YtDlpWorker] Pre-wait fetch command:" << ytDlpPath << fetchArgs;
+            connect(fetchProcess, &QProcess::finished, this, [this, fetchProcess](int exitCode, QProcess::ExitStatus) {
+                    QByteArray jsonData = fetchProcess->readAllStandardOutput();
+                    QJsonDocument doc = QJsonDocument::fromJson(jsonData);
+                    if (doc.isObject()) {
+                        QJsonObject obj = doc.object();
+                        m_fullMetadata = obj.toVariantMap();
+                        if (obj.contains("title") && obj["title"].isString()) {
+                            m_videoTitle = obj["title"].toString();
+                            qDebug() << "[YtDlpWorker] Pre-wait title fetched:" << m_videoTitle;
+                            
+                            // Immediately update the UI with the title before we wait for the thumbnail
+                            QVariantMap progressData;
+                            progressData["progress"] = -1;
+                            progressData["status"] = "Waiting for livestream to start...";
+                            progressData["title"] = m_videoTitle;
+                            if (!m_thumbnailPath.isEmpty()) {
+                                progressData["thumbnail_path"] = m_thumbnailPath;
+                            }
+                            emit progressUpdated(m_id, progressData);
+                        }
+                        
+                        QString thumbUrl;
+                        if (obj.contains("thumbnails") && obj["thumbnails"].isArray()) {
+                            QJsonArray thumbs = obj["thumbnails"].toArray();
+                            if (!thumbs.isEmpty()) {
+                                thumbUrl = thumbs.last().toObject().value("url").toString();
+                            }
+                        } else if (obj.contains("thumbnail")) {
+                            thumbUrl = obj.value("thumbnail").toString();
+                        }
+
+                        if (!thumbUrl.isEmpty()) {
+                            qDebug() << "[YtDlpWorker] Pre-wait thumbnail URL found:" << thumbUrl;
+                            QNetworkAccessManager *manager = new QNetworkAccessManager(this);
+                            QNetworkRequest request((QUrl(thumbUrl)));
+                            QNetworkReply *reply = manager->get(request);
+                            connect(reply, &QNetworkReply::finished, this, [this, reply, manager]() {
+                                if (reply->error() == QNetworkReply::NoError) {
+                                    QString tempDir = m_configManager->get("Paths", "temporary_downloads_directory").toString();
+                                    QString newThumbPath = QDir(tempDir).filePath(m_id + "_wait_thumbnail.jpg");
+                                    QFile file(newThumbPath);
+                                    if (file.open(QIODevice::WriteOnly)) {
+                                        file.write(reply->readAll());
+                                        file.close();
+                                        m_thumbnailPath = newThumbPath;
+                                        qDebug() << "[YtDlpWorker] Pre-wait thumbnail downloaded to:" << m_thumbnailPath;
+                                        
+                                        // Update the UI again now that we have the image
+                                        QVariantMap progressData;
+                                        progressData["progress"] = -1;
+                                        progressData["status"] = "Waiting for livestream to start...";
+                                        progressData["title"] = m_videoTitle;
+                                        progressData["thumbnail_path"] = m_thumbnailPath;
+                                        emit progressUpdated(m_id, progressData);
+                                    }
+                                } else {
+                                    qWarning() << "[YtDlpWorker] Failed to download pre-wait thumbnail:" << reply->errorString();
+                                }
+                                reply->deleteLater();
+                                manager->deleteLater();
+                            });
+                        }
+                    } else {
+                        qWarning() << "[YtDlpWorker] Pre-wait metadata fetch failed or returned invalid JSON. Exit code:" << exitCode;
+                        qWarning() << "[YtDlpWorker] Stderr:" << fetchProcess->readAllStandardError();
+                    }
+                fetchProcess->deleteLater();
+            });
+            
+            fetchProcess->start(ytDlpPath, fetchArgs);
+        }
+    }
+
+    if (normalizedLine.startsWith("[wait] Remaining time until next attempt:")) {
+        const QString prefix = "[wait] Remaining time until next attempt: ";
+        QString time = normalizedLine.mid(prefix.length()).trimmed();
+        QVariantMap progressData;
+        progressData["progress"] = -1; // Indeterminate state
+        progressData["status"] = QString("Next check in %1").arg(time);
+        if (!m_videoTitle.isEmpty()) {
+            progressData["title"] = m_videoTitle;
+        }
+        if (!m_thumbnailPath.isEmpty()) {
+            progressData["thumbnail_path"] = m_thumbnailPath;
+        }
+        emit progressUpdated(m_id, progressData);
+        return; // This line is handled, no further processing needed.
+    }
+
+    if (normalizedLine.startsWith("[download] Waiting for video") || normalizedLine.startsWith("[Wait]")) {
+        QVariantMap progressData;
+        progressData["progress"] = -1; // Indeterminate state
+        progressData["status"] = "Waiting for livestream to start...";
+        if (!m_videoTitle.isEmpty()) {
+            progressData["title"] = m_videoTitle;
+        }
+        if (!m_thumbnailPath.isEmpty()) {
+            progressData["thumbnail_path"] = m_thumbnailPath;
+        }
+        emit progressUpdated(m_id, progressData);
+        return;
+    }
 
     static QRegularExpression thumbnailRegex("\\[ThumbnailsConvertor\\] Converting thumbnail \"([^\"]+)\" to jpg");
     QRegularExpressionMatch thumbnailMatch = thumbnailRegex.match(normalizedLine);
@@ -459,7 +832,7 @@ bool YtDlpWorker::parseYtDlpProgressLine(const QString &line) {
     QString normalized = line.trimmed();
     
     if (!normalized.startsWith("[download]")) {
-        qDebug() << "parseYtDlpProgressLine: Line does not start with [download]:" << line;
+        // qDebug() << "parseYtDlpProgressLine: Line does not start with [download]:" << line;
         return false;
     }
 
@@ -489,9 +862,11 @@ bool YtDlpWorker::parseYtDlpProgressLine(const QString &line) {
     const QString speedString = matchedCompletedFormat ? match.captured(3) : match.captured(3);
     const QString etaString = matchedCompletedFormat ? QStringLiteral("0:00") : match.captured(4);
 
-    const double totalBytes = parseSizeStringToBytes(totalString);
-    const double downloadedBytes = totalBytes > 0.0 ? (totalBytes * (percentage / 100.0)) : 0.0;
+    double totalBytes = parseSizeStringToBytes(totalString);
+    double downloadedBytes = totalBytes > 0.0 ? (totalBytes * (percentage / 100.0)) : 0.0;
     const double speedBytes = parseSizeStringToBytes(speedString);
+
+    calculateUnifiedProgress(this, m_fullMetadata, percentage, downloadedBytes, totalBytes);
 
     progressData["progress"] = percentage;
     progressData["downloaded_size"] = downloadedBytes > 0.0 ? formatBytes(downloadedBytes) : QString("N/A");
@@ -524,11 +899,14 @@ bool YtDlpWorker::parseAria2ProgressLine(const QString &line) {
     }
 
     QVariantMap progressData;
-    const double downloadedBytes = parseSizeStringToBytes(match.captured(1));
-    const double totalBytes = parseSizeStringToBytes(match.captured(2));
+    double downloadedBytes = parseSizeStringToBytes(match.captured(1));
+    double totalBytes = parseSizeStringToBytes(match.captured(2));
     const double speedBytes = parseSizeStringToBytes(match.captured(4));
+    double percentage = match.captured(3).toDouble();
 
-    progressData["progress"] = match.captured(3).toDouble();
+    calculateUnifiedProgress(this, m_fullMetadata, percentage, downloadedBytes, totalBytes);
+
+    progressData["progress"] = percentage;
     progressData["downloaded_size"] = formatBytes(downloadedBytes);
     progressData["total_size"] = formatBytes(totalBytes);
     progressData["speed"] = speedBytes > 0.0 ? formatBytes(speedBytes) + "/s" : QString("0 B/s");

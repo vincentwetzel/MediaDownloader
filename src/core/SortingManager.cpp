@@ -13,7 +13,17 @@ SortingManager::SortingManager(ConfigManager *configManager, QObject *parent)
 }
 
 QString SortingManager::getSortedDirectory(const QVariantMap &videoMetadata, const QVariantMap &downloadOptions) {
+    qDebug() << "SortingManager::getSortedDirectory called.";
+    qDebug() << "  videoMetadata keys:" << videoMetadata.keys();
+    if (videoMetadata.contains("uploader")) {
+        qDebug() << "  uploader value:" << videoMetadata["uploader"].toString();
+    } else {
+        qDebug() << "  uploader key NOT FOUND in metadata!";
+    }
+    qDebug() << "  downloadOptions type:" << downloadOptions.value("type", "video").toString();
+
     int size = m_configManager->get("SortingRules", "size", 0).toInt();
+    qDebug() << "  SortingRules size:" << size;
     if (size == 0) {
         // No rules to process, return default directory
         QString baseDir = m_configManager->get("Paths", "completed_downloads_directory").toString();
@@ -23,21 +33,37 @@ QString SortingManager::getSortedDirectory(const QVariantMap &videoMetadata, con
         return baseDir;
     }
 
-    // Determine which key format to use ("rule_N" or "N")
-    bool useNewFormat = m_configManager->get("SortingRules", "rule_0").isValid();
-
+    // Rules are stored with flat keys: rule_N_name, rule_N_applies_to, rule_N_target_folder, etc.
     for (int i = 0; i < size; ++i) {
-        QString key = useNewFormat ? QString("rule_%1").arg(i) : QString::number(i);
-        QString jsonString = m_configManager->get("SortingRules", key).toString();
-        if (jsonString.isEmpty()) {
-            continue; // Skip if the rule is missing for some reason
+        QString key = QString("rule_%1").arg(i);
+        
+        QString ruleName = m_configManager->get("SortingRules", key + "_name").toString();
+        QVariant appliesToVar = m_configManager->get("SortingRules", key + "_applies_to");
+        QString appliesTo = appliesToVar.isValid() ? appliesToVar.toString() : "All Downloads";
+        QString targetFolder = m_configManager->get("SortingRules", key + "_target_folder").toString();
+        QString subfolderPattern = m_configManager->get("SortingRules", key + "_subfolder_pattern").toString();
+        
+        // Load conditions
+        int condSize = m_configManager->get("SortingRules", key + "_conditions_size", 0).toInt();
+        QJsonArray conditionsArray;
+        for (int j = 0; j < condSize; ++j) {
+            QString condKey = key + QString("_condition_%1").arg(j);
+            QJsonObject cond;
+            cond["field"] = m_configManager->get("SortingRules", condKey + "_field").toString();
+            cond["operator"] = m_configManager->get("SortingRules", condKey + "_operator").toString();
+            cond["value"] = m_configManager->get("SortingRules", condKey + "_value").toString();
+            conditionsArray.append(cond);
         }
-
-        QJsonDocument doc = QJsonDocument::fromJson(jsonString.toUtf8());
-        QJsonObject rule = doc.object();
+        
+        // Skip invalid rules
+        if (ruleName.isEmpty() || targetFolder.isEmpty()) {
+            qDebug() << "  Rule" << i << "(" << key << ") is invalid (empty name or target), skipping.";
+            continue;
+        }
+        
+        qDebug() << "  Checking rule" << i << "(" << ruleName << "), appliesTo:" << appliesTo << "targetFolder:" << targetFolder << "conditions:" << condSize;
 
         // 1. Check if the rule applies to this download type
-        QString appliesTo = rule["applies_to"].toString("All Downloads");
         QString downloadType = downloadOptions.value("type", "video").toString();
         bool isPlaylist = videoMetadata.contains("playlist_index") && videoMetadata["playlist_index"].toInt() != -1;
 
@@ -61,10 +87,10 @@ QString SortingManager::getSortedDirectory(const QVariantMap &videoMetadata, con
         }
 
         // 2. Check if all conditions match
-        QJsonArray conditions = rule["conditions"].toArray();
+        qDebug() << "    Conditions count:" << conditionsArray.size();
         bool allConditionsMatch = true;
-        for (const QJsonValue &condValue : conditions) {
-            QJsonObject condition = condValue.toObject();
+        for (int c = 0; c < conditionsArray.size(); ++c) {
+            QJsonObject condition = conditionsArray[c].toObject();
             QString field = condition["field"].toString();
             QString op = condition["operator"].toString();
             QString value = condition["value"].toString();
@@ -75,6 +101,10 @@ QString SortingManager::getSortedDirectory(const QVariantMap &videoMetadata, con
             } else {
                 metadataValue = videoMetadata.value(field.toLower());
             }
+
+            qDebug() << "    Condition" << c << "- field:" << field << "(looking for key:" << field.toLower() << ")" << "op:" << op;
+            qDebug() << "      metadataValue:" << metadataValue.toString() << "(isEmpty:" << metadataValue.toString().isEmpty() << ")";
+            qDebug() << "      condition value:" << value.left(100);
 
             bool match = false;
             if (field == "Duration (seconds)") {
@@ -101,25 +131,32 @@ QString SortingManager::getSortedDirectory(const QVariantMap &videoMetadata, con
                     match = metadataValue.toString().endsWith(value, Qt::CaseInsensitive);
                 } else if (op == "Is One Of") {
                     QStringList values = value.split('\n', Qt::SkipEmptyParts);
+                    qDebug() << "      Is One Of has" << values.size() << "values. First 5:" << values.mid(0, 5);
                     for (const QString &v : values) {
                         if (metadataValue.toString().compare(v.trimmed(), Qt::CaseInsensitive) == 0) {
                             match = true;
+                            qDebug() << "      Is One Of MATCHED on:" << v.trimmed();
                             break;
                         }
+                    }
+                    if (!match) {
+                        qDebug() << "      Is One Of did NOT match any value.";
                     }
                 }
             }
 
             if (!match) {
                 allConditionsMatch = false;
+                qDebug() << "    Condition" << c << "FAILED (op:" << op << "), skipping rule.";
                 break; // One condition failed, no need to check others
+            } else {
+                qDebug() << "    Condition" << c << "MATCHED.";
             }
         }
 
         // 3. If all conditions match, construct the directory path
         if (allConditionsMatch) {
-            QString targetFolder = rule["target_folder"].toString();
-            QString subfolderPattern = rule["subfolder_pattern"].toString();
+            qDebug() << "  Rule" << i << "(" << ruleName << ") MATCHED!";
 
             QString finalSubfolder;
             if (!subfolderPattern.isEmpty()) {
@@ -131,10 +168,12 @@ QString SortingManager::getSortedDirectory(const QVariantMap &videoMetadata, con
     }
 
     // No rule matched, return default directory
+    qDebug() << "  No sorting rule matched. Returning default directory.";
     QString baseDir = m_configManager->get("Paths", "completed_downloads_directory").toString();
     if (baseDir.isEmpty()) {
         baseDir = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
     }
+    qDebug() << "  Default directory:" << baseDir;
     return baseDir;
 }
 

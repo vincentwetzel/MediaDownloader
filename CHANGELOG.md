@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to MediaDownloader will be documented in this file.
+All notable changes to LzyDownloader will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -8,12 +8,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased] - YYYY-MM-DD
 
 ### Added
+- **Open folder buttons on Active Downloads tab**: Added "Open Temporary Folder" and "Open Downloads Folder" buttons to the Active Downloads tab toolbar, providing quick access to download directories without switching to the Start tab. Both buttons include tooltips and show warning dialogs if directories are not configured.
+- **External Downloader dropdown in Advanced Settings**: Replaced the "External Downloader (aria2c)" toggle switch with a dropdown selector offering "yt-dlp (default)" and "aria2c" options. The setting automatically hides when aria2c is not installed/discovered. Default changed from aria2c to yt-dlp to align with the unbundled binary model, ensuring users without aria2c installed won't encounter download failures.
+- **yt-dlp error popup notifications**: The application now detects specific yt-dlp error messages during downloads and displays user-friendly popup dialogs with clear explanations. Supported error types include:
+- **Refactored StartTab into smaller, more focused classes**: `StartTab.cpp` has been broken down into `StartTabUrlHandler` (manages URL input, clipboard, auto-switching), `StartTabDownloadActions` (handles download button, type changes, format checking, folder opening), and `StartTabCommandPreviewUpdater` (updates command preview). This improves modularity and maintainability.
+  - Private videos: "This video is private and cannot be downloaded."
+  - Unavailable videos: "This video is unavailable or has been removed."
+  - Geo-restricted videos: "This video is not available in your region."
+  - Members-only videos: "This video is exclusive to channel members."
+  - **Interactive scheduled livestream handling**: When attempting to download a future livestream or premiere, the user is now prompted with a dialog asking if they want to wait for the video to begin. If they agree, the download is automatically retried with the `--wait-for-video` flag. Wait times are dynamically scaled based on how far in the future the stream is (e.g., waiting 30-60 minutes for streams hours away, vs 5-15 seconds for streams starting soon).
+  - Content Removed: "The requested content is unavailable or has been removed by the uploader." (Includes deleted tweets and suspended accounts).
+  - Age-restricted videos: "This video requires age verification. Try enabling cookies from your browser."
+  Each popup includes the user-friendly message plus technical details from the raw error output for troubleshooting.
+- **Livestream pre-wait metadata & countdown**: While waiting for a scheduled livestream, the progress bar now displays a live countdown timer to the next check. The application instantly fetches the stream's title and thumbnail in the background (using the YouTube oEmbed API for YouTube, or a background `yt-dlp` process for other sites) to populate the UI while waiting.
+- **Livestream Support (Backend)**: Added parsing for indeterminate livestream progress directly from `yt-dlp` output and argument routing for livestream-specific parameters (`--live-from-start`, `--wait-for-video`, format conversion).
+- **Error counter for downloads**: Added a 4th "Errors" counter to the GUI that tracks all download failures across the entire pipeline (worker errors, metadata embedding failures, file move failures, playlist expansion errors, gallery download errors).
+- **Progress bar 100% completion fix**: YtDlpWorker now emits a final 100% progress update before the finished signal, ensuring UI progress bars always reach 100% and turn green instead of getting stuck at <100%
+- **Refactored MainWindow, DownloadManager, and StartTab into smaller files**: Improved modularity and maintainability by extracting UI building logic into `MainWindowUiBuilder` and `StartTabUiBuilder`, and queue state management into `DownloadQueueState`.
+- **New `MainWindowUiBuilder` class**: Encapsulates the creation and layout of UI elements for `MainWindow`, including the tab widget, language selector, and footer status bar.
+- **Refactored DownloadManager queue logic into DownloadQueueManager**:
+  - Extracted all queue-related operations (`enqueue`, `cancel`, `pause`, `unpause`, `move`, duplicate checks) into a new `DownloadQueueManager` class.
+  - `DownloadManager` now acts as an orchestrator, delegating queue management to `DownloadQueueManager`.
+  - Removed `m_downloadQueue`, `m_pausedItems`, `m_pendingExpansions`, and `m_queueState` members from `DownloadManager`.
+- **New `StartTabUiBuilder` class**: Encapsulates the creation and layout of UI elements for `StartTab`, including URL input, download buttons, and operational controls.
+- **Color-coded progress bars**: Colorless (queued), light blue (downloading), teal (post-processing), green (completed)
+- **Detailed progress display**: Status label showing download stage, centered progress text on bar with percentage, sizes, speed, and ETA
+- **Immediate queue UI feedback**: Downloads appear instantly without waiting for playlist expansion
+- **Centralized versioning system**: Single source of truth in `CMakeLists.txt` → generated `version.h`, `.rc` file, window title, updater
+- **Auto version bump on push**: Git pre-push hook increments patch version automatically
+- **Archive duplicate detection**: Pre-enqueue check using `ArchiveManager::isInArchive()` with override toggle support
+- **Download completion with destination path**: Success messages now show the full file path
+- **Smooth scrolling in SortingRuleDialog**: Replaced `QListWidget` with `QScrollArea` for pixel-level scrolling
+- **Log cycling fix**: One log file per run with timestamp in filename, automatic cleanup of old logs
+- **Global duplicate download prevention**: The application now prevents duplicate URLs from being enqueued across all states (queued, active, paused, and completed). When a user attempts to add a duplicate download:
+  - A clear warning popup explains why the URL was rejected
+  - The message indicates whether the URL is queued, active, paused, or completed
+  - Completed downloads can be re-downloaded using the "Override duplicate check" option
+  - Applies to both manual downloads and auto-paste functionality
+- **Auto-paste duplicate prevention**: The clipboard auto-paste functionality now includes robust duplicate URL prevention:
+  - 5-second cooldown between auto-paste triggers to prevent rapid re-enqueueing
+  - Queue-level duplicate checking prevents the same URL from being added multiple times
+  - Tracks last auto-pasted URL to ignore repeated clipboard checks for the same content
+  - Clearer UI labels for auto-paste modes indicating enqueue behavior
 - **Centered progress text on progress bar**: The download percentage, file sizes, speed, and ETA are now painted directly in the center of the progress bar via a custom `ProgressLabelBar` widget, replacing the separate details label below it.
 - **Auto version bump on push**: A git pre-push hook (`.git/hooks/pre-push`) automatically increments the patch version in `CMakeLists.txt` on every push. The hook amends the latest commit so the pushed commit always has the new version. Skip with `SKIP_VERSION_BUMP=1 git push`.
 - **Centralized app versioning system**: Version is now defined once in `CMakeLists.txt` (`project(VERSION x.y.z)`) and automatically propagated to the generated `version.h`, Windows `.rc` file (file properties version), window title, and the update checker. Bump the version in one place and everything updates.
 - **Immediate queue UI feedback**: Downloads now appear instantly in the Active Downloads tab without waiting for playlist expansion:
   - Gallery downloads appear immediately with "Queued" status
   - Video/audio downloads show "Checking for playlist..." during expansion, then update to "Queued"
+    - **New `DownloadQueueState` class**: Centralizes logic for saving and loading the download queue, active, and paused items to/from a JSON backup file.
+    - Queue state persistence deferred via `Qt::QueuedConnection` to prevent GUI blocking.
   - Playlists replace the placeholder with individual track items
   - Queue state persistence deferred via `Qt::QueuedConnection` to prevent GUI blocking
 - **Color-coded progress bars**: Download progress bars now use color-coding to provide clear visual feedback on download state:
@@ -25,7 +69,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Status label shows current download stage (e.g., "Extracting media information...", "Downloading 2 segment(s)...", "Merging segments with ffmpeg...", "Verifying download completeness...", "Applying sorting rules...", "Moving to final destination...")
   - Progress details below the bar show: downloaded/total size, download speed, and ETA (e.g., "15.3 MiB / 45.7 MiB  •  Speed: 2.4 MiB/s  •  ETA: 0:12")
 - **Single Instance Enforcement**: The application now ensures only one instance can run at a time using `QSystemSemaphore` and `QSharedMemory`.
-- **C++ Port**: Initial release of the C++ version of MediaDownloader.
+- **C++ Port**: Initial release of the C++ version of LzyDownloader.
   - Re-implemented the entire application using C++ and Qt 6.
   - Designed as a drop-in replacement for the Python version (v0.0.10).
   - Maintains full compatibility with existing `settings.ini` and `download_archive.db`.
@@ -41,29 +85,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **PlaylistExpander full command construction**: `PlaylistExpander` now uses `YtDlpArgsBuilder` to construct the full yt-dlp command (including `--js-runtimes deno:...`, `--cookies-from-browser`, `--ffmpeg-location`) so playlist expansion matches the actual download configuration. Resolves `n challenge solving failed` errors during playlist expansion.
 - **YtDlpWorker diagnostic logging**: Added comprehensive debug logging for process state changes, stderr/stdout data received, and progress parsing to aid in diagnosing download issues.
 - **Download thumbnail previews**: `DownloadItemWidget` now displays a thumbnail preview on the left side of each download item's progress bar. Thumbnails are loaded from the `thumbnail_path` field emitted by `YtDlpWorker` when yt-dlp converts the thumbnail during the download process.
-- **Logging to AppData**: Log files are now stored in the user's AppData configuration directory (`%LOCALAPPDATA%\MediaDownloader\MediaDownloader.log` on Windows), alongside `settings.ini`, instead of the application directory. This ensures logs are preserved across application updates and installations.
+- **Logging to AppData**: Log files are now stored in the user's AppData configuration directory (`%LOCALAPPDATA%\LzyDownloader\LzyDownloader.log` on Windows), alongside `settings.ini`, instead of the application directory. This ensures logs are preserved across application updates and installations.
 - **Log rotation/cycling**: Implemented automatic log rotation with a maximum of 5 log files. When the current log exceeds 2 MB, it is rotated (`.log` → `.log.1` → `.log.2`, etc.), and the oldest log is automatically deleted. This prevents unbounded disk growth while preserving recent diagnostic history.
 - **Sorting rules metadata fix**: Fixed sorting rules not matching because `uploader` metadata was lost after `readInfoJsonWithRetry` cleared the info.json path. `YtDlpWorker` now caches the full metadata (`m_fullMetadata`) when info.json is successfully parsed, ensuring all fields (including `uploader`, `channel`, `tags`, etc.) are available for sorting rule evaluation when the download completes.
 - **Smart URL download type switching**: The Start tab now automatically detects which extractor (yt-dlp or gallery-dl) supports a pasted URL and switches the download type accordingly. If the URL is yt-dlp exclusive and "Gallery" is selected, it switches to "Video". If gallery-dl exclusive, it switches to "Gallery". If both or neither support it, no change is made.
 - **Binary path caching**: `ProcessUtils` now caches resolved binary paths after the first lookup to avoid repeated PATH scans. The cache is automatically cleared when binaries are installed or overridden via the Advanced Settings Binaries page.
 - **Expanded gallery-dl template tokens**: The Output Templates page now includes a comprehensive list of gallery-dl format tokens (including `{category}`, `{user}`, `{subcategory}`, `{author[...]}`, `{date}`, `{post[...]}`, `{media[...]}`, etc.) for easier filename template creation.
-- **Flattened AppData directory structure**: Removed duplicate organization name in `main.cpp` so app data is stored in `%LOCALAPPDATA%\MediaDownloader\` instead of `%LOCALAPPDATA%\MediaDownloader\MediaDownloader\`.
-- **Automatic settings cleanup**: The configuration manager now automatically scans and prunes dead, orphaned, or legacy settings from `settings.ini` on startup, keeping the file clean and predictable.
+- **Flattened AppData directory structure**: Removed duplicate organization name in `main.cpp` so app data is stored in `%LOCALAPPDATA%\LzyDownloader\` instead of `%LOCALAPPDATA%\LzyDownloader\LzyDownloader\`.
 
 ### Fixed
+- **Crash on exit with active downloads**: Fixed a race condition where closing the application while downloads were active could cause a crash. The shutdown sequence now safely terminates all background workers before closing.
+- **Progress bar 100% completion**: Fixed an issue where download progress bars would get stuck at less than 100% (e.g., 95%) and never turn green. `YtDlpWorker` now emits a final 100% progress update before the `finished` signal, ensuring the UI correctly shows completion at 100% with a green progress bar.
+- **Download error tracking and display**: Fixed the GUI counters not properly updating when downloads failed. Added a 4th "Errors" counter that accurately tracks all download failures across the entire pipeline (worker failures, metadata embedding errors, file move failures, playlist expansion errors, and gallery download errors). The `DownloadManager::downloadStatsUpdated` signal now includes the error count.
+- **Automatic settings cleanup**: The configuration manager now automatically scans and prunes dead, orphaned, or legacy settings from `settings.ini` on startup, keeping the file clean and predictable.
 - **Archive duplicate detection**: Added pre-enqueue duplicate check in `DownloadManager::enqueueDownload()` that consults `ArchiveManager::isInArchive()` before allowing a download into the queue. Respects the "Override duplicate download check" toggle. Strips all query parameters from non-YouTube URLs during normalization so the same content accessed via different URLs is correctly detected as a duplicate. Replaced scattered temporary `ArchiveManager` instances with a single shared member.
 - **Sorting Rule dialog condition text entry size**: Set `CONDITION_VALUE_INPUT_HEIGHT` constant to 100px applied via `setFixedHeight()` for consistent text entry sizing across all conditions.
 - **Sorting Rule dialog overflow**: Fixed condition text entry boxes exceeding dialog bounds. Increased dialog minimum size to 650x500.
 - **Download queue immediate start fix**: Fixed downloads failing to start after immediate queue UI feedback implementation. Items are now correctly added to the download queue before playlist expansion, and `saveQueueState`/`startNextDownload` are properly invokable for deferred execution.
-- **Log cycling**: Changed from size-based rotation to one log file per run with timestamp in filename (`MediaDownloader_YYYY-MM-dd_HH-mm-ss.log`). Automatically keeps only the 10 most recent logs.
+- **Log cycling**: Changed from size-based rotation to one log file per run with timestamp in filename (`LzyDownloader_YYYY-MM-dd_HH-mm-ss.log`). Automatically keeps only the 10 most recent logs.
 - **Toggle switches not displaying correctly**: Fixed `ToggleSwitch` widget not updating its visual position when `setChecked()` was called with `QSignalBlocker`. The `paintEvent()` now ensures the handle offset matches the checked state.
 - **gallery-dl executable not detected after pip install**: `GalleryDlWorker` now uses `ProcessUtils::findBinary()` to resolve the gallery-dl executable, properly detecting system PATH installations (e.g., via pip) instead of only checking bundled paths.
 - **gallery-dl output template handling**: Simplified gallery-dl template handling. The `-f` flag natively supports path templates with `/` separators, so no splitting is needed.
 - **gallery-dl default output template**: Changed the default gallery-dl filename pattern from `{author[name]}/{id}_{filename}.{extension}` to `{category}/{id}_{filename}.{extension}` for better organized downloads that work across all extractors.
 - **gallery-dl progress bar fix**: Fixed the gallery-dl download progress bar not updating. The worker now correctly parses the file path output from gallery-dl and displays the amber "downloading" color on the progress bar.
 - **gallery-dl single file move fix**: Fixed gallery downloads that produce a single file instead of a subdirectory. The app now correctly handles both files and directories when moving gallery downloads to their final destination.
+- **Runtime format audio filtering**: The format selection dialog now correctly filters out video-containing formats when the "Audio Only" download type is selected.
 
 ### Changed
+- **Livestream wait time**: Increased the default wait interval for scheduled livestreams from 5-30 seconds to a more reasonable 1-5 minutes to reduce network traffic and log spam during long waits.
+- **Removed bundled binary support**: The application no longer checks for bundled executables in the `bin/` directory or application root. Binary resolution now only searches: (1) User-configured paths, (2) System PATH, (3) User-local install locations (e.g., `~/.deno/bin`, scoop shims, WindowsApps, Chocolatey). This completes the transition to the unbundled external-binary model.
+- **Removed update_binaries.ps1 script**: Deleted the binary update script as binaries are no longer bundled with the application.
 - **External binary install commands now run through system shell**: Install commands for winget, choco, pip, etc. are now executed via `cmd.exe /C` (Windows) or `/bin/sh -c` (Linux) instead of direct process launch. This ensures PATH resolution, console output capture, and shim execution work reliably for all package managers.
 - **Download completion message now shows destination path**: Success messages now include the full file path (e.g., "Download completed → C:\Downloads\video.mp4") so users immediately know where their file ended up.
 - **Architecture**: Switched from Python/PyQt6 to C++/Qt6.
@@ -75,6 +126,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Unused SSL Libraries**: Removed `libssl-3-x64.dll` and `libcrypto-3-x64.dll` from the `bin/` directory to reduce distribution size, as Qt 6 natively uses the Windows SChannel backend.
 
 ### Fixed
+- **Delayed application exit**: Added a 2-second delay before the application closes when "Exit after all downloads complete" is enabled. This prevents the app from detecting temporary files that are still being cleaned up by yt-dlp, which previously blocked a clean exit.
 - **External binary install crash (winget/pip via WindowsApps)**: Execution-alias stubs in `WindowsApps` are 0-byte files that crash when invoked by full path. Fixed by detecting aliases, storing the bare program name, and prepending `WindowsApps` to PATH during install so the shell resolves the alias correctly.
 - **External binary detection covers all common install locations**: Added WindowsApps alias directory, scoop shims, pip Scripts directories, and Chocolatey to the `findCommonUserTool()` search path in `ProcessUtils`. This ensures aria2c, deno, yt-dlp, gallery-dl, ffmpeg, and ffprobe are detected regardless of how they were installed.
 - **Refresh All Statuses now clears cache**: Previously stale "Not Found" entries persisted after external installs because the resolution cache wasn't purged.
@@ -86,6 +138,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Mixed-mode Advanced Settings confusion**: Video and Audio Advanced Settings now treat `Quality = Select at Runtime` as a full runtime-selection mode and hide the remaining format-default controls on that page so users do not configure both workflows at once.
 - **Runtime format multi-enqueue behavior**: Fixed a compilation and logic bug in the runtime format picker. It now correctly supports selecting multiple formats from the prompt and treats each checked item as its own distinct queued download.
 - **Runtime format prompt ownership**: Runtime video/audio quality, codec, and stream selection is now handled from `DownloadManager`/`MainWindow` rather than competing with Start-tab URL probing logic.
+- **Core Architecture**: Extracted massive post-processing and file-moving logic from `DownloadManager` into a new `DownloadFinalizer` class to improve maintainability. Extracted `DownloadItem` struct into a standalone header.
+- **UI Decoupling**: Removed blocking `QMessageBox` GUI prompts from `DownloadManager` (used for playlist downloads and resuming queues) and replaced them with asynchronous signals handled entirely by the View layer, ensuring strict MVC compliance.
 - **Restore Defaults Safety**: "Restore Defaults" in Advanced Settings no longer permanently deletes dynamically created Sorting Rules or resets the user's selected UI theme, output templates, and external binary paths.
 - **Advanced Settings toggle switches snapping back after click**: The custom `ToggleSwitch` control no longer toggles twice on mouse release, so slider-style settings in Advanced Settings now stay in the selected state and persist correctly after a single click.
 - **Redundant startup config saves**: Startup no longer re-runs `ConfigManager::loadConfig()` from `StartTab`, and the Start tab lock-setting checkboxes no longer fire save-on-load handlers during initial UI hydration. Configuration saves now only occur from those paths when a setting actually changes.
@@ -110,7 +164,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Developer Discord footer link**: Added a Discord icon button beside "Contact Developer" at the bottom of the main window; clicking opens `https://discord.gg/NfWaqKgYRG` and shows tooltip text "Developer Discord".
 
 ### Changed
-- **Rotating application logs**: Switched the main file logger to size-based rotation (`MediaDownloader.log`, 10 MB per file, 5 backups) to prevent unbounded log growth.
+- **Rotating application logs**: Switched the main file logger to size-based rotation (`LzyDownloader.log`, 10 MB per file, 5 backups) to prevent unbounded log growth.
 
 ### Fixed
 - **Sorting subfolder token sanitization**: Sorting subfolder token values (for example `{album}`) are now sanitized before path assembly so illegal path characters like `/` and `\` are replaced with `_` instead of creating unintended nested folders or truncating names.
@@ -286,8 +340,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 02-08-2026
 - **Added Global Download Speed Indicator**: Implemented a real-time download speed indicator at the bottom of the main application window.
 - **Implementation**: Uses `psutil.Process().io_counters().read_bytes` to measure the total I/O read throughput of the application process.
-- **UI Update**: Added a `QLabel` to the bottom of `MediaDownloaderApp` to display the total speed.
-- **Aggregation**: Implemented a timer in `MediaDownloaderApp` to calculate the speed difference every second.
+- **UI Update**: Added a `QLabel` to the bottom of `LzyDownloaderApp` to display the total speed.
+- **Aggregation**: Implemented a timer in `LzyDownloaderApp` to calculate the speed difference every second.
 - **Rationale**: Provides a more accurate and simpler measure of actual data throughput compared to parsing `yt-dlp` stdout, and avoids per-file tracking complexity.
 - **Ensured ffmpeg fallback for yt-dlp**: `yt-dlp` now receives an explicit `--ffmpeg-location` that prefers system `ffmpeg/ffprobe` when both are present, and otherwise falls back to the bundled binaries to ensure merging and post-processing work on clean systems.
 
@@ -324,7 +378,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.0.1] - 02-02-2026
 
 ### Added
-- Initial release of MediaDownloader
+- Initial release of LzyDownloader
 - PyQt6-based GUI for downloading media via yt-dlp
 - Support for 1000+ websites (YouTube, TikTok, Instagram, etc.)
 - Playlist detection and expansion

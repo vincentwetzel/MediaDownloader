@@ -32,9 +32,11 @@ OutputTemplatesPage::OutputTemplatesPage(ConfigManager *configManager, QWidget *
 
     ytDlpLayout->addWidget(new QLabel("Video Pattern:"), 0, 0);
     m_videoOutputTemplateInput = new QLineEdit(this);
+    m_videoOutputTemplateInput->setMinimumHeight(30);
     ytDlpLayout->addWidget(m_videoOutputTemplateInput, 0, 1);
     m_videoTemplateTokensCombo = new QComboBox(this);
     m_videoTemplateTokensCombo->addItem("Insert token...", "");
+    m_videoTemplateTokensCombo->setMaximumWidth(180);
     m_videoTemplateTokensCombo->addItems(ytDlpTokens);
     ytDlpLayout->addWidget(m_videoTemplateTokensCombo, 0, 2);
     m_saveVideoTemplateButton = new QPushButton("Save", this);
@@ -44,9 +46,11 @@ OutputTemplatesPage::OutputTemplatesPage(ConfigManager *configManager, QWidget *
 
     ytDlpLayout->addWidget(new QLabel("Audio Pattern:"), 1, 0);
     m_audioOutputTemplateInput = new QLineEdit(this);
+    m_audioOutputTemplateInput->setMinimumHeight(30);
     ytDlpLayout->addWidget(m_audioOutputTemplateInput, 1, 1);
     m_audioTemplateTokensCombo = new QComboBox(this);
     m_audioTemplateTokensCombo->addItem("Insert token...", "");
+    m_audioTemplateTokensCombo->setMaximumWidth(180);
     m_audioTemplateTokensCombo->addItems(ytDlpTokens);
     ytDlpLayout->addWidget(m_audioTemplateTokensCombo, 1, 2);
     m_saveAudioTemplateButton = new QPushButton("Save", this);
@@ -57,13 +61,25 @@ OutputTemplatesPage::OutputTemplatesPage(ConfigManager *configManager, QWidget *
 
     QGroupBox *galleryDlGroup = new QGroupBox("gallery-dl Filename Template", this);
     QHBoxLayout *galleryDlControlsLayout = new QHBoxLayout(galleryDlGroup);
-    galleryDlControlsLayout->addWidget(new QLabel("Filename Pattern:"));
+    galleryDlControlsLayout->addWidget(new QLabel("Gallery Pattern:"));
     m_galleryDlOutputTemplateInput = new QLineEdit(this);
-    galleryDlControlsLayout->addWidget(m_galleryDlOutputTemplateInput);
+    m_galleryDlOutputTemplateInput->setMinimumHeight(30);
+    galleryDlControlsLayout->addWidget(m_galleryDlOutputTemplateInput, 1); // Stretch factor 1
     m_galleryDlTemplateTokensCombo = new QComboBox(this);
     m_galleryDlTemplateTokensCombo->addItem("Insert token...", "");
-    m_galleryDlTemplateTokensCombo->addItems({"{filename}.{extension}", "{id}", "{author[name]}", "{date:%Y-%m-%d}"});
-    galleryDlControlsLayout->addWidget(m_galleryDlTemplateTokensCombo);
+    m_galleryDlTemplateTokensCombo->setMaximumWidth(180);
+    m_galleryDlTemplateTokensCombo->addItems({
+        "{category}", "{subcategory}", "{id}", "{filename}", "{extension}",
+        "{title}", "{description}", "{date}", "{date:%Y-%m-%d}",
+        "{user[username]}", "{user[name]}", "{user[id]}",
+        "{author[name]}", "{author[url]}", "{author[id]}",
+        "{url}", "{shortcode}", "{num}", "{count}",
+        "{width}", "{height}", "{size}", "{width}x{height}",
+        "{post[title]}", "{post[id]}", "{post[num]}", "{post[count]}",
+        "{media[num]}", "{media[count]}",
+        "{category}/{id}_{filename}.{extension}"
+    });
+    galleryDlControlsLayout->addWidget(m_galleryDlTemplateTokensCombo, 0); // No stretch
     m_saveGalleryDlTemplateButton = new QPushButton("Save", this);
     galleryDlControlsLayout->addWidget(m_saveGalleryDlTemplateButton);
     QPushButton *resetGalleryDlButton = new QPushButton("Reset", this);

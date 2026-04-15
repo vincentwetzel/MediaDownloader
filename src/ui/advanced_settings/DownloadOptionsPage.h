@@ -14,7 +14,7 @@ public:
 public slots:
     void loadSettings();
 private slots:
-    void onExternalDownloaderToggled(bool checked);
+    void onExternalDownloaderChanged(int index);
     void onSponsorBlockToggled(bool checked);
     void onEmbedChaptersToggled(bool checked);
     void onSplitChaptersToggled(bool checked);
@@ -26,7 +26,8 @@ private slots:
     void handleConfigSettingChanged(const QString &section, const QString &key, const QVariant &value);
 private:
     ConfigManager *m_configManager;
-    ToggleSwitch *m_externalDownloaderCheck, *m_sponsorBlockCheck, *m_embedChaptersCheck, *m_splitChaptersCheck, *m_singleLineCommandPreviewCheck, *m_restrictFilenamesCheck, *m_autoClearCompletedCheck;
+    QComboBox *m_externalDownloaderCombo;
+    ToggleSwitch *m_sponsorBlockCheck, *m_embedChaptersCheck, *m_splitChaptersCheck, *m_singleLineCommandPreviewCheck, *m_restrictFilenamesCheck, *m_autoClearCompletedCheck;
     QComboBox *m_autoPasteModeCombo;
     QLineEdit *m_geoProxyInput;
 };

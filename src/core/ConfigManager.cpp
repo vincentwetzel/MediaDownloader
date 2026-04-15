@@ -1,17 +1,35 @@
 #include "ConfigManager.h"
 #include <QDir>
 #include <QCoreApplication>
+#include <QStandardPaths>
+#include <QFile>
 
 ConfigManager::ConfigManager(const QString &filePath, QObject *parent)
     : QObject(parent) {
-    QString configPath = QDir(QCoreApplication::applicationDirPath()).filePath(filePath);
+    // Determine the OS-native user data directory (e.g., %LOCALAPPDATA%\LzyDownloader)
+    QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
+    QDir dir(configDir);
+    if (!dir.exists()) {
+        dir.mkpath(".");
+    }
+    QString configPath = dir.filePath(filePath);
+
+    // Seamlessly migrate legacy settings.ini from the application directory if present
+    QString legacyPath = QDir(QCoreApplication::applicationDirPath()).filePath(filePath);
+    if (QFile::exists(legacyPath) && !QFile::exists(configPath)) {
+        QFile::copy(legacyPath, configPath);
+    }
+
     m_settings = new QSettings(configPath, QSettings::IniFormat, this);
     initializeDefaultSettings();
+    cleanUpLegacyKeys();
 }
 
 void ConfigManager::initializeDefaultSettings() {
     m_defaultSettings["General"]["output_template"] = "%(title)s [%(uploader)s][%(upload_date>%Y-%m-%d)s][%(id)s].%(ext)s";
-    m_defaultSettings["General"]["gallery_output_template"] = "{author[name]}/{id}_{filename}.{extension}";
+    m_defaultSettings["General"]["output_template_video"] = "%(title)s [%(uploader)s][%(upload_date>%Y-%m-%d)s][%(id)s].%(ext)s";
+    m_defaultSettings["General"]["output_template_audio"] = "%(title)s [%(uploader)s][%(upload_date>%Y-%m-%d)s][%(id)s].%(ext)s";
+    m_defaultSettings["General"]["gallery_output_template"] = "{category}/{id}_{filename}.{extension}";
     m_defaultSettings["General"]["theme"] = "System";
     m_defaultSettings["General"]["cookies_from_browser"] = "None";
     m_defaultSettings["General"]["gallery_cookies_from_browser"] = "None";
@@ -28,21 +46,68 @@ void ConfigManager::initializeDefaultSettings() {
     m_defaultSettings["Audio"]["audio_codec"] = "Opus";
     m_defaultSettings["Audio"]["audio_extension"] = "opus";
     m_defaultSettings["Audio"]["audio_multistreams"] = "Default Stream";
-    m_defaultSettings["Metadata"]["use_aria2c"] = true;
+    m_defaultSettings["Metadata"]["use_aria2c"] = false;
     m_defaultSettings["Metadata"]["embed_chapters"] = true;
     m_defaultSettings["Metadata"]["embed_metadata"] = true;
     m_defaultSettings["Metadata"]["embed_thumbnail"] = true;
     m_defaultSettings["Metadata"]["high_quality_thumbnail"] = true;
     m_defaultSettings["Metadata"]["convert_thumbnail_to"] = "jpg";
+    m_defaultSettings["Metadata"]["crop_artwork_to_square"] = true;
+    m_defaultSettings["Metadata"]["generate_folder_jpg"] = false;
     m_defaultSettings["Subtitles"]["languages"] = "en";
     m_defaultSettings["Subtitles"]["embed_subtitles"] = true;
     m_defaultSettings["Subtitles"]["write_subtitles"] = false;
     m_defaultSettings["Subtitles"]["write_auto_subtitles"] = true;
     m_defaultSettings["Subtitles"]["format"] = "srt";
+    m_defaultSettings["DownloadOptions"]["split_chapters"] = false;
+    m_defaultSettings["DownloadOptions"]["auto_clear_completed"] = false;
+    m_defaultSettings["DownloadOptions"]["geo_verification_proxy"] = "";
+    m_defaultSettings["Livestream"]["live_from_start"] = false;
+    m_defaultSettings["Livestream"]["wait_for_video"] = true; // Wait for scheduled streams by default
+    m_defaultSettings["Livestream"]["wait_for_video_min"] = 60; // Wait at least 1 minute between checks
+    m_defaultSettings["Livestream"]["wait_for_video_max"] = 300; // Wait at most 5 minutes between checks
+    m_defaultSettings["Livestream"]["use_part"] = true;
+    m_defaultSettings["Livestream"]["download_as"] = "MPEG-TS";
+    m_defaultSettings["Livestream"]["quality"] = "best";
+    m_defaultSettings["Livestream"]["convert_to"] = "None";
+}
+
+void ConfigManager::cleanUpLegacyKeys() {
+    // These top-level sections are allowed to have dynamic/user-defined keys
+    const QStringList dynamicGroups = {"SortingRules", "MainWindow", "UI", "Geometry", "Paths", "Binaries"};
+    
+    QStringList allKeys = m_settings->allKeys();
+    bool keysRemoved = false;
+
+    for (const QString &fullKey : allKeys) {
+        QStringList parts = fullKey.split('/');
+        if (parts.isEmpty()) continue;
+
+        QString section = parts.first();
+        QString key = parts.mid(1).join('/');
+
+        // 1. Preserve explicitly dynamic groups completely
+        if (dynamicGroups.contains(section)) continue;
+
+        // 2. Preserve keys that exist in our strict defaults map
+        if (m_defaultSettings.contains(section) && m_defaultSettings[section].contains(key)) continue;
+
+        // 3. It's a legacy or dead key, nuke it
+        m_settings->remove(fullKey);
+        keysRemoved = true;
+    }
+
+    if (keysRemoved) {
+        m_settings->sync();
+    }
 }
 
 QVariant ConfigManager::get(const QString &section, const QString &key, const QVariant &defaultValue) {
-    return m_settings->value(section + "/" + key, defaultValue);
+    // The fallback for the QSettings object should be our application's default,
+    // which in turn can have a fallback to the function's default parameter.
+    QVariant appDefault = getDefault(section, key);
+    QVariant finalFallback = appDefault.isValid() ? appDefault : defaultValue;
+    return m_settings->value(section + "/" + key, finalFallback);
 }
 
 bool ConfigManager::set(const QString &section, const QString &key, const QVariant &value) {

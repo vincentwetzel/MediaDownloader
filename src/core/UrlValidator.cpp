@@ -19,6 +19,7 @@ void UrlValidator::validate(const QString &url) {
         args << "--cookies-from-browser" << cookiesBrowser;
     }
 
+    qDebug() << "UrlValidator executing command: yt-dlp" << args;
     m_process->start("yt-dlp", args);
 }
 
@@ -26,7 +27,15 @@ void UrlValidator::onProcessFinished(int exitCode, QProcess::ExitStatus exitStat
     bool isValid = (exitStatus == QProcess::NormalExit && exitCode == 0);
     QString error;
     if (!isValid) {
-        error = m_process->readAllStandardError();
+        QString stderrOutput = m_process->readAllStandardError();
+        error = "yt-dlp encountered an error.";
+        QStringList lines = stderrOutput.split('\n');
+        for (const QString &line : lines) {
+            if (line.startsWith("ERROR:")) {
+                error = line.trimmed();
+                break;
+            }
+        }
     }
     emit validationFinished(isValid, error);
 }

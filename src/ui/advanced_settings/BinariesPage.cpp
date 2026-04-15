@@ -350,7 +350,7 @@ void BinariesPage::installBinaryFor(const QString &binaryName) {
             &dialog,
             "Manual Download",
             QString("The official download page for %1 was opened in your browser.\n\n"
-                    "After downloading, place the executable somewhere permanent and use Browse to point MediaDownloader to it.")
+                    "After downloading, place the executable somewhere permanent and use Browse to point LzyDownloader to it.")
                 .arg(displayName(binaryName)));
     });
 
@@ -404,6 +404,8 @@ void BinariesPage::refreshBinaryStatus(const QString &binaryName) {
 
     // Use resolveBinary for fresh lookup (bypasses cache)
     const ProcessUtils::FoundBinary foundBinary = ProcessUtils::resolveBinary(binaryName, m_configManager);
+    
+    qDebug() << "[BinariesPage] refreshBinaryStatus:" << binaryName << "- source:" << foundBinary.source << "| path:" << foundBinary.path;
 
     QString displayPath = foundBinary.path.toHtmlEscaped();
     // Insert a zero-width space after path separators so QLabel can properly word-wrap long paths without spaces

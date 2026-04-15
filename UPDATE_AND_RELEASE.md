@@ -1,6 +1,6 @@
-# MediaDownloader C++ Update & Release Guide
+# LzyDownloader C++ Update & Release Guide
 
-This document describes how to build, package, and release the C++ version of MediaDownloader with auto-update support.
+This document describes how to build, package, and release the C++ version of LzyDownloader with auto-update support.
 
 ## Prerequisites
 
@@ -16,22 +16,12 @@ This document describes how to build, package, and release the C++ version of Me
    - Required for building the application.
 
 4. **Git & GitHub**
-   - Repo: https://github.com/vincentwetzel/MediaDownloader
+   - Repo: https://github.com/vincentwetzel/LzyDownloader
    - Must have access to create Releases
 
 ## Build Process
 
-### Step 1: Download Binary Dependencies
-
-Ensure `bin/` contains the necessary executables:
-```
-bin/
-  ├── yt-dlp.exe
-  ├── ffmpeg.exe
-  └── ffprobe.exe
-```
-
-### Step 2: Update Extractor Lists
+### Step 1: Update Extractor Lists
 
 **IMPORTANT:** Before building a new release, you must refresh the extractor lists to ensure the application can handle the latest website changes.
 
@@ -54,26 +44,26 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
 ```
 
-This generates `MediaDownloader.exe` in the build directory.
+This generates `LzyDownloader.exe` in the build directory.
 
 ### Step 5: Deploy Qt Dependencies
 
 Use `windeployqt` to copy necessary Qt DLLs to the build directory.
 ```powershell
-windeployqt build/Release/MediaDownloader.exe
+windeployqt build/Release/LzyDownloader.exe
 ```
 
 ### Step 6: Create NSIS Installer
 
-Build the NSIS script to create a Windows installer. You will need to adapt the `MediaDownloader.nsi` script to point to the C++ build output directory instead of the Python `dist/` folder.
+Build the NSIS script to create a Windows installer. You will need to adapt the `LzyDownloader.nsi` script to point to the C++ build output directory instead of the Python `dist/` folder.
 
 ```powershell
-& 'C:\Program Files (x86)\NSIS\makensis.exe' MediaDownloader.nsi
+& 'C:\Program Files (x86)\NSIS\makensis.exe' LzyDownloader.nsi
 ```
 
 Output:
 ```
-MediaDownloader-Setup-X.X.X.exe
+LzyDownloader-Setup-X.X.X.exe
 ```
 
 ## Release to GitHub
@@ -87,22 +77,33 @@ git push origin vX.X.X
 
 ### Step 2: Create GitHub Release
 
-Navigate to https://github.com/vincentwetzel/MediaDownloader/releases and:
+Navigate to https://github.com/vincentwetzel/LzyDownloader/releases and:
 
 1. Click "Create a new release"
 2. **Tag version:** `vX.X.X` (must match Git tag)
-3. **Release title:** `MediaDownloader X.X.X`
+3. **Release title:** `LzyDownloader X.X.X`
 4. **Description:** Add release notes.
-5. **Attach Assets:** Upload `MediaDownloader-Setup-X.X.X.exe`
+5. **Attach Assets:** Upload `LzyDownloader-Setup-X.X.X.exe`
 6. Click "Publish release"
 
-## Update Flow (User Experience)
+## Release Checklist
 
-The update flow remains identical to the Python version:
-1. App checks GitHub for newer release.
-2. If found, prompts user.
-3. Downloads installer.
-4. Runs silent installer to replace files.
-5. Restarts app.
+- [ ] Extractor lists updated (`extractors_yt-dlp.json`, `extractors_gallery-dl.json`)
+- [ ] Version number updated in `CMakeLists.txt`
+- [ ] Built in Release mode with `windeployqt`
+- [ ] NSIS installer tested (silent install preserves `settings.ini` and `download_archive.db`)
+- [ ] AppData logging verified (logs at `%APPDATA%\LzyDownloader\LzyDownloader.log`)
+- [ ] Log rotation verified (old logs cycle automatically, max 5 files at 2 MB each)
+- [ ] GitHub release published with installer asset
 
-**Crucial:** The C++ installer must NOT overwrite `settings.ini` or `download_archive.db`.
+## Application Data Locations (Windows)
+
+The application stores user data in standard Windows directories:
+
+| File | Location |
+|------|----------|
+| Settings | `%APPDATA%\LzyDownloader\LzyDownloader\settings.ini` |
+| Archive | `%APPDATA%\LzyDownloader\LzyDownloader\download_archive.db` |
+| Logs | `%APPDATA%\LzyDownloader\LzyDownloader.log` (with rotation: `.log.1`, `.log.2`, etc.) |
+
+**Important:** The NSIS installer must NOT overwrite `settings.ini`, `download_archive.db`, or log files. These are stored in user data directories, not the installation directory.

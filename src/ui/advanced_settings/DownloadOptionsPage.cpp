@@ -1,5 +1,6 @@
 #include "DownloadOptionsPage.h"
 #include "core/ConfigManager.h"
+#include "core/ProcessUtils.h"
 #include "ui/ToggleSwitch.h"
 #include <QVBoxLayout>
 #include <QFormLayout>
@@ -16,7 +17,13 @@ DownloadOptionsPage::DownloadOptionsPage(ConfigManager *configManager, QWidget *
     QGroupBox *downloadOptionsGroup = new QGroupBox("Download Options", this);
     QFormLayout *downloadOptionsLayout = new QFormLayout(downloadOptionsGroup);
 
-    m_externalDownloaderCheck = new ToggleSwitch(this);
+    m_externalDownloaderCombo = new QComboBox(this);
+    m_externalDownloaderCombo->addItem("yt-dlp (default)", "ytdlp");
+    m_externalDownloaderCombo->addItem("aria2c", "aria2c");
+    m_externalDownloaderCombo->setToolTip("Choose the downloader to use for downloads.\n"
+                                          "yt-dlp: Default downloader built into yt-dlp.\n"
+                                          "aria2c: External downloader for faster multi-connection downloads.");
+    
     m_sponsorBlockCheck = new ToggleSwitch(this);
     m_embedChaptersCheck = new ToggleSwitch(this);
     m_splitChaptersCheck = new ToggleSwitch(this);
@@ -24,12 +31,20 @@ DownloadOptionsPage::DownloadOptionsPage(ConfigManager *configManager, QWidget *
     m_restrictFilenamesCheck = new ToggleSwitch(this);
     m_autoClearCompletedCheck = new ToggleSwitch(this);
     m_autoPasteModeCombo = new QComboBox(this);
-    m_autoPasteModeCombo->addItems({"Disabled", "Auto-paste on app focus or hover", "Auto-paste on new URL in clipboard", "Auto-paste & enqueue on app focus", "Auto-paste & enqueue on new URL in clipboard"});
-    
+    m_autoPasteModeCombo->addItems({
+        "Disabled",
+        "Auto-paste on app focus (no enqueue)",
+        "Auto-paste on new URL in clipboard (no enqueue)",
+        "Auto-paste & enqueue on app focus",
+        "Auto-paste & enqueue on new URL in clipboard"
+    });
+    m_autoPasteModeCombo->setToolTip("Controls when URLs are auto-pasted from clipboard.\n"
+                                      "Enqueue modes will only add NEW URLs (duplicates are prevented).");
+
     m_geoProxyInput = new QLineEdit(this);
     m_geoProxyInput->setPlaceholderText("e.g., http://proxy.server:port");
 
-    downloadOptionsLayout->addRow("External Downloader (aria2c)", m_externalDownloaderCheck);
+    downloadOptionsLayout->addRow("External Downloader:", m_externalDownloaderCombo);
     downloadOptionsLayout->addRow("Enable SponsorBlock", m_sponsorBlockCheck);
     downloadOptionsLayout->addRow("Embed video chapters", m_embedChaptersCheck);
     downloadOptionsLayout->addRow("Split chapters into separate files", m_splitChaptersCheck);
@@ -42,7 +57,16 @@ DownloadOptionsPage::DownloadOptionsPage(ConfigManager *configManager, QWidget *
     layout->addWidget(downloadOptionsGroup);
     layout->addStretch();
 
-    connect(m_externalDownloaderCheck, &ToggleSwitch::toggled, this, &DownloadOptionsPage::onExternalDownloaderToggled);
+    // Check if aria2c is available; hide the setting if not
+    ProcessUtils::FoundBinary aria2Binary = ProcessUtils::findBinary("aria2c", m_configManager);
+    if (aria2Binary.source == "Not Found" || aria2Binary.path.isEmpty()) {
+        // Hide the external downloader setting if aria2c is not available
+        m_externalDownloaderCombo->setVisible(false);
+        // Set default to yt-dlp
+        m_externalDownloaderCombo->setCurrentIndex(0);
+    }
+
+    connect(m_externalDownloaderCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &DownloadOptionsPage::onExternalDownloaderChanged);
     connect(m_sponsorBlockCheck, &ToggleSwitch::toggled, this, &DownloadOptionsPage::onSponsorBlockToggled);
     connect(m_embedChaptersCheck, &ToggleSwitch::toggled, this, &DownloadOptionsPage::onEmbedChaptersToggled);
     connect(m_splitChaptersCheck, &ToggleSwitch::toggled, this, &DownloadOptionsPage::onSplitChaptersToggled);
@@ -55,7 +79,7 @@ DownloadOptionsPage::DownloadOptionsPage(ConfigManager *configManager, QWidget *
 }
 
 void DownloadOptionsPage::loadSettings() {
-    QSignalBlocker b1(m_externalDownloaderCheck);
+    QSignalBlocker b1(m_externalDownloaderCombo);
     QSignalBlocker b2(m_sponsorBlockCheck);
     QSignalBlocker b3(m_embedChaptersCheck);
     QSignalBlocker b4(m_autoPasteModeCombo);
@@ -65,7 +89,8 @@ void DownloadOptionsPage::loadSettings() {
     QSignalBlocker b8(m_geoProxyInput);
     QSignalBlocker b9(m_autoClearCompletedCheck);
 
-    m_externalDownloaderCheck->setChecked(m_configManager->get("Metadata", "use_aria2c", true).toBool());
+    bool useAria2c = m_configManager->get("Metadata", "use_aria2c", false).toBool();
+    m_externalDownloaderCombo->setCurrentIndex(useAria2c ? 1 : 0);
     m_sponsorBlockCheck->setChecked(m_configManager->get("General", "sponsorblock", false).toBool());
     m_embedChaptersCheck->setChecked(m_configManager->get("Metadata", "embed_chapters", true).toBool());
     m_splitChaptersCheck->setChecked(m_configManager->get("DownloadOptions", "split_chapters", false).toBool());
@@ -76,7 +101,10 @@ void DownloadOptionsPage::loadSettings() {
     m_geoProxyInput->setText(m_configManager->get("DownloadOptions", "geo_verification_proxy", "").toString());
 }
 
-void DownloadOptionsPage::onExternalDownloaderToggled(bool c) { m_configManager->set("Metadata", "use_aria2c", c); }
+void DownloadOptionsPage::onExternalDownloaderChanged(int index) {
+    bool useAria2c = (index == 1);
+    m_configManager->set("Metadata", "use_aria2c", useAria2c);
+}
 void DownloadOptionsPage::onSponsorBlockToggled(bool c) { m_configManager->set("General", "sponsorblock", c); }
 void DownloadOptionsPage::onEmbedChaptersToggled(bool c) { m_configManager->set("Metadata", "embed_chapters", c); }
 void DownloadOptionsPage::onSplitChaptersToggled(bool c) { m_configManager->set("DownloadOptions", "split_chapters", c); }
@@ -93,7 +121,10 @@ void DownloadOptionsPage::handleConfigSettingChanged(const QString &section, con
         else if (key == "single_line_preview") m_singleLineCommandPreviewCheck->setChecked(value.toBool());
         else if (key == "restrict_filenames") m_restrictFilenamesCheck->setChecked(value.toBool());
     } else if (section == "Metadata") {
-        if (key == "use_aria2c") m_externalDownloaderCheck->setChecked(value.toBool());
+        if (key == "use_aria2c") {
+            bool useAria2c = value.toBool();
+            m_externalDownloaderCombo->setCurrentIndex(useAria2c ? 1 : 0);
+        }
         else if (key == "embed_chapters") m_embedChaptersCheck->setChecked(value.toBool());
     } else if (section == "DownloadOptions") {
         if (key == "split_chapters") m_splitChaptersCheck->setChecked(value.toBool());

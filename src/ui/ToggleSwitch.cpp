@@ -1,6 +1,8 @@
 #include "ToggleSwitch.h"
 #include <QMouseEvent>
 #include <QEnterEvent>
+#include <QPropertyAnimation>
+#include <QPainter>
 
 ToggleSwitch::ToggleSwitch(QWidget *parent)
     : QAbstractButton(parent), m_offset(0), m_handleRadius(8), m_padding(2) {
@@ -27,6 +29,15 @@ QSize ToggleSwitch::sizeHint() const {
 
 void ToggleSwitch::paintEvent(QPaintEvent *event) {
     Q_UNUSED(event);
+    
+    // Ensure offset matches current state (handles programmatic setChecked)
+    int start = m_padding + m_handleRadius;
+    int end = width() - m_handleRadius - m_padding;
+    int targetOffset = isChecked() ? end : start;
+    if (m_offset != targetOffset) {
+        m_offset = targetOffset;
+    }
+    
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
 

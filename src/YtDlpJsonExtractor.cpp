@@ -95,6 +95,17 @@ void YtDlpJsonExtractor::extract(const QString &ytDlpPath, const QStringList &ar
         return;
     }
 
+    // Log full command for debugging
+    QString fullCommand = "\"" + ytDlpPath + "\"";
+    for (const QString &arg : args) {
+        if (arg.contains(' ')) {
+            fullCommand += " \"" + arg + "\"";
+        } else {
+            fullCommand += " " + arg;
+        }
+    }
+    qDebug() << "YtDlpJsonExtractor full command:" << fullCommand;
+
     m_process->start(ytDlpPath, args);
 }
 

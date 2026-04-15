@@ -7,9 +7,14 @@
 #include <iostream>
 #include <QDir>
 #include <QCoreApplication>
+#include <QStandardPaths>
+#include <QRegularExpression>
 
 // Define a static file pointer for the log file
 static QFile *logFile = nullptr;
+
+// Maximum number of log files to keep (oldest will be deleted)
+static const int MAX_LOG_FILES = 10;
 
 // Custom message handler
 void customMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg) {
@@ -41,7 +46,7 @@ void customMessageHandler(QtMsgType type, const QMessageLogContext &context, con
     // The context information is often too verbose for a standard log file, so it's omitted.
     stream << "\n";
 
-    // Write to stderr for console view
+    // Write to stderr for console view (useful during development)
     QTextStream errStream(stderr);
     errStream.setEncoding(QStringConverter::Utf8);
     errStream << formattedMsg;
@@ -60,27 +65,52 @@ void customMessageHandler(QtMsgType type, const QMessageLogContext &context, con
     }
 }
 
-void LogManager::installHandler() {
-    const QString logDir = QCoreApplication::applicationDirPath();
-    const QString logPath = QDir(logDir).filePath("debug.log");
-    const QString backupLogPath = logPath + ".1";
-    const qint64 maxLogSizeBytes = 5 * 1024 * 1024; // 5 MB
-
-    QFile currentLog(logPath);
-
-    // Rotate logs if the current log is too large
-    if (currentLog.exists() && currentLog.size() > maxLogSizeBytes) {
-        // If a backup already exists, remove it
-        if (QFile::exists(backupLogPath)) {
-            QFile::remove(backupLogPath);
-        }
-        // Rename the current log to the backup path
-        currentLog.rename(backupLogPath);
+/**
+ * Cleans up old log files, keeping only the MAX_LOG_FILES most recent.
+ *
+ * Log files are named: LzyDownloader_YYYY-MM-dd_HH-mm-ss.log
+ * When the number of log files exceeds MAX_LOG_FILES, the oldest files are deleted.
+ */
+static void cleanupOldLogs(const QString &logDir) {
+    QDir dir(logDir);
+    if (!dir.exists()) {
+        return;
     }
 
-    // Open the new log file
+    // Find all log files matching the pattern
+    QStringList logFiles = dir.entryList(QStringList() << "LzyDownloader_*.log", QDir::Files, QDir::Time);
+    
+    // Delete oldest files if we exceed the limit
+    if (logFiles.size() > MAX_LOG_FILES) {
+        for (int i = MAX_LOG_FILES; i < logFiles.size(); ++i) {
+            QString oldLog = dir.filePath(logFiles[i]);
+            if (QFile::exists(oldLog)) {
+                QFile::remove(oldLog);
+                qDebug() << "Removed old log file:" << logFiles[i];
+            }
+        }
+    }
+}
+
+void LogManager::installHandler() {
+    // Use the same location as settings.ini (AppData on Windows)
+    QString logDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+    if (logDir.isEmpty()) {
+        // Fallback to application directory if AppConfigLocation is unavailable
+        logDir = QCoreApplication::applicationDirPath();
+    }
+    QDir().mkpath(logDir);
+
+    // Clean up old log files first
+    cleanupOldLogs(logDir);
+
+    // Create a new log file with timestamp in the filename
+    QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm-ss");
+    const QString logPath = QDir(logDir).filePath("LzyDownloader_" + timestamp + ".log");
+
+    // Open the new log file (write mode, no append - fresh log for each run)
     logFile = new QFile(logPath);
-    if (!logFile->open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+    if (!logFile->open(QIODevice::WriteOnly | QIODevice::Text)) {
         std::cerr << "Failed to open log file: " << logPath.toStdString() << std::endl;
         delete logFile;
         logFile = nullptr;
@@ -89,6 +119,6 @@ void LogManager::installHandler() {
 
     qInstallMessageHandler(customMessageHandler);
 
-    // Print the log file path to the console (and log it) on startup
-    qDebug() << "Log file path:" << logPath;
+    // Print the log file path on startup
+    qDebug() << "Log file created:" << logPath;
 }

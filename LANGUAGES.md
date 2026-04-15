@@ -1,6 +1,6 @@
 # Supported Languages
 
-This file lists the languages that will be supported in the MediaDownloader application.
+This file lists the languages that will be supported in the LzyDownloader application.
 
 - English
 - Mandarin

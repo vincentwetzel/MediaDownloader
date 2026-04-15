@@ -47,3 +47,6 @@ download_archive.db
 *.nupkg
 *.bak
 *~
+
+# AI assistant context
+.qwen/
