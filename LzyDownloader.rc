@@ -1,0 +1,33 @@
+#include <winres.h>
+#include "src/core/version.h"
+
+IDI_ICON1 ICON "src/resources/icon.ico"
+
+VS_VERSION_INFO VERSIONINFO
+    FILEVERSION     APP_VERSION_RC
+    PRODUCTVERSION  APP_VERSION_RC
+    FILEFLAGSMASK   VS_FFI_FILEFLAGSMASK
+    FILEFLAGS       0
+    FILEOS          VOS__WINDOWS32
+    FILETYPE        VFT_APP
+    FILESUBTYPE     VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "CompanyName",      "LzyDownloader"
+            VALUE "FileDescription",  "LzyDownloader"
+            VALUE "FileVersion",      APP_VERSION_STRING
+            VALUE "InternalName",     "LzyDownloader"
+            VALUE "LegalCopyright",   "MIT License"
+            VALUE "OriginalFilename", "LzyDownloader.exe"
+            VALUE "ProductName",      "LzyDownloader"
+            VALUE "ProductVersion",   APP_VERSION_STRING
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END
