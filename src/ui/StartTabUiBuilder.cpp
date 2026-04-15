@@ -29,6 +29,11 @@ void StartTabUiBuilder::build(QWidget *parentWidget, QVBoxLayout *mainLayout)
     mainLayout->setContentsMargins(20, 20, 20, 20);
 
     QHBoxLayout *topLayout = new QHBoxLayout();
+
+    QLabel *urlLabel = new QLabel("Video/Playlist URL(s):", parentWidget);
+    urlLabel->setToolTip("Enter the URLs of the videos or playlists you want to download.");
+    topLayout->addWidget(urlLabel);
+
     topLayout->addStretch();
 
     QPushButton *openTempFolderButton = new QPushButton("Open Temporary Folder", parentWidget);
@@ -52,23 +57,28 @@ void StartTabUiBuilder::build(QWidget *parentWidget, QVBoxLayout *mainLayout)
 
     QHBoxLayout *inputSectionLayout = new QHBoxLayout();
 
-    QVBoxLayout *urlInputLayout = new QVBoxLayout();
-    QLabel *urlLabel = new QLabel("Video/Playlist URL(s):", parentWidget);
-    urlLabel->setToolTip("Enter the URLs of the videos or playlists you want to download.");
-    urlInputLayout->addWidget(urlLabel);
-
     m_urlInput = new QTextEdit(parentWidget);
     m_urlInput->setPlaceholderText("Paste one or more media URLs (one per line)...");
     m_urlInput->setToolTip("Paste the web address (URL) of the video or audio you want to download here. You can paste multiple links, just put each one on a new line.");
     m_urlInput->setMinimumHeight(100);
-    urlInputLayout->addWidget(m_urlInput);
     applyUrlInputStyleSheet(m_urlInput);
-    inputSectionLayout->addLayout(urlInputLayout, 70);
+    inputSectionLayout->addWidget(m_urlInput, 70);
 
     QVBoxLayout *actionColumnLayout = new QVBoxLayout();
     actionColumnLayout->setSpacing(10);
 
-    // Initialize missing UI Elements
+    actionColumnLayout->addStretch();
+
+    m_downloadButton = new QPushButton("Download Video", parentWidget);
+    m_downloadButton->setMinimumHeight(100);
+    actionColumnLayout->addWidget(m_downloadButton);
+
+    actionColumnLayout->addStretch();
+
+    QLabel *downloadTypeLabel = new QLabel("Download Type:", parentWidget);
+    downloadTypeLabel->setToolTip("Select the type of download.");
+    actionColumnLayout->addWidget(downloadTypeLabel);
+
     m_downloadTypeCombo = new QComboBox(parentWidget);
     m_downloadTypeCombo->addItem("Video", "video");
     m_downloadTypeCombo->addItem("Audio Only", "audio");
@@ -77,30 +87,54 @@ void StartTabUiBuilder::build(QWidget *parentWidget, QVBoxLayout *mainLayout)
     m_downloadTypeCombo->setToolTip("Select the type of download.");
     actionColumnLayout->addWidget(m_downloadTypeCombo);
 
-    m_downloadButton = new QPushButton("Download Video", parentWidget);
-    m_downloadButton->setMinimumHeight(40);
-    actionColumnLayout->addWidget(m_downloadButton);
+    connect(m_downloadTypeCombo, &QComboBox::currentTextChanged, this, [this](const QString &text) {
+        if (text == "Video") {
+            m_downloadButton->setText("Download Video");
+        } else if (text == "Audio Only") {
+            m_downloadButton->setText("Download Audio");
+        } else if (text == "Gallery") {
+            m_downloadButton->setText("Download Gallery");
+        } else if (text == "View Formats") {
+            m_downloadButton->setText("View Formats");
+        }
+    });
 
-    QFormLayout *settingsLayout = new QFormLayout();
-    
-    m_playlistLogicCombo = new QComboBox(parentWidget);
-    m_playlistLogicCombo->addItems({"Ask", "Download All (no prompt)", "Download Single (ignore playlist)"});
-    settingsLayout->addRow("Playlist Logic:", m_playlistLogicCombo);
+    actionColumnLayout->addSpacing(20);
 
-    m_maxConcurrentCombo = new QComboBox(parentWidget);
-    m_maxConcurrentCombo->addItems({"1", "2", "3", "4", "5", "6", "7", "8", "1 (short sleep)", "1 (long sleep)"});
-    settingsLayout->addRow("Max Concurrent:", m_maxConcurrentCombo);
-
-    m_rateLimitCombo = new QComboBox(parentWidget);
-    m_rateLimitCombo->addItems({"Unlimited", "500 KB/s", "1 MB/s", "2 MB/s", "5 MB/s", "10 MB/s"});
-    settingsLayout->addRow("Rate Limit:", m_rateLimitCombo);
-
-    m_overrideDuplicateCheck = new ToggleSwitch(parentWidget);
-    settingsLayout->addRow("Override Archive:", m_overrideDuplicateCheck);
-
-    actionColumnLayout->addLayout(settingsLayout);
     inputSectionLayout->addLayout(actionColumnLayout, 30);
     mainLayout->addLayout(inputSectionLayout);
+
+    QHBoxLayout *settingsLayout = new QHBoxLayout();
+
+    QLabel *playlistLabel = new QLabel("Playlist Logic:", parentWidget);
+    settingsLayout->addWidget(playlistLabel);
+    m_playlistLogicCombo = new QComboBox(parentWidget);
+    m_playlistLogicCombo->addItems({"Ask", "Download All (no prompt)", "Download Single (ignore playlist)"});
+    m_playlistLogicCombo->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
+    m_playlistLogicCombo->setMinimumContentsLength(10);
+    m_playlistLogicCombo->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+    settingsLayout->addWidget(m_playlistLogicCombo);
+
+    QLabel *concurrentLabel = new QLabel("Max Concurrent:", parentWidget);
+    settingsLayout->addWidget(concurrentLabel);
+    m_maxConcurrentCombo = new QComboBox(parentWidget);
+    m_maxConcurrentCombo->addItems({"1", "2", "3", "4", "5", "6", "7", "8", "1 (short sleep)", "1 (long sleep)"});
+    m_maxConcurrentCombo->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
+    settingsLayout->addWidget(m_maxConcurrentCombo);
+
+    QLabel *rateLabel = new QLabel("Rate Limit:", parentWidget);
+    settingsLayout->addWidget(rateLabel);
+    m_rateLimitCombo = new QComboBox(parentWidget);
+    m_rateLimitCombo->addItems({"Unlimited", "500 KB/s", "1 MB/s", "2 MB/s", "5 MB/s", "10 MB/s"});
+    m_rateLimitCombo->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
+    settingsLayout->addWidget(m_rateLimitCombo);
+
+    QLabel *overrideLabel = new QLabel("Override Archive:", parentWidget);
+    settingsLayout->addWidget(overrideLabel);
+    m_overrideDuplicateCheck = new ToggleSwitch(parentWidget);
+    settingsLayout->addWidget(m_overrideDuplicateCheck);
+
+    mainLayout->addLayout(settingsLayout);
 
     QLabel *previewLabel = new QLabel("Command Preview:", parentWidget);
     mainLayout->addWidget(previewLabel);

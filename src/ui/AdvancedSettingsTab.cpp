@@ -108,12 +108,12 @@ void AdvancedSettingsTab::setupUI() {
         { "Configuration", configPage, "General application settings, download locations, and theme." },
         { "Video Settings", new VideoSettingsPage(m_configManager, this), "Control video codec, resolution, and formats." },
         { "Audio Settings", new AudioSettingsPage(m_configManager, this), "Adjust audio codecs, quality, and extensions." },
-        { "Livestream Settings", new LivestreamSettingsPage(m_configManager, this), "Configure livestream recording, quality, and post-download conversion." },
         { "Authentication", new AuthenticationPage(m_configManager, this), "Manage browser cookies and credential access." },
         { "Output Templates", new OutputTemplatesPage(m_configManager, this), "Define how downloaded files are named and organized." },
         { "Download Options", new DownloadOptionsPage(m_configManager, this), "Set concurrency, rate limits, and temporary directory behavior." },
         { "Metadata", new MetadataPage(m_configManager, this), "Embed metadata, artwork, and thumbnails into media." },
         { "Subtitles", new SubtitlesPage(m_configManager, this), "Subtitle languages, formats, and embedding behavior." },
+        { "Livestream Settings", new LivestreamSettingsPage(m_configManager, this), "Configure livestream recording, quality, and post-download conversion." },
         { "External Binaries", new BinariesPage(m_configManager, this), "Manage paths to external dependencies like yt-dlp and ffmpeg." },
         { "Updates", new UpdatesPage(m_configManager, this), "Check for new versions of yt-dlp, gallery-dl, and the app." }
     }};
