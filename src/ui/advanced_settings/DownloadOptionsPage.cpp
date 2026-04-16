@@ -27,6 +27,7 @@ DownloadOptionsPage::DownloadOptionsPage(ConfigManager *configManager, QWidget *
     m_sponsorBlockCheck = new ToggleSwitch(this);
     m_embedChaptersCheck = new ToggleSwitch(this);
     m_splitChaptersCheck = new ToggleSwitch(this);
+    m_downloadSectionsCheck = new ToggleSwitch(this);
     m_singleLineCommandPreviewCheck = new ToggleSwitch(this);
     m_restrictFilenamesCheck = new ToggleSwitch(this);
     m_autoClearCompletedCheck = new ToggleSwitch(this);
@@ -48,6 +49,7 @@ DownloadOptionsPage::DownloadOptionsPage(ConfigManager *configManager, QWidget *
     downloadOptionsLayout->addRow("Enable SponsorBlock", m_sponsorBlockCheck);
     downloadOptionsLayout->addRow("Embed video chapters", m_embedChaptersCheck);
     downloadOptionsLayout->addRow("Split chapters into separate files", m_splitChaptersCheck);
+    downloadOptionsLayout->addRow("Enable Download Sections", m_downloadSectionsCheck);
     downloadOptionsLayout->addRow("Auto-clear completed downloads", m_autoClearCompletedCheck);
     downloadOptionsLayout->addRow("Auto-paste URL behavior:", m_autoPasteModeCombo);
     downloadOptionsLayout->addRow("Single-line command preview", m_singleLineCommandPreviewCheck);
@@ -70,6 +72,7 @@ DownloadOptionsPage::DownloadOptionsPage(ConfigManager *configManager, QWidget *
     connect(m_sponsorBlockCheck, &ToggleSwitch::toggled, this, &DownloadOptionsPage::onSponsorBlockToggled);
     connect(m_embedChaptersCheck, &ToggleSwitch::toggled, this, &DownloadOptionsPage::onEmbedChaptersToggled);
     connect(m_splitChaptersCheck, &ToggleSwitch::toggled, this, &DownloadOptionsPage::onSplitChaptersToggled);
+    connect(m_downloadSectionsCheck, &ToggleSwitch::toggled, this, &DownloadOptionsPage::onDownloadSectionsToggled);
     connect(m_autoPasteModeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &DownloadOptionsPage::onAutoPasteModeChanged);
     connect(m_singleLineCommandPreviewCheck, &ToggleSwitch::toggled, this, &DownloadOptionsPage::onSingleLineCommandPreviewToggled);
     connect(m_restrictFilenamesCheck, &ToggleSwitch::toggled, this, &DownloadOptionsPage::onRestrictFilenamesToggled);
@@ -87,13 +90,15 @@ void DownloadOptionsPage::loadSettings() {
     QSignalBlocker b6(m_restrictFilenamesCheck);
     QSignalBlocker b7(m_splitChaptersCheck);
     QSignalBlocker b8(m_geoProxyInput);
-    QSignalBlocker b9(m_autoClearCompletedCheck);
+    QSignalBlocker b9(m_autoClearCompletedCheck);    
+    QSignalBlocker b10(m_downloadSectionsCheck);
 
     bool useAria2c = m_configManager->get("Metadata", "use_aria2c", false).toBool();
     m_externalDownloaderCombo->setCurrentIndex(useAria2c ? 1 : 0);
     m_sponsorBlockCheck->setChecked(m_configManager->get("General", "sponsorblock", false).toBool());
     m_embedChaptersCheck->setChecked(m_configManager->get("Metadata", "embed_chapters", true).toBool());
     m_splitChaptersCheck->setChecked(m_configManager->get("DownloadOptions", "split_chapters", false).toBool());
+    m_downloadSectionsCheck->setChecked(m_configManager->get("DownloadOptions", "download_sections_enabled", false).toBool());
     m_autoClearCompletedCheck->setChecked(m_configManager->get("DownloadOptions", "auto_clear_completed", false).toBool());
     m_autoPasteModeCombo->setCurrentIndex(m_configManager->get("General", "auto_paste_mode", 0).toInt());
     m_singleLineCommandPreviewCheck->setChecked(m_configManager->get("General", "single_line_preview", false).toBool());
@@ -108,6 +113,7 @@ void DownloadOptionsPage::onExternalDownloaderChanged(int index) {
 void DownloadOptionsPage::onSponsorBlockToggled(bool c) { m_configManager->set("General", "sponsorblock", c); }
 void DownloadOptionsPage::onEmbedChaptersToggled(bool c) { m_configManager->set("Metadata", "embed_chapters", c); }
 void DownloadOptionsPage::onSplitChaptersToggled(bool c) { m_configManager->set("DownloadOptions", "split_chapters", c); }
+void DownloadOptionsPage::onDownloadSectionsToggled(bool c) { m_configManager->set("DownloadOptions", "download_sections_enabled", c); }
 void DownloadOptionsPage::onAutoPasteModeChanged(int index) { m_configManager->set("General", "auto_paste_mode", index); }
 void DownloadOptionsPage::onSingleLineCommandPreviewToggled(bool c) { m_configManager->set("General", "single_line_preview", c); }
 void DownloadOptionsPage::onRestrictFilenamesToggled(bool c) { m_configManager->set("General", "restrict_filenames", c); }
@@ -129,6 +135,7 @@ void DownloadOptionsPage::handleConfigSettingChanged(const QString &section, con
     } else if (section == "DownloadOptions") {
         if (key == "split_chapters") m_splitChaptersCheck->setChecked(value.toBool());
         else if (key == "auto_clear_completed") m_autoClearCompletedCheck->setChecked(value.toBool());
+        else if (key == "download_sections_enabled") m_downloadSectionsCheck->setChecked(value.toBool());
         else if (key == "geo_verification_proxy") m_geoProxyInput->setText(value.toString());
     }
 }

@@ -8,6 +8,41 @@
 #include <QFile>
 #include <QDebug>
 
+namespace {
+QString sanitizeSectionFilenameLabel(QString label)
+{
+    label = label.trimmed();
+    if (label.isEmpty()) {
+        return QString();
+    }
+
+    label.replace(':', '-');
+    label.replace('/', '-');
+    label.replace('\\', '-');
+    label.replace(' ', '_');
+    label.remove(QRegularExpression(R"([<>:"/\\|?*])"));
+    label.replace(QRegularExpression(R"(_{2,})"), "_");
+    label.replace(QRegularExpression(R"(-{2,})"), "-");
+    return label.left(90);
+}
+
+QString appendSectionLabelToTemplate(const QString &outputTemplate, const QString &sectionLabel)
+{
+    const QString cleanedLabel = sanitizeSectionFilenameLabel(sectionLabel);
+    if (cleanedLabel.isEmpty()) {
+        return outputTemplate;
+    }
+
+    const QString suffix = QString(" [section %1]").arg(cleanedLabel);
+    const QString extToken = ".%(ext)s";
+    const int extIndex = outputTemplate.lastIndexOf(extToken);
+    if (extIndex >= 0) {
+        return outputTemplate.left(extIndex) + suffix + outputTemplate.mid(extIndex);
+    }
+    return outputTemplate + suffix;
+}
+}
+
 YtDlpArgsBuilder::YtDlpArgsBuilder() {
 }
 
@@ -52,7 +87,6 @@ QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString 
     rawArgs << "--no-restrict-filenames";
     rawArgs << "--newline";
     rawArgs << "--ignore-errors"; // Continue on non-fatal errors (like subtitle failures)
-    rawArgs << "--progress-template" << "download:[download] %(progress.percent_str)s of %(progress.total_bytes_str)s at %(progress.speed_str)s ETA %(progress.eta_str)s";
 
     QString downloadType = options.value("type").toString();
     QString finalOutputExtension;
@@ -289,8 +323,14 @@ QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString 
     QString downloadSections = options.value("download_sections").toString();
     if (!downloadSections.isEmpty()) {
         rawArgs << "--download-sections" << downloadSections;
-    }
 
+        // Preserve the user's requested output container instead of forcing an
+        // intermediate MKV remux, which can leave clipped MP4s with bogus
+        // duration metadata in players like VLC.
+        if (downloadType == "video" || isLivestream) {
+            rawArgs << "--force-keyframes-at-cuts";
+        }
+    }
     // --- Rate Limit ---
     QString rateLimit = options.value("rate_limit", "Unlimited").toString();
     if (rateLimit != "Unlimited") {
@@ -313,6 +353,16 @@ QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString 
     }
 
     if (outputTemplate.isEmpty()) outputTemplate = "%(title)s [%(uploader)s][%(upload_date>%m-%d-%Y)s][%(id)s].%(ext)s";
+
+    QString sectionFilenameLabel = options.value("download_sections_label").toString();
+    if (sectionFilenameLabel.isEmpty() && !downloadSections.isEmpty()) {
+        sectionFilenameLabel = downloadSections;
+    }
+    outputTemplate = appendSectionLabelToTemplate(outputTemplate, sectionFilenameLabel);
+    if (!sectionFilenameLabel.isEmpty()) {
+        qDebug() << "YtDlpArgsBuilder: applied section filename suffix:" << sectionFilenameLabel;
+    }
+
     rawArgs << "-o" << QDir(tempPath).filePath(outputTemplate);
 
     // --- Print final filepath ---
@@ -320,3 +370,7 @@ QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString 
 
     return rawArgs;
 }
+
+
+
+

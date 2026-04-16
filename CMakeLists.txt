@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(LzyDownloader VERSION 1.0.16 LANGUAGES CXX)
+project(LzyDownloader VERSION 1.0.18 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -124,6 +124,7 @@ add_executable(LzyDownloader
     src/core/ProcessUtils.cpp
     src/ui/RuntimeSelectionDialog.cpp
     src/ui/FormatSelectionDialog.cpp
+    src/ui/DownloadSectionsDialog.cpp
     src/ui/advanced_settings/BinariesPage.cpp
 
     # Qt resource file for icons, etc.

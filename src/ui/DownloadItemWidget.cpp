@@ -7,6 +7,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QPixmap>
+#include <QProgressBar>
 
 DownloadItemWidget::DownloadItemWidget(const QVariantMap &itemData, QWidget *parent)
     : QWidget(parent), m_itemData(itemData) {
@@ -42,7 +43,19 @@ void DownloadItemWidget::setupUi() {
     m_progressBar = new ProgressLabelBar(this);
     m_progressBar->setRange(0, 100);
     m_progressBar->setValue(0);
-    m_progressBar->setToolTip("Download progress.");
+    m_progressBar->setToolTip("Progress for the currently active stream or processing stage.");
+
+    m_overallProgressLabel = new QLabel("Overall progress", this);
+    m_overallProgressLabel->setToolTip("Overall progress across all primary streams in this download.");
+    m_overallProgressLabel->hide();
+
+    m_overallProgressBar = new QProgressBar(this);
+    m_overallProgressBar->setRange(0, 100);
+    m_overallProgressBar->setValue(0);
+    m_overallProgressBar->setTextVisible(false);
+    m_overallProgressBar->setMaximumHeight(8);
+    m_overallProgressBar->setToolTip("Overall progress across all primary streams in this download.");
+    m_overallProgressBar->hide();
 
     m_clearButton = new QPushButton("X", this);
     m_clearButton->setToolTip("Clear this download from the list.");
@@ -57,6 +70,8 @@ void DownloadItemWidget::setupUi() {
     infoLayout->addLayout(titleLayout);
     infoLayout->addWidget(m_statusLabel);
     infoLayout->addWidget(m_progressBar);
+    infoLayout->addWidget(m_overallProgressLabel);
+    infoLayout->addWidget(m_overallProgressBar);
 
     m_pauseResumeButton = new QPushButton("Pause", this);
     m_pauseResumeButton->setToolTip("Pause or resume this download.");
@@ -106,12 +121,28 @@ void DownloadItemWidget::setupUi() {
 }
 
 void DownloadItemWidget::updateProgress(const QVariantMap &progressData) {
+    if (m_isFinished) {
+        return; // Ignore delayed progress signals if already finished
+    }
+
     if (progressData.contains("title")) {
         m_titleLabel->setText(progressData["title"].toString());
     }
+
     if (progressData.contains("status")) {
         m_statusLabel->setStyleSheet("");
-        m_statusLabel->setText(progressData["status"].toString());
+        QString statusText = progressData["status"].toString();
+        
+        if (statusText == "Downloading...") {
+            const QString type = m_itemData.value("options").toMap().value("type").toString();
+            if (type == "audio") {
+                statusText = "Downloading audio...";
+            } else if (type == "gallery") {
+                statusText = "Downloading gallery...";
+            }
+        }
+
+        m_statusLabel->setText(statusText);
     }
     if (progressData.contains("progress")) {
         int progress = progressData["progress"].toInt();
@@ -120,28 +151,28 @@ void DownloadItemWidget::updateProgress(const QVariantMap &progressData) {
             m_progressBar->setRange(0, 0);
             m_progressBar->setStyleSheet("");
             m_progressBar->setProgressText("");
-        } else if (progress == 100) {
-            // Progress complete - check if still post-processing
-            QString status = progressData.value("status").toString();
-            if (status.contains("Processing", Qt::CaseInsensitive) ||
-                status.contains("Merging", Qt::CaseInsensitive) ||
-                status.contains("Post", Qt::CaseInsensitive)) {
-                // Still in post-processing phase - teal
-                m_progressBar->setRange(0, 100);
-                m_progressBar->setValue(100);
-                m_progressBar->setStyleSheet("QProgressBar::chunk { background-color: #008080; }");
-                m_progressBar->setProgressText("Finalizing...");
-            } else {
-                // Fully completed - green
-                m_progressBar->setRange(0, 100);
-                m_progressBar->setValue(100);
-                m_progressBar->setStyleSheet("QProgressBar::chunk { background-color: #22c55e; }");
-                m_progressBar->setProgressText("Complete");
-            }
+        } else if (progress == 100 && (m_statusLabel->text().contains("Processing", Qt::CaseInsensitive) ||
+                                       m_statusLabel->text().contains("Merging", Qt::CaseInsensitive) ||
+                                       m_statusLabel->text().contains("Post", Qt::CaseInsensitive) ||
+                                       m_statusLabel->text().contains("Extracting", Qt::CaseInsensitive) ||
+                                       m_statusLabel->text().contains("Converting", Qt::CaseInsensitive) ||
+                                       m_statusLabel->text().contains("Applying", Qt::CaseInsensitive) ||
+                                       m_statusLabel->text().contains("Fixing", Qt::CaseInsensitive) ||
+                                       m_statusLabel->text().contains("Verifying", Qt::CaseInsensitive) ||
+                                       m_statusLabel->text().contains("Moving", Qt::CaseInsensitive) ||
+                                       m_statusLabel->text().contains("Copying", Qt::CaseInsensitive) ||
+                                       m_statusLabel->text().contains("Embedding", Qt::CaseInsensitive) ||
+                                       m_statusLabel->text() == "Complete")) {
+            // Still in post-processing / finalizing phase - teal
+            m_progressBar->setRange(0, 100);
+            m_progressBar->setValue(100);
+            m_progressBar->setStyleSheet("QProgressBar::chunk { background-color: #008080; }");
+            m_progressBar->setProgressText("Finalizing...");
         } else {
-            // Actively downloading - light blue
             m_progressBar->setRange(0, 100);
             m_progressBar->setValue(progress);
+
+            // Actively downloading - light blue for all active transfers
             m_progressBar->setStyleSheet("QProgressBar::chunk { background-color: #3b82f6; }");
 
             // Build centered progress text: percentage + size + speed + ETA
@@ -160,6 +191,24 @@ void DownloadItemWidget::updateProgress(const QVariantMap &progressData) {
             m_progressBar->setProgressText(parts.join("  "));
         }
     }
+    if (progressData.contains("overall_progress")) {
+        const int overallProgress = qRound(progressData["overall_progress"].toDouble());
+        m_overallProgressBar->show();
+        m_overallProgressLabel->show();
+        m_overallProgressBar->setRange(0, 100);
+        m_overallProgressBar->setValue(overallProgress);
+        m_overallProgressBar->setStyleSheet("QProgressBar::chunk { background-color: #64748b; }");
+
+        QString overallLabel = QString("Overall %1%").arg(overallProgress);
+        if (progressData.contains("overall_downloaded_size") && progressData.contains("overall_total_size")) {
+            overallLabel += QString("  %1/%2").arg(progressData["overall_downloaded_size"].toString(), progressData["overall_total_size"].toString());
+        }
+        m_overallProgressLabel->setText(overallLabel);
+    } else if (progressData.contains("progress") && progressData["progress"].toInt() < 0) {
+        m_overallProgressBar->hide();
+        m_overallProgressLabel->hide();
+    }
+
     if (progressData.contains("thumbnail_path")) {
         setThumbnail(progressData["thumbnail_path"].toString());
     }
@@ -204,8 +253,20 @@ void DownloadItemWidget::setFinished(bool success, const QString &message) {
         m_statusLabel->setStyleSheet("color: #dc2626;");
         m_progressBar->setStyleSheet("QProgressBar { color: #dc2626; }");
         m_progressBar->setProgressText("Download failed");
+        m_overallProgressBar->hide();
+        m_overallProgressLabel->hide();
     } else {
         m_statusLabel->setStyleSheet("");
+        m_progressBar->setRange(0, 100);
+        m_progressBar->setValue(100);
+        m_progressBar->setStyleSheet("QProgressBar::chunk { background-color: #22c55e; }");
+        m_progressBar->setProgressText("Complete");
+        if (m_overallProgressBar->isVisible()) {
+            m_overallProgressBar->setRange(0, 100);
+            m_overallProgressBar->setValue(100);
+            m_overallProgressBar->setStyleSheet("QProgressBar::chunk { background-color: #94a3b8; }");
+            m_overallProgressLabel->setText("Overall 100%");
+        }
     }
     m_statusLabel->setText(message);
 }
@@ -223,6 +284,8 @@ void DownloadItemWidget::setCancelled() {
     m_statusLabel->setText("Cancelled");
     m_progressBar->setStyleSheet("QProgressBar { color: #dc2626; }");
     m_progressBar->setProgressText("Cancelled");
+    m_overallProgressBar->hide();
+    m_overallProgressLabel->hide();
 }
 
 void DownloadItemWidget::setPaused(bool paused) {

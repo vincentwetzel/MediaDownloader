@@ -60,6 +60,7 @@ void ConfigManager::initializeDefaultSettings() {
     m_defaultSettings["Subtitles"]["write_auto_subtitles"] = true;
     m_defaultSettings["Subtitles"]["format"] = "srt";
     m_defaultSettings["DownloadOptions"]["split_chapters"] = false;
+    m_defaultSettings["DownloadOptions"]["download_sections_enabled"] = false;
     m_defaultSettings["DownloadOptions"]["auto_clear_completed"] = false;
     m_defaultSettings["DownloadOptions"]["geo_verification_proxy"] = "";
     m_defaultSettings["Livestream"]["live_from_start"] = false;

@@ -28,8 +28,26 @@
 
 ### Bug Fixes
 - [x] **Single-Item Playlist Double Download**: The URL `https://music.youtube.com/watch?v=Bkh2BJ49DmQ&list=OLAK5uy_n3IQt8nfMSp3Xlma2hMsvKAyHBmBwk5Is` (a playlist with 1 item) downloads the audio file twice and sorts it to two different places. It should only download once and correctly trigger the "Audio Playlist Downloads" rule instead of the single "Audio Downloads" rule.
+- [x] **1-Item Playlist JSON Cleanup**: Fixed an issue where 1-item playlists left behind orphaned `info.json` files in the temporary directory by ensuring cleanup runs regardless of whether `playlist_index` is valid.
+- [x] **Section clip remux regression**: Fixed section downloads forcing an intermediate MKV remux plus extra FFmpeg merger args, which could leave MP4 clips with the original full-length duration metadata and glitchy playback near the real clip end.
+- [x] **Section filename labeling**: Added filename-safe section/chapter labels to clipped downloads so the saved file name reflects which part of the source video it contains.
+- [x] **Section clip container normalization**: Fixed section clips in VLC by adding an asynchronous ffprobe+ffmpeg normalization pass that probes the clipped duration and hard-limits embedded subtitle streams to the clip timeline before finalization. Confirmed with ffprobe/VLC after the hard `-t <clip_duration>` remux step.
+- [x] **yt-dlp native progress stage/size parsing**: Fixed downloads jumping to 100% on auxiliary transfers by ignoring thumbnail/subtitle/info-json progress for the main bar, widening native progress parsing for fragment-style lines, and surfacing destination-aware download stages.
+- [x] **Download stage label audit**: Removed UI-side phase guessing, promoted worker/finalizer lifecycle text to the source of truth, and added explicit extracting/resuming/segment-transfer stage updates so labels track the real pipeline.
+- [x] **Audio-stage handoff detection**: Fixed video -> audio stage switching by classifying full temp target paths (including `.part` names) and falling back to `requested_downloads` metadata when yt-dlp restarts progress on the next primary stream without a fresh destination line.
+- [x] **Per-stream byte display preserved**: Kept video and audio byte counters separate so the active stream restarts from its own emitted size instead of inheriting an aggregated overall total.
+- [x] **Small overall job progress bar**: Added a slim secondary overall-progress indicator for multi-stream downloads while preserving the main bar as the active-stream progress display.
+- [x] **Progress parser regression hardening**: Fixed the follow-up regression where the UI could remain visually stuck at 0% by making extraction stages indeterminate again, broadening aria2 progress matching, and consuming aria2 `FILE:` lines to keep stream-target tracking in sync with active transfers.
+- [x] **App-exit process cleanup**: Closing the app now runs an explicit shutdown path that terminates active descendant process trees so `yt-dlp`-spawned `aria2c`, metadata-normalization `ffmpeg`, and other helper processes do not survive after exit.
+- [x] **Audio-only WebM label detection**: Fixed stream-stage labeling for temp files like `.f251.webm.part` by matching yt-dlp `format_id` values from `requested_downloads` before falling back to ambiguous container extensions.
+- [x] **Audio-stage size fallback**: Added a second-stage matcher that uses the active stream's emitted total size when yt-dlp delays or omits a fresh target filename during the video-to-audio handoff.
+- [x] **Empty `requested_downloads` stage fallback**: Fixed runs where `info.json` omits `requested_downloads` by seeding stream order from yt-dlp's announced format list and aria2 command-line `itag`/`mime` values, so audio-only transfers like `f251-13.webm.part` no longer stay labeled as video.
+- [x] **Late info.json label overwrite**: Fixed a follow-up regression where a delayed `info.json` parse could clear the already-correct stderr-derived stream mapping and flip the GUI back from audio to video mid-handoff.
 
 ## Completed
+
+### Phase 17: Download Sections
+- [x] **Download Sections Support**: Added an option to download specific sections of a video (by time or chapter). When enabled in Advanced Settings, a dialog appears before downloading, allowing you to define multiple sections. Supports time ranges (e.g., `HH:MM:SS-HH:MM:SS`) and chapter names.
 
 ### Core Features (Phases 1-10)
 - UI, download logic, settings, archive, playlists, sorting, advanced settings
@@ -74,3 +92,11 @@
 
 ### Recent Additions
 *(Moved to CHANGELOG.md)*
+
+
+
+
+
+
+
+

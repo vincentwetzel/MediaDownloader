@@ -7,8 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - YYYY-MM-DD
 
+### Fixed
+- **Audio-stage fallback from stream size**: When yt-dlp delays a clean filename handoff, `YtDlpWorker` now also matches the active stream by emitted total size before falling back to generic progress-reset ordering, which helps the audio stage switch at the right time even for ambiguous temp names.
+- **Audio-only WebM stream labeling**: `YtDlpWorker` now prefers yt-dlp `format_id` values embedded in temp filenames (for example `.f251.webm.part`) before falling back to container extensions, preventing audio-only WebM/Opus transfers from being mislabeled as video.
+- **Missing `requested_downloads` fallback for audio/video stage labels**: Some yt-dlp runs do not populate `requested_downloads` in `info.json`, so `YtDlpWorker` now seeds stream order from `[info] ... Downloading 1 format(s): 399+251-13` and also trusts aria2 command-line clues like `itag=251` plus `mime=audio/webm` to switch the GUI from video to audio at the correct handoff.
+- **Late info.json stream-label regression**: When `info.json` arrives after stderr has already identified the active streams, `YtDlpWorker` now preserves the inferred stream order if `requested_downloads` is empty instead of clearing it and accidentally flipping the audio phase back to `Downloading video stream...`.
+- **Exit cleanup for background tools**: Closing the app now triggers an explicit `DownloadManager` shutdown that terminates descendant process trees for active downloads and helpers, preventing orphaned `ffmpeg`, `aria2c`, and similar child processes from surviving after the window exits.
+- **yt-dlp/aria2 progress regression after small overall bar update**: Restored robust progress parsing by treating pre-download extraction as indeterminate instead of leaving the UI parked at 0%, accepting slightly noisier aria2 summary lines, and using aria2 `FILE:` output to keep active stream tracking aligned with the file actually being transferred.
+
 ### Added
 - **Open folder buttons on Active Downloads tab**: Added "Open Temporary Folder" and "Open Downloads Folder" buttons to the Active Downloads tab toolbar, providing quick access to download directories without switching to the Start tab. Both buttons include tooltips and show warning dialogs if directories are not configured.
+- **Download Sections Support**: Added an option in Advanced Settings to download specific sections of a video by time range or chapter name. When enabled, a dialog appears before downloading, allowing the user to define one or more sections to be downloaded.
 - **External Downloader dropdown in Advanced Settings**: Replaced the "External Downloader (aria2c)" toggle switch with a dropdown selector offering "yt-dlp (default)" and "aria2c" options. The setting automatically hides when aria2c is not installed/discovered. Default changed from aria2c to yt-dlp to align with the unbundled binary model, ensuring users without aria2c installed won't encounter download failures.
 - **yt-dlp error popup notifications**: The application now detects specific yt-dlp error messages during downloads and displays user-friendly popup dialogs with clear explanations. Supported error types include:
 - **Refactored StartTab into smaller, more focused classes**: `StartTab.cpp` has been broken down into `StartTabUrlHandler` (manages URL input, clipboard, auto-switching), `StartTabDownloadActions` (handles download button, type changes, format checking, folder opening), and `StartTabCommandPreviewUpdater` (updates command preview). This improves modularity and maintainability.
@@ -94,6 +103,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Flattened AppData directory structure**: Removed duplicate organization name in `main.cpp` so app data is stored in `%LOCALAPPDATA%\LzyDownloader\` instead of `%LOCALAPPDATA%\LzyDownloader\LzyDownloader\`.
 
 ### Fixed
+- **Section clip container/timestamp handling**: Download-section jobs no longer force an intermediate mkv -> mp4 remux or inject extra FFmpeg merger args at worker startup. Section downloads now stay in the user-selected output container, which fixes clipped MP4s that reported the full source duration and stopped/glitched near the real clip end in VLC.
+- **Section filename labeling**: Clipped downloads now append a filename-safe section suffix before the extension, such as [section 15-00_to_end] or [section chapter_Intro], so saved files show which part of the original video they represent.
+- **Section clip container normalization**: Finished section clips in MP4-family containers now run through an asynchronous ffprobe+ffmpeg normalization pass before finalization. The app probes the clipped container duration, then rewrites with `-t <clip_duration>` plus `-fflags +genpts`, `-ignore_editlist 1`, `-fix_sub_duration`, `-c:s mov_text`, `-shortest`, and `-movflags +faststart` so embedded subtitle streams are hard-limited to the clip timeline and players such as VLC now report the clipped duration correctly.
 - **Crash on exit with active downloads**: Fixed a race condition where closing the application while downloads were active could cause a crash. The shutdown sequence now safely terminates all background workers before closing.
 - **Progress bar 100% completion**: Fixed an issue where download progress bars would get stuck at less than 100% (e.g., 95%) and never turn green. `YtDlpWorker` now emits a final 100% progress update before the `finished` signal, ensuring the UI correctly shows completion at 100% with a green progress bar.
 - **Download error tracking and display**: Fixed the GUI counters not properly updating when downloads failed. Added a 4th "Errors" counter that accurately tracks all download failures across the entire pipeline (worker failures, metadata embedding errors, file move failures, playlist expansion errors, and gallery download errors). The `DownloadManager::downloadStatsUpdated` signal now includes the error count.
@@ -150,6 +162,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **App process lingering after window close**: Closing the main window now exits the application instead of minimizing to tray and continuing in the background.
 - **Playlist UI memory leaks**: Captured transient `QObject::sender()` objects locally to prevent memory leakage and data loss during synchronous playlist message box prompts.
 - **Unicode/special-character output path handling on Windows**: Download finalization no longer relies on `cmd /c move`. The app now forces UTF-8 process/output handling (`PYTHONUTF8`, `PYTHONIOENCODING`, `yt-dlp --encoding utf-8`), preserves Unicode in logger output, and uses Qt-native move/copy fallback so files with characters like `？` or emoji move reliably from `--print after_move:filepath` output.
+- **1-item playlist JSON cleanup**: Fixed an issue where 1-item playlists would leave behind orphaned `[playlist_id].info.json` files in the temporary directory because they lacked a valid `playlist_index`. The cleanup logic now unconditionally removes playlist metadata files if a valid playlist ID is resolved.
 
 ### Security
 -
@@ -251,6 +264,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Sorting token cleanup**: Removed sorting support for `album_year` (UI insert option and token resolution).
 - **Sorting legacy rule cleanup**: Removed legacy sorting-rule compatibility paths (`date_subfolders`, `audio_only`, legacy single-filter fields, and uploader-list fallback). Sorting now uses only `download_type`, `conditions`, and `subfolder_pattern`.
 - **Progress bar early 100% + incorrect postprocessing status**: Active download parsing now ignores subtitle/auxiliary transfer percentages (for example `.vtt` subtitle fetches) until main media transfer starts, and postprocessing detection no longer treats generic "Extracting ..." lines as postprocessing (only true post-download steps such as `Extracting audio`).
+- **yt-dlp native size/stage reporting**: Fixed native yt-dlp downloads that could jump to 100% on a small auxiliary file (such as a thumbnail) and then sit there for the real transfer. The worker now tracks `[download] Destination:` targets, ignores auxiliary-file percentages for the main media bar, recognizes fragment-style native progress lines, and emits clearer stage text for thumbnail/subtitle/video/audio transfers.
+- **Download stage source-of-truth cleanup**: Removed UI-side guessing of video/audio phases from progress resets. `YtDlpWorker` now emits the main lifecycle stages directly (extracting media info, transfer target changes, segment downloads, post-processing), `MainWindow` no longer forces a generic `Downloading...` label on worker start, and resume now shows an indeterminate `Resuming download...` state until the worker reports the real stage.
+- **Audio-stage handoff detection**: Hardened stream-stage labeling when yt-dlp switches from video to audio. The worker now classifies temp targets such as `.m4a.part` by the full path, caches the `requested_downloads` stream order from `info.json`, and advances the displayed stage when progress resets onto the next primary stream even if yt-dlp does not emit a clean new destination line.
+- **Per-stream byte display preserved**: Multi-stream jobs continue to show the active stream's own downloaded/total byte counters instead of an aggregated overall total, so the audio phase can restart from its own low byte count while still switching the label from video to audio at the right handoff point.
+- **Small overall job progress bar**: Added a slim secondary bar for multi-stream downloads that shows whole-job progress across the requested primary streams, while the main bar and byte counters remain scoped to the currently active video or audio stream.
 - **Release date metadata targeting**: Switched default filename templates and Advanced template insert tokens from `upload_date` to `release_date` so date-based output naming uses release date metadata by default. Sorting date helper tokens now prefer `release_date` with fallback to `upload_date` for backward compatibility.
 - **Embedded media date precedence**: Metadata writing now explicitly sets `meta_date` with strict fallback order `release_date` -> `release_year` -> `upload_date`, preventing corrupted `release_year` values from overriding valid date metadata.
 - **GUI stutter during concurrent postprocessing**: Reduced main-thread repaint pressure by throttling duplicate progress updates and avoiding repeated progress-bar stylesheet resets during high-frequency yt-dlp/ffmpeg status output.
@@ -416,3 +434,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Signal handler connection for file move operations (worker finished signal now properly invokes handler)
 - Snapshot fallback file detection by cleaning temp directory on test start
 - Early URL validation to prevent wasted UI artifacts for unsupported hosts
+
+
+
+
+
+
+
+

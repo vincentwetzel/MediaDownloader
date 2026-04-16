@@ -45,6 +45,7 @@ public:
     void onWorkerOutputReceived(const QString &id, const QString &output);
     void processPlaylistSelection(const QString &url, const QString &action, const QVariantMap &options, const QList<QVariantMap> &expandedItems);
     void resumeDownloadWithFormat(const QString &url, const QVariantMap &options, const QString &formatId);
+    void shutdown();
 
 signals:
     void downloadAddedToQueue(const QVariantMap &itemData);
@@ -64,6 +65,7 @@ signals:
     void downloadStatsUpdated(int queued, int active, int completed, int errors);
     void formatSelectionRequested(const QString &url, const QVariantMap &options, const QVariantMap &infoDict);
     void formatSelectionFailed(const QString &url, const QString &message);
+    void downloadSectionsRequested(const QString &url, const QVariantMap &options, const QVariantMap &infoJson);
     void ytDlpErrorPopupRequested(const QString &id, const QString &errorType, const QString &userMessage, const QString &rawError, const QVariantMap &itemData);
     void duplicateDownloadDetected(const QString &url, const QString &reason);
     void downloadFinished(const QString &id, bool success, const QString &message);
@@ -89,6 +91,7 @@ private:
     void checkQueueFinished();
     void updateTotalSpeed();
     void emitDownloadStats();
+    void fetchInfoForSections(const QString &url, const QVariantMap &options);
     void fetchFormatsForSelection(const QString &url, const QVariantMap &options);
 
     ConfigManager *m_configManager;
@@ -110,6 +113,7 @@ private:
     int m_completedDownloadsCount;
     int m_errorDownloadsCount;
     QMap<QString, double> m_workerSpeeds;
+    bool m_isShuttingDown;
 
     DownloadQueueState *m_queueState;
     DownloadQueueManager *m_queueManager; // New member for queue management

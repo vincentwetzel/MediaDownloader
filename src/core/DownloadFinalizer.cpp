@@ -10,7 +10,62 @@
 #include <QJsonObject>
 #include <QThread>
 #include <QCoreApplication>
+#include <QUrlQuery>
 #include <QDebug>
+
+namespace { // Anonymous namespace to limit scope to this file
+
+void cleanupTempFiles(const DownloadItem &item, const QDir &tempDir, const QString &mediaInfoJsonPath)
+{
+    if (item.options.value("type").toString() == "gallery") {
+        return;
+    }
+
+    // 1. Clean up the info.json that matches the media file name.
+    QFile::remove(mediaInfoJsonPath);
+    qDebug() << "Attempted to clean up media info.json:" << mediaInfoJsonPath;
+
+    // 2. If it was a playlist download, find and remove the playlist's info.json file.
+    QString playlistId;
+
+    // Strategy 1: Get playlist_id from the original playlist URL stored in options. This is the most reliable.
+    if (item.options.contains("original_playlist_url")) {
+        QUrl url(item.options.value("original_playlist_url").toString());
+        if (url.hasQuery()) {
+            QUrlQuery query(url);
+            if (query.hasQueryItem("list")) {
+                playlistId = query.queryItemValue("list");
+            }
+        }
+    }
+
+    // Strategy 2: Fallback to metadata if the original URL wasn't available for some reason.
+    if (playlistId.isEmpty() && item.metadata.contains("playlist_id")) {
+        playlistId = item.metadata.value("playlist_id").toString();
+        qDebug() << "Using playlist_id from metadata as fallback for cleanup:" << playlistId;
+    }
+
+    if (!playlistId.isEmpty()) {
+        QStringList potentialFiles = tempDir.entryList(QStringList() << "*.info.json", QDir::Files);
+        for (const QString &fileName : potentialFiles) {
+            // Check if the filename contains the playlist ID, typically formatted as "[<playlist_id>]"
+            // by yt-dlp's default playlist output template. This is more reliable than parsing JSON content.
+            if (fileName.contains("[" + playlistId + "]")) {
+                QString filePath = tempDir.filePath(fileName);
+                if (QFile::remove(filePath)) {
+                    qDebug() << "Cleaned up playlist info.json by filename match:" << filePath;
+                } else {
+                    qWarning() << "Failed to remove playlist info.json by filename match:" << filePath;
+                }
+                break; // Assume only one such file exists per playlist.
+            }
+        }
+    } else {
+        qDebug() << "No playlist_id found for cleanup for item:" << item.id;
+    }
+}
+
+} // namespace
 
 DownloadFinalizer::DownloadFinalizer(ConfigManager *configManager, SortingManager *sortingManager, ArchiveManager *archiveManager, QObject *parent)
     : QObject(parent), m_configManager(configManager), m_sortingManager(sortingManager), m_archiveManager(archiveManager) {
@@ -55,40 +110,30 @@ void DownloadFinalizer::finalize(const QString &id, DownloadItem item) {
     qDebug() << "Starting finalize for id:" << id;
 
     if (item.options.value("type").toString() != "gallery" && item.metadata.isEmpty()) {
-        QString tempDirPath = m_configManager->get("Paths", "temporary_downloads_directory").toString();
-        QDir tempDir(tempDirPath);
-        QStringList jsonFiles = tempDir.entryList(QStringList() << "*.info.json", QDir::Files, QDir::Time);
-        if (jsonFiles.isEmpty()) {
-            qWarning() << "No info.json found in temp dir";
-            emit finalizationComplete(id, false, "Downloaded file not found.");
-            return;
-        }
-        QString jsonPath = tempDir.filePath(jsonFiles.first());
+        qWarning() << "Metadata is empty in finalize for id:" << id << ", attempting to read from disk.";
+        QFileInfo fi(item.tempFilePath);
+        QString jsonPath = fi.absoluteDir().filePath(fi.completeBaseName() + ".info.json");
+
         QFile jsonFile(jsonPath);
         if (!jsonFile.open(QIODevice::ReadOnly)) {
-            qWarning() << "Could not open info.json:" << jsonPath;
+            qWarning() << "Could not open info.json for fallback:" << jsonPath;
             emit finalizationComplete(id, false, "Downloaded file not found.");
             return;
         }
+
         QByteArray jsonData = jsonFile.readAll();
         jsonFile.close();
         QJsonDocument doc = QJsonDocument::fromJson(jsonData);
-        if (!doc.isObject()) {
-            qWarning() << "Invalid info.json";
+        if (doc.isObject()) {
+            item.metadata = doc.object().toVariantMap();
+            qDebug() << "Successfully loaded metadata from fallback for id:" << id;
+        } else {
+            qWarning() << "Invalid info.json in fallback:" << jsonPath;
             emit finalizationComplete(id, false, "Downloaded file not found.");
             return;
         }
-        item.metadata = doc.object().toVariantMap();
     }
 
-    QString finalName = QFileInfo(item.tempFilePath).fileName();
-    if (finalName.isEmpty()) {
-        qWarning() << "Could not resolve final media filename from yt-dlp after_move path output.";
-        emit finalizationComplete(id, false, "Download completed, but could not resolve output filename from yt-dlp.");
-        return;
-    }
-
-    item.tempFilePath = QDir(m_configManager->get("Paths", "temporary_downloads_directory").toString()).filePath(finalName);
     QFileInfo fileInfo(item.tempFilePath);
     qint64 lastSize = -1;
     int stableCount = 0;
@@ -117,6 +162,7 @@ void DownloadFinalizer::finalize(const QString &id, DownloadItem item) {
     QString finalDir = m_sortingManager->getSortedDirectory(item.metadata, item.options);
     QDir().mkpath(finalDir);
     finalDir = QDir(finalDir).absolutePath();
+    QString finalName = fileInfo.fileName();
 
     if (item.options.value("type").toString() == "audio" && item.playlistIndex > 0) {
         QString paddedIndex = QString("%1").arg(item.playlistIndex, 2, 10, QChar('0'));
@@ -124,6 +170,11 @@ void DownloadFinalizer::finalize(const QString &id, DownloadItem item) {
     }
 
     QString destPath = QDir(finalDir).filePath(finalName);
+
+    // Capture temp file info BEFORE it's moved/renamed.
+    QFileInfo tempFileInfo(item.tempFilePath);
+    QDir tempDir = tempFileInfo.absoluteDir();
+    QString mediaInfoJsonPath = tempDir.filePath(tempFileInfo.completeBaseName() + ".info.json");
 
     if (item.options.value("type").toString() == "audio" && item.playlistIndex > 0) {
         QString thumbTempPath = QDir(m_configManager->get("Paths", "temporary_downloads_directory").toString()).filePath(id + "_folder.jpg");
@@ -203,8 +254,6 @@ void DownloadFinalizer::finalize(const QString &id, DownloadItem item) {
         }
     }
 
-    if (item.options.value("type").toString() != "gallery") {
-        QFileInfo fi(item.tempFilePath);
-        QFile::remove(fi.absoluteDir().filePath(fi.completeBaseName() + ".info.json"));
-    }
+    // Cleanup must happen after all signals are emitted and operations are complete.
+    cleanupTempFiles(item, tempDir, mediaInfoJsonPath);
 }

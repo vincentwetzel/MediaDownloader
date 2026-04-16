@@ -171,4 +171,34 @@ void setProcessEnvironment(QProcess &process) {
     process.setProcessEnvironment(env);
 }
 
+void terminateProcessTree(QProcess *process, int gracefulTimeoutMs) {
+    if (!process || process->state() == QProcess::NotRunning) {
+        return;
+    }
+
+    const qint64 pid = process->processId();
+    qInfo() << "[ProcessUtils] Terminating process tree for PID" << pid;
+
+    process->terminate();
+    if (process->waitForFinished(gracefulTimeoutMs)) {
+        return;
+    }
+
+#ifdef Q_OS_WIN
+    if (pid > 0) {
+        QProcess taskkill;
+        taskkill.setProcessChannelMode(QProcess::MergedChannels);
+        taskkill.start("taskkill", {"/PID", QString::number(pid), "/T", "/F"});
+        if (!taskkill.waitForFinished(5000)) {
+            qWarning() << "[ProcessUtils] taskkill timed out for PID" << pid;
+        } else if (taskkill.exitCode() != 0) {
+            qWarning() << "[ProcessUtils] taskkill failed for PID" << pid << taskkill.readAllStandardOutput();
+        }
+    }
+#else
+    process->kill();
+    process->waitForFinished(5000);
+#endif
+}
+
 } // namespace ProcessUtils

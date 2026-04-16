@@ -61,7 +61,7 @@ This document outlines the specifications for the C++ port of the LzyDownloader 
         - **Configuration**: Output folder, Temporary folder, Theme.
         - **Authentication Access**: Cookies from browser (Video/Audio), Cookies from browser (Galleries). The cookie access check is handled directly within `AdvancedSettingsTab` using `QProcess`, with a 30-second timeout and improved logging. The check uses a specific YouTube Shorts URL for more reliable validation.
         - **Output Template**: Filename Pattern (with "Insert token...", "Save", and "Reset" buttons). The "Save" button validates the pattern using `yt-dlp`.
-        - **Download Options**: External Downloader (aria2c), Enable SponsorBlock, Restrict filenames, Embed video chapters, Auto-paste URL when app is focused.
+        - **Download Options**: External Downloader (aria2c), Enable SponsorBlock, Restrict filenames, Embed video chapters, Enable Download Sections, Auto-paste URL when app is focused.
         - **Metadata / Thumbnails**: Embed metadata, Embed thumbnail, Use high-quality thumbnail converter, Convert thumbnails to.
         - **Livestream Settings**: Record from beginning, Wait for video (with min/max intervals). The app dynamically scales these wait intervals for streams hours away vs seconds away. Download As (MPEG-TS or MKV), Use .part files, Quality, Convert To.
         - **Subtitles**: Subtitle language (using full words in a combo box), Embed subtitles in video, Write subtitles (separate file), Include automatically-generated subtitles, Subtitle file format (greyed out if "Embed subtitles in video" is selected).
@@ -84,16 +84,31 @@ This document outlines the specifications for the C++ port of the LzyDownloader 
     - Thumbnail conversion (`--convert-thumbnails`).
     - SponsorBlock (`--sponsorblock`).
     - Cookies from browser (`--cookies-from-browser`).
+    - Download sections (`--download-sections`).
     - Output template (`-o`).
     - Max concurrent downloads (`--concurrent-fragments`).
     - Rate limit (`--limit-rate`).
     - Override archive (`--no-download-archive`).
     - Embed chapters (`--embed-chapters`).
+    - **Section Container Preservation**: Section downloads must preserve the user's requested output container/extension (for example MP4 video clips stay MP4) instead of forcing an intermediate MKV remux. The app may add `--force-keyframes-at-cuts` for video precision, but it must not silently switch the container behind the user's back.
+    - **Section Filename Labeling**: When a section/chapter clip is queued, the output filename must include a filename-safe label describing the selected range or chapter (for example `[section 15-00_to_end]`) before the extension so the saved file clearly identifies which part of the source it contains.
 - **Output Parsing**: Must parse `yt-dlp` stdout/stderr for progress, final filename, and metadata JSON.
+- **Process Lifetime on Exit**: Closing the application must explicitly terminate active downloader/post-processor process trees (including child tools such as `aria2c` and `ffmpeg`) so no background media tasks survive after the UI exits.
 - **Progress Compatibility**: The worker MUST understand and emit progress from **both** native `yt-dlp` progress lines **and** aria2c external downloader output, including:
   - Native yt-dlp format: `[download] XX.X% of YY.YMiB at ZZ.ZMiB/s ETA 0:00`
   - aria2c format: `[#XXXXX AA.AMiB/BB.BMiB(CC.C%)(...)ETA:0:00]`
   - Unknown or approximate totals (e.g., `~XX.XMiB`, `Unknown total size`)
+  - Destination-aware native stages, including fragment downloads and auxiliary-file transfers
+  - Primary-stream handoff detection must correctly switch the label from video to audio when multi-stream downloads restart progress on the next requested format, even if the temporary filename ends in `.part` or yt-dlp omits a fresh destination line
+  - Stream labeling should prefer yt-dlp `format_id` clues from temp filenames such as `.f251.webm.part` before falling back to container extensions, since extensions like `.webm` can represent either audio-only or video streams
+- If `info.json` does not include `requested_downloads`, stream labeling should fall back to yt-dlp's announced format list (for example `Downloading 1 format(s): 399+251-13`) and aria2 command-line URL metadata such as `itag=251` and `mime=audio/webm` before relying on ambiguous extensions or progress-reset heuristics
+- If stream order was already inferred from stderr/stdout and `info.json` later arrives without `requested_downloads`, the worker must preserve the inferred order rather than clearing it and regressing the visible stage label
+  - If no trustworthy filename handoff is available yet, the worker should also consider the active stream's emitted total size as a secondary clue before falling back to simple progress-reset ordering
+  - The displayed downloaded/total bytes for multi-stream jobs should remain scoped to the active stream rather than being silently converted into an aggregate whole-job byte counter
+  - The UI may additionally show a small secondary overall-progress indicator for multi-stream jobs, but it must remain visually subordinate to the main active-stream progress bar
+  - Auxiliary transfers (thumbnails, subtitles, `.info.json`) must not hijack the main media progress percentage/size display
+  - aria2 `FILE:` lines should be used as an additional source of truth for the active transfer target so stage labels stay aligned with the actual stream being downloaded
+  - Pre-download extraction/setup stages should drive the main bar into an indeterminate state instead of leaving a stale queued `0%` display on screen
   - UTF-8 filenames and metadata
   - **The progress bar MUST update correctly regardless of which downloader (native or aria2c) is active**
 - **Progress Bar Color Coding**: The UI progress bar MUST use color-coding to provide clear visual feedback on download state:
@@ -103,6 +118,7 @@ This document outlines the specifications for the C++ port of the LzyDownloader 
   - **Green** (`#22c55e`): When download is fully completed (progress at 100% and post-processing finished)
 - **Detailed Progress Information Display**: The application MUST provide comprehensive, real-time progress information to users, comparable to command-line yt-dlp output:
   - **Status Label**: Must display the current download stage with descriptive messages:
+    - Stage text must come from the active worker/finalizer lifecycle and must not be inferred in the UI from percentage resets alone
     - "Extracting media information..." (during metadata extraction)
     - "Downloading N segment(s)..." (during aria2c multi-segment downloads)
     - "Merging segments with ffmpeg..." (during post-processing)
@@ -128,7 +144,7 @@ This document outlines the specifications for the C++ port of the LzyDownloader 
 - **Encoding Robustness**: Worker process environment must force UTF-8 text output (`PYTHONUTF8=1`, `PYTHONIOENCODING=utf-8`) so Unicode filenames are preserved in stdout/stderr parsing.
 
 ### 2.6. Post-Processing
-- **File Lifecycle**:
+- **File Lifecycle:**`r`n    - Section clips saved in MP4-family containers may run through one additional asynchronous ffprobe+ffmpeg normalization pass before final move. The app probes the clipped container duration with `ffprobe`, then remuxes with `-fflags +genpts`, `-ignore_editlist 1`, `-fix_sub_duration`, `-c:s mov_text`, `-t <clip_duration>`, `-shortest`, and `-movflags +faststart` so embedded subtitle streams are hard-limited to the clip timeline and players like VLC read the clipped duration more accurately.
     - All downloads must go to a temporary directory first.
     - A file stability check must be performed before moving.
     - Files are moved to a final destination directory upon success.
@@ -158,3 +174,12 @@ This document outlines the specifications for the C++ port of the LzyDownloader 
 - **Qt SDK Discovery**: CMake must honor explicit `Qt6_DIR`/`CMAKE_PREFIX_PATH` configuration and also auto-check common Windows Qt install prefixes (for example `C:\Qt\6.*\msvc2022_64`) so IDE-driven configure steps can find Qt without manual edits on typical developer machines.
 - **Database**: SQLite (via Qt SQL module)
 - **Process Management**: `QProcess`
+
+
+
+
+
+
+
+
+

@@ -18,6 +18,7 @@ private slots:
     void onSponsorBlockToggled(bool checked);
     void onEmbedChaptersToggled(bool checked);
     void onSplitChaptersToggled(bool checked);
+    void onDownloadSectionsToggled(bool checked);
     void onAutoPasteModeChanged(int index);
     void onSingleLineCommandPreviewToggled(bool checked);
     void onRestrictFilenamesToggled(bool checked);
@@ -27,7 +28,7 @@ private slots:
 private:
     ConfigManager *m_configManager;
     QComboBox *m_externalDownloaderCombo;
-    ToggleSwitch *m_sponsorBlockCheck, *m_embedChaptersCheck, *m_splitChaptersCheck, *m_singleLineCommandPreviewCheck, *m_restrictFilenamesCheck, *m_autoClearCompletedCheck;
+    ToggleSwitch *m_sponsorBlockCheck, *m_embedChaptersCheck, *m_splitChaptersCheck, *m_downloadSectionsCheck, *m_singleLineCommandPreviewCheck, *m_restrictFilenamesCheck, *m_autoClearCompletedCheck;
     QComboBox *m_autoPasteModeCombo;
     QLineEdit *m_geoProxyInput;
 };

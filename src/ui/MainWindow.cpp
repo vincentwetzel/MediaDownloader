@@ -19,6 +19,7 @@
 #include "core/ProcessUtils.h"
 #include "ui/RuntimeSelectionDialog.h"
 #include "ui/FormatSelectionDialog.h"
+#include "ui/DownloadSectionsDialog.h"
 #include "ToggleSwitch.h"
 #include "utils/BinaryFinder.h"
 
@@ -152,10 +153,6 @@ MainWindow::MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent
             m_activeDownloadsTab, &ActiveDownloadsTab::onDownloadFinished);
     connect(m_downloadManager, &DownloadManager::downloadCancelled,
             m_activeDownloadsTab, &ActiveDownloadsTab::onDownloadCancelled);
-    connect(m_downloadManager, &DownloadManager::downloadStarted,
-            m_activeDownloadsTab, [this](const QString &id){
-                m_activeDownloadsTab->setDownloadStatus(id, "Downloading...");
-            });
     connect(m_downloadManager, &DownloadManager::downloadPaused,
             m_activeDownloadsTab, &ActiveDownloadsTab::onDownloadPaused);
     connect(m_downloadManager, &DownloadManager::downloadResumed,
@@ -176,6 +173,9 @@ MainWindow::MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent
 
     // Connect yt-dlp error popup signal
     connect(m_downloadManager, &DownloadManager::ytDlpErrorPopupRequested, this, &MainWindow::onYtDlpErrorPopup);
+
+    // Connect download sections signal
+    connect(m_downloadManager, &DownloadManager::downloadSectionsRequested, this, &MainWindow::onDownloadSectionsRequested);
 
     // Handle requests for runtime format selection
     connect(m_downloadManager, &DownloadManager::formatSelectionRequested, this, 
@@ -210,6 +210,10 @@ MainWindow::MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent
             m_downloadManager, &DownloadManager::moveDownloadUp);
     connect(m_activeDownloadsTab, &ActiveDownloadsTab::moveDownloadDownRequested,
             m_downloadManager, &DownloadManager::moveDownloadDown);
+    // FIXME: Re-enable this connection once the corresponding signal and slot are declared in their headers.
+    // See comments in ActiveDownloadsTab.cpp and DownloadManager.cpp for details.
+    // connect(m_activeDownloadsTab, &ActiveDownloadsTab::itemCleared,
+    //         m_downloadManager, &DownloadManager::onItemCleared);
 
     connect(m_urlValidator, &UrlValidator::validationFinished, this, &MainWindow::onValidationFinished);
 
@@ -322,7 +326,10 @@ void MainWindow::closeEvent(QCloseEvent *event) {
         }
     }
 
-    qInfo() << "Main window close requested; exiting application.";
+    qInfo() << "Main window close requested; shutting down active background tasks before exit.";
+    if (m_downloadManager) {
+        m_downloadManager->shutdown();
+    }
     if (m_trayIcon && m_trayIcon->isVisible()) {
         m_trayIcon->hide();
     }
@@ -493,6 +500,29 @@ void MainWindow::onRuntimeInfoError(const QString &error) {
     m_pendingOptions.clear();
 }
 
+void MainWindow::onDownloadSectionsRequested(const QString &url, const QVariantMap &options, const QVariantMap &infoJson)
+{
+    DownloadSectionsDialog dialog(infoJson, this);
+    if (dialog.exec() == QDialog::Accepted) {
+        QString sections = dialog.getSectionsString();
+        QString sectionLabel = dialog.getFilenameLabel();
+        QVariantMap newOptions = options;
+        newOptions["download_sections_set"] = true; // Mark as done to prevent looping
+        if (!sections.isEmpty()) {
+            newOptions["download_sections"] = sections;
+        }
+        if (!sectionLabel.isEmpty()) {
+            newOptions["download_sections_label"] = sectionLabel;
+        }
+        // Re-enqueue with the new options
+        m_downloadManager->enqueueDownload(url, newOptions);
+        m_uiBuilder->tabWidget()->setCurrentWidget(m_activeDownloadsTab);
+    } else {
+        // User cancelled, do nothing. The download was never enqueued.
+        qInfo() << "Download sections selection cancelled by user for" << url;
+    }
+}
+
 void MainWindow::onValidationFinished(bool isValid, const QString &error) {
     if (isValid) {
         m_downloadManager->enqueueDownload(m_pendingUrl, m_pendingOptions); // Corrected: m_downloadManager
@@ -661,3 +691,5 @@ void MainWindow::setYtDlpVersion(const QString &version) {
         m_advancedSettingsTab->setYtDlpVersion(version);
     }
 }
+
+

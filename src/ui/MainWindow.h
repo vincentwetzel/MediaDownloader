@@ -53,6 +53,7 @@ private slots:
     void onClipboardChanged(); // New slot for clipboard changes
     void onRuntimeInfoReady(const QVariantMap &info);
     void onRuntimeInfoError(const QString &error);
+    void onDownloadSectionsRequested(const QString &url, const QVariantMap &options, const QVariantMap &infoJson);
     void onYtDlpErrorPopup(const QString &id, const QString &errorType, const QString &userMessage, const QString &rawError, const QVariantMap &itemData);
 
 private:

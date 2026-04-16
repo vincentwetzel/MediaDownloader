@@ -199,6 +199,7 @@ Additional download behavior and UI preferences.
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `split_chapters` | Boolean | `false` | Split video chapters into separate files during download. |
+| `download_sections_enabled` | Boolean | `false` | If enabled, a dialog will appear before downloading to let you specify time ranges or chapters to download. |
 | `auto_clear_completed` | Boolean | `false` | Automatically clear completed downloads from the Active Downloads tab. |
 | `geo_verification_proxy` | String | *(empty)* | Proxy URL for geo-restricted content (e.g., `http://proxy.server:port`). |
 
@@ -303,9 +304,9 @@ All other settings are reset to their default values.
 | **Advanced Settings → Configuration** | `General` | `theme` |
 | **Advanced Settings → Authentication Access** | `General` | `cookies_from_browser`, `gallery_cookies_from_browser` |
 | **Advanced Settings → Output Templates** | `General` | `output_template`, `output_template_video`, `output_template_audio`, `gallery_output_template` |
-| **Advanced Settings → Download Options** | `Metadata` | `use_aria2c`, `embed_chapters` |
-| **Advanced Settings → Download Options** | `General` | `sponsorblock`, `auto_paste_mode`, `single_line_preview`, `restrict_filenames` |
-| **Advanced Settings → Download Options** | `DownloadOptions` | `split_chapters`, `auto_clear_completed`, `geo_verification_proxy` |
+| **Advanced Settings → Download Options** | `Metadata` | `use_aria2c` |
+| **Advanced Settings → Download Options** | `General` | `sponsorblock`, `auto_paste_mode`, `single_line_preview`, `restrict_filenames`, `embed_chapters` |
+| **Advanced Settings → Download Options** | `DownloadOptions` | `split_chapters`, `download_sections_enabled`, `auto_clear_completed`, `geo_verification_proxy` |
 | **Advanced Settings → Metadata/Thumbnails** | `Metadata` | `embed_metadata`, `embed_thumbnail`, `high_quality_thumbnail`, `convert_thumbnail_to`, `crop_artwork_to_square`, `generate_folder_jpg` |
 | **Advanced Settings → Subtitles** | `Subtitles` | `languages`, `embed_subtitles`, `write_subtitles`, `write_auto_subtitles`, `format` |
 | **Advanced Settings → Updates** | *(N/A - runtime only)* | yt-dlp/gallery-dl version display and update buttons |

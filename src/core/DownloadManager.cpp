@@ -24,9 +24,22 @@
 #include <QThread>
 #include <QCoreApplication>
 
+namespace {
+bool shouldNormalizeSectionContainer(const DownloadItem &item)
+{
+    if (item.options.value("download_sections").toString().isEmpty()) {
+        return false;
+    }
+
+    const QString suffix = QFileInfo(item.tempFilePath).suffix().toLower();
+    return suffix == "mp4" || suffix == "m4v" || suffix == "mov" || suffix == "m4a";
+}
+}
+
 DownloadManager::DownloadManager(ConfigManager *configManager, QObject *parent) : QObject(parent),
     m_configManager(configManager), m_archiveManager(nullptr), m_sleepMode(NoSleep),
-    m_queuedDownloadsCount(0), m_activeDownloadsCount(0), m_completedDownloadsCount(0), m_errorDownloadsCount(0)
+    m_queuedDownloadsCount(0), m_activeDownloadsCount(0), m_completedDownloadsCount(0), m_errorDownloadsCount(0),
+    m_isShuttingDown(false)
 {
 
     m_queueState = new DownloadQueueState(this);
@@ -72,35 +85,45 @@ DownloadManager::DownloadManager(ConfigManager *configManager, QObject *parent) 
 }
 
 DownloadManager::~DownloadManager() {
-    // Safely kill all active workers without triggering signal/slot chains on a partially destructed object.
-    // This is a critical shutdown step. Do not call cancelDownload() from here as it emits signals.
-    QStringList activeIds = m_activeWorkers.keys();
+    shutdown();
+}
+
+void DownloadManager::shutdown() {
+    if (m_isShuttingDown) {
+        return;
+    }
+    m_isShuttingDown = true;
+
+    qInfo() << "[DownloadManager] Shutdown requested. Terminating active downloads and helper processes.";
+
+    const QList<QProcess*> descendantProcesses = findChildren<QProcess*>();
+    for (QProcess *process : descendantProcesses) {
+        ProcessUtils::terminateProcessTree(process);
+    }
+
+    const QStringList activeIds = m_activeWorkers.keys();
     for (const QString &id : activeIds) {
         QObject *worker = m_activeWorkers.take(id);
-        worker->disconnect(this); // Disconnect from DownloadManager slots
-
-        YtDlpWorker *ytDlpWorker = qobject_cast<YtDlpWorker*>(worker);
-        if (ytDlpWorker) {
-            ytDlpWorker->killProcess();
-        } else {
-            GalleryDlWorker *galleryDlWorker = qobject_cast<GalleryDlWorker*>(worker);
-            if (galleryDlWorker) {
-                galleryDlWorker->killProcess();
-            }
+        if (!worker) {
+            continue;
         }
-        worker->deleteLater();
+        worker->disconnect(this);
+        delete worker;
     }
     m_activeWorkers.clear();
 
-    // Also for embedders
-    QStringList embedderIds = m_activeEmbedders.keys();
+    const QStringList embedderIds = m_activeEmbedders.keys();
     for (const QString &id : embedderIds) {
         QObject *embedder = m_activeEmbedders.take(id);
+        if (!embedder) {
+            continue;
+        }
         embedder->disconnect(this);
-        // Deleting the embedder will kill any active QProcess internally
-        embedder->deleteLater();
+        delete embedder;
     }
     m_activeEmbedders.clear();
+
+    m_workerSpeeds.clear();
 }
 
 void DownloadManager::onQueueCountsChanged(int queued, int paused) {
@@ -145,6 +168,16 @@ void DownloadManager::enqueueDownload(const QString &url, const QVariantMap &opt
             emit duplicateDownloadDetected(url, reason);
             return;
         }
+    }
+
+    // Intercept for download sections before anything else
+    bool useSections = m_configManager->get("DownloadOptions", "download_sections_enabled", false).toBool();
+    QString downloadTypeCheck = options.value("type", "video").toString();
+    // The "download_sections_set" flag prevents an infinite loop.
+    if (useSections && !options.contains("download_sections_set") && (downloadTypeCheck == "video" || downloadTypeCheck == "audio")) {
+        qDebug() << "Download sections enabled, fetching metadata for" << url;
+        fetchInfoForSections(url, options);
+        return;
     }
 
     QString downloadType = options.value("type", "video").toString();
@@ -203,6 +236,46 @@ void DownloadManager::enqueueDownload(const QString &url, const QVariantMap &opt
         expander->startExpansion(playlistLogic);
         emit playlistExpansionStarted(url);
     }
+}
+
+void DownloadManager::fetchInfoForSections(const QString &url, const QVariantMap &options)
+{
+    QProcess *process = new QProcess(this);
+    QString ytDlpPath = ProcessUtils::findBinary("yt-dlp", m_configManager).path;
+
+    QStringList args;
+    args << "--dump-json" << "--no-playlist" << url;
+
+    QString cookiesBrowser = m_configManager->get("General", "cookies_from_browser", "None").toString();
+    if (cookiesBrowser != "None") {
+        args << "--cookies-from-browser" << cookiesBrowser.toLower();
+    }
+
+    connect(process, &QProcess::finished, this, [this, process, url, options](int exitCode, QProcess::ExitStatus exitStatus) {
+        if (exitStatus == QProcess::NormalExit && exitCode == 0) {
+            QByteArray output = process->readAllStandardOutput();
+            QJsonDocument doc = QJsonDocument::fromJson(output);
+            if (doc.isObject()) {
+                QVariantMap infoJson = doc.object().toVariantMap();
+                QMetaObject::invokeMethod(this, [this, url, options, infoJson]() {
+                    emit downloadSectionsRequested(url, options, infoJson);
+                }, Qt::QueuedConnection);
+            } else {
+                qWarning() << "Failed to parse JSON for sections, enqueuing without them.";
+                QVariantMap newOptions = options;
+                newOptions["download_sections_set"] = true; // Prevent re-triggering
+                enqueueDownload(url, newOptions);
+            }
+        } else {
+            qWarning() << "Failed to fetch info for sections, enqueuing without them. Error:" << process->readAllStandardError();
+            QVariantMap newOptions = options;
+            newOptions["download_sections_set"] = true; // Prevent re-triggering
+            enqueueDownload(url, newOptions);
+        }
+        process->deleteLater();
+    });
+
+    process->start(ytDlpPath, args);
 }
 
 void DownloadManager::fetchFormatsForSelection(const QString &url, const QVariantMap &options) {
@@ -522,6 +595,7 @@ void DownloadManager::onPlaylistExpanded(const QString &originalUrl, const QList
                 item.url = itemData.value("url").toString();
                 item.playlistIndex = itemData.value("playlist_index", -1).toInt();
                 item.options = options;
+                item.options["original_playlist_url"] = originalUrl;
                 if (itemData.contains("is_live")) {
                     item.options["is_live"] = itemData.value("is_live").toBool();
                 }
@@ -548,6 +622,7 @@ void DownloadManager::onPlaylistExpanded(const QString &originalUrl, const QList
             item.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
             item.url = itemData["url"].toString();
             item.options = options; // Use the options from the original enqueue
+            item.options["original_playlist_url"] = originalUrl;
             if (itemData.contains("is_live")) item.options["is_live"] = itemData.value("is_live").toBool();
             item.playlistIndex = itemData.value("playlist_index", -1).toInt();
             m_queueManager->enqueueDownload(item);
@@ -687,14 +762,22 @@ void DownloadManager::onWorkerFinished(const QString &id, bool success, const QS
         qDebug() << "Injected playlist_index" << item.playlistIndex << "into metadata for sorting.";
     }
 
-    if (item.options.value("type").toString() == "audio" && item.playlistIndex > 0) {
-        emit downloadProgress(id, {{"status", "Embedding metadata..."}});
-        MetadataEmbedder *embedder = new MetadataEmbedder(this);
+    const bool needsTrackEmbedding = (item.options.value("type").toString() == "audio" && item.playlistIndex > 0);
+    const bool needsSectionNormalization = shouldNormalizeSectionContainer(item);
+
+    if (needsTrackEmbedding || needsSectionNormalization) {
+        QVariantMap progressData;
+        progressData["status"] = needsSectionNormalization
+            ? "Normalizing clip container metadata..."
+            : "Embedding metadata...";
+        emit downloadProgress(id, progressData);
+
+        MetadataEmbedder *embedder = new MetadataEmbedder(m_configManager, this);
         m_activeEmbedders[id] = embedder;
         connect(embedder, &MetadataEmbedder::finished, this, [this, id](bool s, const QString &e){
             onMetadataEmbedded(id, s, e);
         });
-        embedder->embedTrackNumber(item.tempFilePath, item.playlistIndex);
+        embedder->processFile(item.tempFilePath, needsTrackEmbedding ? item.playlistIndex : 0, needsSectionNormalization);
     } else {
         m_finalizer->finalize(id, item);
     }
@@ -787,6 +870,14 @@ void DownloadManager::onFinalizationComplete(const QString &id, bool success, co
     startNextDownload();
 }
 
+/*
+FIXME: The implementation for onItemCleared was causing build errors because it is not declared in DownloadManager.h.
+To fix this, declare it as a public slot in DownloadManager.h:
+    public slots:
+        void onItemCleared(const QString &id, bool wasSuccessful, bool wasFinished);
+Then, uncomment the function body below and the corresponding connect() call in MainWindow.cpp.
+*/
+
 void DownloadManager::checkQueueFinished() {
     if (m_activeWorkers.isEmpty() && !m_queueManager->hasQueuedDownloads() && m_activeItems.isEmpty()) {
         emit queueFinished();
@@ -809,3 +900,5 @@ void DownloadManager::onWorkerOutputReceived(const QString &id, const QString &o
 {
     qDebug().noquote() << output;
 }
+
+

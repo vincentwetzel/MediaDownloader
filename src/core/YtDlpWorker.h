@@ -40,6 +40,20 @@ private:
     double parseSizeStringToBytes(const QString &sizeString);
     QString formatBytes(double bytes);
     QString normalizeConsoleLine(const QString &line) const;
+    void updateTransferTarget(const QString &path);
+    bool isAuxiliaryTransferTarget(const QString &path) const;
+    QString statusForCurrentTransfer() const;
+    void emitStatusUpdate(const QString &status, int progress = -2);
+    bool handleLifecycleStatusLine(const QString &line);
+    void inferRequestedTransfersFromFormatList(const QString &formatList);
+    bool handleAria2CommandLine(const QString &line);
+    int inferPrimaryStreamIndexFromPath(const QString &path) const;
+    int inferPrimaryStreamIndexFromTotalBytes(double totalBytes) const;
+    QString inferPrimaryStreamStatusFromPath(const QString &path) const;
+    QString inferPrimaryStreamStatusFromMetadata(int index) const;
+    void updateInferredTransferStage(double percentage, double totalBytes);
+    double inferPrimaryStreamSizeBytes(const QVariantMap &requestMap) const;
+    void applyOverallPrimaryProgress(QVariantMap &progressData, double percentage, double downloadedBytes, double totalBytes);
 
     QString m_id;
     QStringList m_args;
@@ -59,6 +73,15 @@ private:
     QVariantMap m_fullMetadata;    // Stores the full metadata parsed from info.json
     bool m_errorEmitted;           // Tracks if a specific error has been emitted
     QStringList m_errorLines;      // Stores ERROR: lines from stderr
+    QStringList m_requestedTransferStatuses;
+    QStringList m_requestedTransferFormatIds;
+    QList<double> m_requestedTransferSizes;
+    QString m_currentTransferTarget;
+    QString m_currentTransferStatus;
+    bool m_currentTransferIsAuxiliary = false;
+    int m_inferredTransferIndex = -1;
+    double m_lastPrimaryProgress = -1.0;
+    double m_lastPrimaryTotalBytes = 0.0;
 };
 
 #endif // YTDLPWORKER_H

@@ -9,6 +9,7 @@
 
 class QLabel;
 class QPushButton;
+class QProgressBar;
 
 // Custom progress bar that paints the percentage text centered on the bar
 class ProgressLabelBar : public QProgressBar {
@@ -86,6 +87,8 @@ private:
     QLabel *m_titleLabel;
     QLabel *m_statusLabel;
     ProgressLabelBar *m_progressBar;
+    QProgressBar *m_overallProgressBar;
+    QLabel *m_overallProgressLabel;
     QPushButton *m_clearButton;
     QPushButton *m_pauseResumeButton;
     QPushButton *m_cancelButton;

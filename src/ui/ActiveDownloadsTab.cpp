@@ -20,7 +20,8 @@ ActiveDownloadsTab::ActiveDownloadsTab(ConfigManager *configManager, QWidget *pa
 
 void ActiveDownloadsTab::setupUi() {
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(10, 10, 10, 10);
+    mainLayout->setSpacing(15);
+    mainLayout->setContentsMargins(20, 20, 20, 20);
 
     QHBoxLayout *toolbarLayout = new QHBoxLayout();
     m_pauseResumeAllButton = new QPushButton("Pause All", this);
@@ -54,13 +55,12 @@ void ActiveDownloadsTab::setupUi() {
         QDesktopServices::openUrl(QUrl::fromLocalFile(downloadsDir));
     });
     
-    toolbarLayout->addWidget(openTempFolderButton);
-    toolbarLayout->addWidget(openDownloadsFolderButton);
-    toolbarLayout->addSpacing(10);
     toolbarLayout->addWidget(m_pauseResumeAllButton);
     toolbarLayout->addWidget(m_cancelAllButton);
     toolbarLayout->addWidget(m_clearCompletedButton);
     toolbarLayout->addStretch();
+    toolbarLayout->addWidget(openTempFolderButton);
+    toolbarLayout->addWidget(openDownloadsFolderButton);
     mainLayout->addLayout(toolbarLayout);
 
     QWidget *stackedContainer = new QWidget(this);
@@ -159,7 +159,7 @@ void ActiveDownloadsTab::onDownloadPaused(const QString &id) {
 void ActiveDownloadsTab::onDownloadResumed(const QString &id) {
     if (m_downloadItems.contains(id)) {
         m_downloadItems[id]->setPaused(false);
-        m_downloadItems[id]->updateProgress({{"status", "Downloading..."}}); // Give immediate feedback
+        m_downloadItems[id]->updateProgress({{"status", "Resuming download..."}, {"progress", -1}});
     }
 }
 
@@ -235,6 +235,11 @@ void ActiveDownloadsTab::togglePauseAllDownloads() {
 void ActiveDownloadsTab::onItemClearRequested(const QString &id) {
     if (m_downloadItems.contains(id)) {
         DownloadItemWidget *widget = m_downloadItems.take(id);
+        // FIXME: Re-enable this signal emission once `itemCleared` is declared as a signal in ActiveDownloadsTab.h
+        // The signal should be:
+        // signals:
+        //     void itemCleared(const QString &id, bool wasSuccessful, bool wasFinished);
+        // emit itemCleared(id, widget->isSuccessful(), widget->isFinished());
         m_downloadsLayout->removeWidget(widget);
         widget->deleteLater();
         updatePlaceholderVisibility();
