@@ -48,7 +48,7 @@ BinariesPage::BinariesPage(ConfigManager *configManager, QWidget *parent)
     QLabel *introLabel = new QLabel(
         "<b>REQUIRED:</b> yt-dlp, ffmpeg, ffprobe, deno<br>"
         "<b>OPTIONAL:</b> gallery-dl, aria2c<br><br>"
-        "<b>Browse</b> sets a manual path override. <b>Clear</b> reverts to auto-detection.<br>"
+        "<b>Browse</b> sets a manual path override. <b>Clear Path</b> reverts to auto-detection.<br>"
         "<b>Install</b> opens package-manager or manual-download options (refresh after installing).",
         scrollWidget);
     introLabel->setWordWrap(true);
@@ -130,7 +130,7 @@ void BinariesPage::setupRow(QVBoxLayout *layout,
     statusLabel->setSizePolicy(labelPolicy);
 
     QPushButton *browseButton = new QPushButton("Browse...", rowGroup);
-    QPushButton *clearButton = new QPushButton("Clear", rowGroup);
+    QPushButton *clearButton = new QPushButton("Clear Path", rowGroup);
     QPushButton *installButton = new QPushButton("Install...", rowGroup);
 
     QFont childFont = browseButton->font();
@@ -141,7 +141,7 @@ void BinariesPage::setupRow(QVBoxLayout *layout,
     statusLabel->setFont(childFont);
 
     browseButton->setToolTip(QString("Choose a specific %1 executable from disk to set a manual override.").arg(labelText));
-    clearButton->setToolTip("Clear the manual path and revert to auto-detection.");
+    clearButton->setToolTip("Clear the manual path override and revert to auto-detection.");
     installButton->setToolTip(QString("Open installer options for %1.").arg(labelText));
 
     QHBoxLayout *buttonLayout = new QHBoxLayout();

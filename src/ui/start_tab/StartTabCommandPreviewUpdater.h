@@ -11,7 +11,7 @@
 #include "core/YtDlpArgsBuilder.h"
 #include "core/GalleryDlArgsBuilder.h"
 #include "core/ProcessUtils.h" // For resolveExecutablePath
-#include "src/ui/ToggleSwitch.h" // For ToggleSwitch
+#include "ui/ToggleSwitch.h" // For ToggleSwitch
 
 class StartTabCommandPreviewUpdater : public QObject
 {

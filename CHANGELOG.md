@@ -8,20 +8,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased] - YYYY-MM-DD
 
 ### Fixed
+- **Windows shutdown cleanup for orphaned mergers**: All tracked `QProcess` downloads and helpers now join a Windows job object with kill-on-close semantics, so quitting the app while `yt-dlp`, `ffmpeg`, `aria2c`, or related helpers are still active no longer leaves orphaned background processes behind. The standalone ffmpeg merge worker now also uses the shared process environment/tracking path and cancels via the same process-tree termination helper.
 - **Advanced Settings downloader wiring audit**: Fixed several settings paths that had drifted out of sync with the real yt-dlp arguments. `YtDlpArgsBuilder` now translates codec preferences into selectors that match real stream aliases such as `avc1`, `hev1`, and `mp4a`, so choosing `H.264 (AVC)` no longer falls through to AV1-heavy site defaults. The builder also now respects the `Restrict filenames` toggle, honors direct `format` overrides emitted by the runtime format picker, and merges runtime-selected audio format IDs into video downloads instead of silently dropping them.
 - **Clickable source links in yt-dlp error dialogs**: User-facing error popups now render rich text and include the failing source URL when one is available, making it easier to inspect, retry, or open the original page while still showing the cleaned technical details.
 - **Transient helper process cleanup**: Process-tree shutdown now also covers utility `QProcess` lifetimes used by cookie validation, output-template validation, updater runs, and other UI-spawned helpers, preventing stray background tools from surviving cancellation or app exit.
 - **Legacy codec label drift**: The default saved video codec label is now the canonical `H.264 (AVC)`, and the video settings page normalizes older `H.264`/`H.265` values when loading existing configs so the UI stays aligned with the downloader mappings.
 - **Audio-stage fallback from stream size**: When yt-dlp delays a clean filename handoff, `YtDlpWorker` now also matches the active stream by emitted total size before falling back to generic progress-reset ordering, which helps the audio stage switch at the right time even for ambiguous temp names.
 - **Audio-only WebM stream labeling**: `YtDlpWorker` now prefers yt-dlp `format_id` values embedded in temp filenames (for example `.f251.webm.part`) before falling back to container extensions, preventing audio-only WebM/Opus transfers from being mislabeled as video.
+- **Audio-only extract fallback for ambiguous containers**: When yt-dlp is running an explicit extract-audio job and only exposes an intermediate container path such as `.webm` or `.mp4`, `YtDlpWorker` now reports `Downloading audio stream...` instead of assuming those temporary containers always mean video.
 - **Missing `requested_downloads` fallback for audio/video stage labels**: Some yt-dlp runs do not populate `requested_downloads` in `info.json`, so `YtDlpWorker` now seeds stream order from `[info] ... Downloading 1 format(s): 399+251-13` and also trusts aria2 command-line clues like `itag=251` plus `mime=audio/webm` to switch the GUI from video to audio at the correct handoff.
 - **Late info.json stream-label regression**: When `info.json` arrives after stderr has already identified the active streams, `YtDlpWorker` now preserves the inferred stream order if `requested_downloads` is empty instead of clearing it and accidentally flipping the audio phase back to `Downloading video stream...`.
 - **Exit cleanup for background tools**: Closing the app now triggers an explicit `DownloadManager` shutdown that terminates descendant process trees for active downloads and helpers, preventing orphaned `ffmpeg`, `aria2c`, and similar child processes from surviving after the window exits.
 - **yt-dlp/aria2 progress regression after small overall bar update**: Restored robust progress parsing by treating pre-download extraction as indeterminate instead of leaving the UI parked at 0%, accepting slightly noisier aria2 summary lines, and using aria2 `FILE:` output to keep active stream tracking aligned with the file actually being transferred.
 
 ### Added
+- **Advanced Metadata Settings**: Added new toggles for "Crop audio thumbnails to square" and "Generate folder.jpg for audio playlists" in the Metadata settings page. Thumbnails can now also be explicitly converted to `jpg` or `png` formats.
+- **Metadata UI Decoupling**: Extracted metadata and thumbnail settings from `AdvancedSettingsTab` into a dedicated `MetadataPage` component to improve modularity.
+- **Source layout cleanup**: Moved the Start tab helper classes into `src/ui/start_tab/` and grouped the aria2 download pipeline into `src/core/download_pipeline/`. The aria2 RPC wrapper, yt-dlp download-info extractor, and ffmpeg merge worker were also renamed to `Aria2RpcClient`, `YtDlpDownloadInfoExtractor`, and `FfmpegMuxer` to make their roles clearer and reduce collisions with other core classes.
 - **Open folder buttons on Active Downloads tab**: Added "Open Temporary Folder" and "Open Downloads Folder" buttons to the Active Downloads tab toolbar, providing quick access to download directories without switching to the Start tab. Both buttons include tooltips and show warning dialogs if directories are not configured.
-- **Download Sections Support**: Added an option in Advanced Settings to download specific sections of a video by time range or chapter name. When enabled, a dialog appears before downloading, allowing the user to define one or more sections to be downloaded.
+- **Download Sections Support**: Added an option in Advanced Settings to download specific sections of a video by time range or chapter name. When enabled, a dialog appears before downloading, allowing the user to define one or more sections to be downloaded. This dialog also includes helper instructions on how to disable the feature if enabled accidentally.
 - **External Downloader dropdown in Advanced Settings**: Replaced the "External Downloader (aria2c)" toggle switch with a dropdown selector offering "yt-dlp (default)" and "aria2c" options. The setting automatically hides when aria2c is not installed/discovered. Default changed from aria2c to yt-dlp to align with the unbundled binary model, ensuring users without aria2c installed won't encounter download failures.
 - **yt-dlp error popup notifications**: The application now detects specific yt-dlp error messages during downloads and displays user-friendly popup dialogs with clear explanations. Supported error types include:
 - **Refactored StartTab into smaller, more focused classes**: `StartTab.cpp` has been broken down into `StartTabUrlHandler` (manages URL input, clipboard, auto-switching), `StartTabDownloadActions` (handles download button, type changes, format checking, folder opening), and `StartTabCommandPreviewUpdater` (updates command preview). This improves modularity and maintainability.
@@ -384,48 +389,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 02-08-2026
 - **Fixed Global Download Speed Indicator (Again)**: The previous fix for the download speed indicator was flawed and caused it to display `-- MB/s`. The calculation logic has been rewritten to be more robust and now correctly sums the I/O from the main process and all its children.
-- **Implementation**: The `_get_total_io_counters` function now simply sums the `read_bytes` from the main process and all its children, with proper error handling for terminated processes.
-- **Rationale**: This simpler implementation is more resilient and provides an accurate total download speed.
-
-### Fixed
-- Fixed PyInstaller build hang on PyQt6.QtGui hook processing (PyInstaller 6.18.0 issue)
-  - Solution: Created custom minimal PyQt6.QtGui hook to bypass problematic default hook
-  - Added `hooks/` directory with simplified PyQt6.QtGui hook
-  - Downgraded PyInstaller from 6.18.0 to 6.17.0 for better stability
-  - Build now completes successfully and exe launches correctly
-- Fixed critical app crash on startup caused by corrupted method merging in `main_window.py`
-- Fixed unhandled exception in version fetch from daemon thread (disabled for now pending future refactor)
-- Added robust error handling around signal emission in background threads
-- Do not auto-create `temp_downloads` or set default output directory on first run; leave paths unset until user selects them
-
-## [0.0.1] - 02-02-2026
-
-### Added
-- Initial release of LzyDownloader
-- PyQt6-based GUI for downloading media via yt-dlp
-- Support for 1000+ websites (YouTube, TikTok, Instagram, etc.)
-- Playlist detection and expansion
-- Concurrent download management with user-configurable limits (capped at 4 on startup)
-- Advanced download options:
-  - Audio/video quality selection
-  - Format filtering by codec
-  - SponsorBlock integration for automatic segment removal
-  - Filename sanitization and customization
-- Metadata and thumbnail embedding for videos and audio
-- Browser cookie integration for age-restricted content
-- Optional JavaScript runtime support (Deno/Node.js) for anti-bot challenges
-- GitHub-based auto-update system:
-  - Automatic release checking on app startup
-  - Silent installer-based updates via NSIS
-  - Manual update check button in Advanced Settings
-  - Configurable auto-check toggle (persisted to settings)
-  - Changelog display before updating
-- Responsive UI with comprehensive tooltips
-- File lifecycle management:
-  - Download to temporary directory
-  - File stability verification
-  - Move to completed downloads directory
-- Download archive tracking (prevent re-downloads)
-- Robust error handling with user-friendly messages
-- Comprehensive logging to file and console
-- Enforced output directory selection
+- **Implementation**: The `_get_total_io_counters` function now simply sums the `read_bytes` from the main process and all its children, with proper error handling for termin

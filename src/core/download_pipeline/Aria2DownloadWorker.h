@@ -5,17 +5,17 @@
 #include <QStringList>
 #include "core/ConfigManager.h"
 #include <QVariantMap>
-#include "YtDlpJsonExtractor.h"
-#include "Aria2Daemon.h"
-#include "FfmpegPostProcessor.h"
+#include "YtDlpDownloadInfoExtractor.h"
+#include "Aria2RpcClient.h"
+#include "FfmpegMuxer.h"
 
 class Aria2DownloadWorker : public QObject {
     Q_OBJECT
 public:
     enum class State { Idle, Extracting, Downloading, PostProcessing, Finished, Error };
     
-    // Takes a pointer to the globally running Aria2Daemon
-    explicit Aria2DownloadWorker(Aria2Daemon* globalDaemon, QObject* parent = nullptr);
+    // Takes a pointer to the globally running aria2 RPC client
+    explicit Aria2DownloadWorker(Aria2RpcClient* globalDaemon, QObject* parent = nullptr);
     ~Aria2DownloadWorker();
 
     // Begin the state machine, passing config objects to build correct args
@@ -43,9 +43,9 @@ private slots:
 private:
     State m_state = State::Idle;
     
-    Aria2Daemon* m_daemon;
-    YtDlpJsonExtractor* m_extractor;
-    FfmpegPostProcessor* m_ffmpeg;
+    Aria2RpcClient* m_daemon;
+    YtDlpDownloadInfoExtractor* m_extractor;
+    FfmpegMuxer* m_ffmpeg;
     QTimer* m_pollTimer;
 
     QString m_ffmpegPath;

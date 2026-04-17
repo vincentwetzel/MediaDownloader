@@ -25,9 +25,9 @@
 #include <QPushButton>
 #include <QDebug> // Include QDebug for debugging
 #include <QPalette>
-#include "StartTabUrlHandler.h"
-#include "StartTabDownloadActions.h"
-#include "StartTabCommandPreviewUpdater.h"
+#include "start_tab/StartTabUrlHandler.h"
+#include "start_tab/StartTabDownloadActions.h"
+#include "start_tab/StartTabCommandPreviewUpdater.h"
 #include "ToggleSwitch.h"
 #include "StartTabUiBuilder.h" // Include the new builder
 #include "core/ProcessUtils.h"

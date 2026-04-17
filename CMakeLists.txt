@@ -61,8 +61,9 @@ file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS
 )
 
 # Filter out specific duplicate implementations to avoid ODR/link conflicts.
-# The project uses top-level implementations for YtDlpJsonExtractor, Aria2Daemon,
-# and FfmpegPostProcessor, and excludes their counterparts in the 'src/core/' directory.
+# The aria2 RPC daemon, yt-dlp download-info extractor, and ffmpeg muxer now
+# live in `src/core/download_pipeline/`, so we exclude the older config-driven
+# counterparts that still use the same class names in `src/core/`.
 set(EXCLUDED_SOURCES_REGEXES
     ".*/src/core/YtDlpJsonExtractor\\.(cpp|h)$"
     ".*/src/core/Aria2Daemon\\.(cpp|h)$"
@@ -107,14 +108,6 @@ add_executable(LzyDownloader
 
     # Application entry point
     main.cpp
-
-    # Refactored Root-level classes
-    StartTabUrlHandler.cpp
-    StartTabUrlHandler.h
-    StartTabDownloadActions.cpp
-    StartTabDownloadActions.h
-    StartTabCommandPreviewUpdater.cpp
-    StartTabCommandPreviewUpdater.h
 
     # All source and header files gathered by the glob
     ${SOURCES}

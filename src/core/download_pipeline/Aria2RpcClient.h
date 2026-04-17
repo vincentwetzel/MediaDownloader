@@ -11,11 +11,11 @@
 #include <QMap>
 #include <QTimer>
 
-class Aria2Daemon : public QObject {
+class Aria2RpcClient : public QObject {
     Q_OBJECT
 public:
-    explicit Aria2Daemon(QObject* parent = nullptr);
-    ~Aria2Daemon();
+    explicit Aria2RpcClient(QObject* parent = nullptr);
+    ~Aria2RpcClient();
 
     // Starts the background aria2c process
     bool startDaemon(const QString& aria2ExecutablePath, const QString& maxOverallLimit = "0");

@@ -1,11 +1,14 @@
-#include "FfmpegPostProcessor.h"
+#include "FfmpegMuxer.h"
+#include "core/ProcessUtils.h"
 #include <QFile>
 #include <QFileInfo>
 #include <QDebug>
 
-FfmpegPostProcessor::FfmpegPostProcessor(QObject *parent)
+FfmpegMuxer::FfmpegMuxer(QObject *parent)
     : QObject(parent), m_process(new QProcess(this))
 {
+    ProcessUtils::setProcessEnvironment(*m_process);
+
     connect(m_process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
         if (error == QProcess::FailedToStart) {
             emit mergeFailed("Failed to start ffmpeg. Is the executable missing?");
@@ -36,7 +39,7 @@ FfmpegPostProcessor::FfmpegPostProcessor(QObject *parent)
     });
 }
 
-void FfmpegPostProcessor::merge(const QString &ffmpegPath, const QStringList &inputFiles, const QString &outputFile, const QString &title, const QString &artworkPath, const QList<SubtitleFile> &subtitleFiles)
+void FfmpegMuxer::merge(const QString &ffmpegPath, const QStringList &inputFiles, const QString &outputFile, const QString &title, const QString &artworkPath, const QList<SubtitleFile> &subtitleFiles)
 {
     if (m_process->state() != QProcess::NotRunning) {
         emit mergeFailed("FFmpeg is already running another job.");
@@ -145,11 +148,13 @@ void FfmpegPostProcessor::merge(const QString &ffmpegPath, const QStringList &in
 
     args << "-y" << outputFile;
 
+    qInfo() << "[FfmpegMuxer] Starting ffmpeg merge for" << outputFile;
     m_process->start(ffmpegPath, args);
 }
 
-void FfmpegPostProcessor::cancel() {
+void FfmpegMuxer::cancel() {
     if (m_process->state() != QProcess::NotRunning) {
-        m_process->kill();
+        qInfo() << "[FfmpegMuxer] Cancelling ffmpeg merge for" << m_currentOutputFile;
+        ProcessUtils::terminateProcessTree(m_process);
     }
 }

@@ -1193,6 +1193,10 @@ int YtDlpWorker::inferPrimaryStreamIndexFromTotalBytes(double totalBytes) const 
     return -1;
 }
 
+bool YtDlpWorker::requestedAudioExtraction() const {
+    return m_args.contains("-x") || m_args.contains("--extract-audio");
+}
+
 QString YtDlpWorker::inferPrimaryStreamStatusFromPath(const QString &path) const {
     const int inferredIndex = inferPrimaryStreamIndexFromPath(path);
     if (inferredIndex >= 0 && inferredIndex < m_requestedTransferStatuses.size()) {
@@ -1214,6 +1218,9 @@ QString YtDlpWorker::inferPrimaryStreamStatusFromPath(const QString &path) const
     }
     for (const QString &marker : videoMarkers) {
         if (lowerPath.contains(marker)) {
+            if (requestedAudioExtraction()) {
+                return QStringLiteral("Downloading audio stream...");
+            }
             return QStringLiteral("Downloading video stream...");
         }
     }

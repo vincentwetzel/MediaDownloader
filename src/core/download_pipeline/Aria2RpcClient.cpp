@@ -1,10 +1,10 @@
-#include "Aria2Daemon.h"
+#include "Aria2RpcClient.h"
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QUuid>
 #include <QDebug>
 
-Aria2Daemon::Aria2Daemon(QObject* parent)
+Aria2RpcClient::Aria2RpcClient(QObject* parent)
     : QObject(parent), 
       m_process(new QProcess(this)), 
       m_netManager(new QNetworkAccessManager(this)),
@@ -27,11 +27,11 @@ Aria2Daemon::Aria2Daemon(QObject* parent)
     });
 }
 
-Aria2Daemon::~Aria2Daemon() {
+Aria2RpcClient::~Aria2RpcClient() {
     stopDaemon();
 }
 
-bool Aria2Daemon::startDaemon(const QString& aria2ExecutablePath, const QString& maxOverallLimit) {
+bool Aria2RpcClient::startDaemon(const QString& aria2ExecutablePath, const QString& maxOverallLimit) {
     if (m_process->state() != QProcess::NotRunning) {
         return false; // Already running
     }
@@ -54,7 +54,7 @@ bool Aria2Daemon::startDaemon(const QString& aria2ExecutablePath, const QString&
     return true;
 }
 
-void Aria2Daemon::stopDaemon() {
+void Aria2RpcClient::stopDaemon() {
     m_statTimer->stop();
     if (m_process->state() == QProcess::Running) {
         m_process->terminate();
@@ -64,7 +64,7 @@ void Aria2Daemon::stopDaemon() {
     }
 }
 
-void Aria2Daemon::sendRpcRequest(const QString& method, const QJsonArray& params, std::function<void(const QJsonObject&)> callback, std::function<void(const QString&)> errorCallback) {
+void Aria2RpcClient::sendRpcRequest(const QString& method, const QJsonArray& params, std::function<void(const QJsonObject&)> callback, std::function<void(const QString&)> errorCallback) {
     QJsonObject requestObj;
     requestObj["jsonrpc"] = "2.0";
     requestObj["id"] = QUuid::createUuid().toString();
@@ -101,7 +101,7 @@ void Aria2Daemon::sendRpcRequest(const QString& method, const QJsonArray& params
     });
 }
 
-void Aria2Daemon::setGlobalLimit(const QString& maxOverallLimit) {
+void Aria2RpcClient::setGlobalLimit(const QString& maxOverallLimit) {
     QJsonArray params;
     QJsonObject options;
     options["max-overall-download-limit"] = maxOverallLimit;
@@ -112,7 +112,7 @@ void Aria2Daemon::setGlobalLimit(const QString& maxOverallLimit) {
     });
 }
 
-void Aria2Daemon::addDownload(const QString& url, const QString& saveDir, const QString& fileName, const QMap<QString, QString>& headers, std::function<void(const QString&)> callback, std::function<void(const QString&)> errorCallback) {
+void Aria2RpcClient::addDownload(const QString& url, const QString& saveDir, const QString& fileName, const QMap<QString, QString>& headers, std::function<void(const QString&)> callback, std::function<void(const QString&)> errorCallback) {
     QJsonArray params;
     QJsonArray urls;
     urls.append(url);
@@ -141,7 +141,7 @@ void Aria2Daemon::addDownload(const QString& url, const QString& saveDir, const 
     }, errorCallback);
 }
 
-void Aria2Daemon::queryStatus(const QString& gid) {
+void Aria2RpcClient::queryStatus(const QString& gid) {
     QJsonArray params;
     params.append(gid);
 
@@ -158,7 +158,7 @@ void Aria2Daemon::queryStatus(const QString& gid) {
     });
 }
 
-void Aria2Daemon::removeDownload(const QString& gid) {
+void Aria2RpcClient::removeDownload(const QString& gid) {
     QJsonArray params;
     params.append(gid);
     sendRpcRequest("aria2.remove", params, nullptr);

@@ -24,7 +24,7 @@ class AdvancedSettingsTab;
 class StartTab;
 class SortingTab;
 class ExtractorJsonParser;
-class YtDlpJsonExtractor;
+class YtDlpDownloadInfoExtractor;
 class MainWindowUiBuilder;
 
 class MainWindow : public QMainWindow {
@@ -71,7 +71,7 @@ private:
     StartupWorker *m_startupWorker;
     QThread *m_startupThread; // New thread for the startup worker
     ExtractorJsonParser *m_extractorJsonParser;
-    YtDlpJsonExtractor *m_runtimeExtractor;
+    YtDlpDownloadInfoExtractor *m_runtimeExtractor;
     MainWindowUiBuilder *m_uiBuilder;
     QClipboard *m_clipboard; // New QClipboard member
 

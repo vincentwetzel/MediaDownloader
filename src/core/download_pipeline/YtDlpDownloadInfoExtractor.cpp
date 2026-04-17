@@ -1,10 +1,10 @@
-#include "YtDlpJsonExtractor.h"
+#include "YtDlpDownloadInfoExtractor.h"
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QDebug>
 
-YtDlpJsonExtractor::YtDlpJsonExtractor(QObject *parent)
+YtDlpDownloadInfoExtractor::YtDlpDownloadInfoExtractor(QObject *parent)
     : QObject(parent), m_process(new QProcess(this))
 {
     connect(m_process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
@@ -88,7 +88,7 @@ YtDlpJsonExtractor::YtDlpJsonExtractor(QObject *parent)
     });
 }
 
-void YtDlpJsonExtractor::extract(const QString &ytDlpPath, const QStringList &args)
+void YtDlpDownloadInfoExtractor::extract(const QString &ytDlpPath, const QStringList &args)
 {
     if (m_process->state() != QProcess::NotRunning) {
         emit extractionFailed("Extractor is already running.");
@@ -104,12 +104,12 @@ void YtDlpJsonExtractor::extract(const QString &ytDlpPath, const QStringList &ar
             fullCommand += " " + arg;
         }
     }
-    qDebug() << "YtDlpJsonExtractor full command:" << fullCommand;
+    qDebug() << "YtDlpDownloadInfoExtractor full command:" << fullCommand;
 
     m_process->start(ytDlpPath, args);
 }
 
-void YtDlpJsonExtractor::cancel() {
+void YtDlpDownloadInfoExtractor::cancel() {
     if (m_process->state() != QProcess::NotRunning) {
         m_process->kill();
     }

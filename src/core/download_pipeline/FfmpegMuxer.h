@@ -11,11 +11,11 @@ struct SubtitleFile {
     QString language;
 };
 
-class FfmpegPostProcessor : public QObject
+class FfmpegMuxer : public QObject
 {
     Q_OBJECT
 public:
-    explicit FfmpegPostProcessor(QObject *parent = nullptr);
+    explicit FfmpegMuxer(QObject *parent = nullptr);
 
     // Merges multiple input files into a single output file, embedding optional metadata and subtitles
     void merge(const QString &ffmpegPath, const QStringList &inputFiles, const QString &outputFile, const QString &title = QString(), const QString &artworkPath = QString(), const QList<SubtitleFile> &subtitleFiles = {});

@@ -31,7 +31,7 @@ The application ensures that only one instance can run at a time. This is achiev
 1.  **Input:** User enters a URL in `StartTab`.
 2.  **Immediate Queue Feedback:** Download item appears instantly in Active Downloads tab with "Checking for playlist..." status. Item is added to `m_downloadQueue` immediately and tracked in `m_pendingExpansions` map.
 3.  **Validation/Expansion:** `PlaylistExpander` validates the URL and checks for playlists asynchronously. **PlaylistExpander now uses `YtDlpArgsBuilder` to construct the full yt-dlp command (including `--js-runtimes deno:...`, `--cookies-from-browser`, `--ffmpeg-location`, etc.) so playlist expansion matches the actual download configuration.**
-4.  **Runtime Selection Gate:** If Advanced Settings quality is set to `Select at Runtime` for video/audio downloads, `DownloadManager` asynchronously fetches `yt-dlp` format metadata and `MainWindow` shows `FormatSelectionDialog`. Each selected format becomes its own queued item. When section downloads are enabled, `MainWindow` also presents `DownloadSectionsDialog`, captures both the raw section expression and a filename-safe section label, and re-enqueues the item with both values.
+4.  **Runtime Selection Gate:** If Advanced Settings quality is set to `Select at Runtime` for video/audio downloads, `DownloadManager` asynchronously fetches `yt-dlp` format metadata and `MainWindow` shows `FormatSelectionDialog`. Each selected format becomes its own queued item. When section downloads are enabled, `MainWindow` also presents `DownloadSectionsDialog` (which includes instructions on how to disable the prompt), captures both the raw section expression and a filename-safe section label, and re-enqueues the item with both values.
 5.  **Queue Update:** For single videos, status updates from "Checking for playlist..." to "Queued". For playlists, placeholder is removed and individual track items are added.
 6.  **Execution:** `DownloadManager` spawns a worker (`YtDlpWorker` or `GalleryDlWorker`) for each item via deferred `QMetaObject::invokeMethod` call to avoid GUI thread blocking.
 7.  **Progress:** The worker parses native yt-dlp progress from `stderr` (`[download] XX.X% of YY.YMiB at ZZ.ZMiB/s ETA 0:00`) or aria2 progress (`[#XXXXX ...]`) and emits progress signals (`progressUpdated`, `speedChanged`, etc.). `YtDlpWorker` tracks each `[download] Destination:` target and aria2 `FILE:` target so auxiliary transfers like thumbnails, subtitles, and `.info.json` writes can surface as status updates without falsely pinning the main media bar at 100%, treats extraction/setup stages as indeterminate instead of leaving the UI on a stale queued `0%`, understands fragment-based native downloader lines, prefers requested `format_id` matches from temp filenames such as `.f251.webm.part`, then emitted total-size matches, then yt-dlp's announced format list plus aria2 command-line `itag`/`mime` hints when `requested_downloads` is missing, preserves that inferred order if a later `info.json` still omits `requested_downloads`, before relying on ambiguous container extensions or plain progress-reset ordering, and falls back to the `requested_downloads` metadata order when progress restarts onto the next primary stream without a fresh destination line. **YtDlpWorker includes diagnostic logging for process state changes, stderr/stdout data received, and progress parsing.**
@@ -55,13 +55,17 @@ LzyDownloader/
 │   │   ├── YtDlpArgsBuilder.h/cpp # yt-dlp CLI argument construction
 │   │   ├── ProcessUtils.h/cpp    # Runtime binary resolution + process env helpers
 │   │   ├── GalleryDlWorker.h/cpp # gallery-dl Process Wrapper
-│   │   ├── YtDlpJsonExtractor.h/cpp # yt-dlp --dump-json async extractor
-│   │   ├── FfmpegPostProcessor.h/cpp # ffmpeg muxing wrapper
+│   │   ├── download_pipeline/
+│   │   │   ├── Aria2RpcClient.h/cpp # aria2 RPC client / daemon controller
+│   │   │   ├── Aria2DownloadWorker.h/cpp # aria2-backed media pipeline worker
+│   │   │   ├── YtDlpDownloadInfoExtractor.h/cpp # yt-dlp --dump-json async extractor for aria2/runtime selection
+│   │   │   └── FfmpegMuxer.h/cpp # ffmpeg muxing wrapper for multi-part downloads
 │   │   ├── SortingManager.h/cpp  # File Sorting Logic
 │   │   ├── AppUpdater.h/cpp      # Application Update Logic
 │   │   └── ...
 │   ├── ui/                     # User Interface (Qt Widgets)
 │   │   ├── advanced_settings/
+│   │   │   ├── MetadataPage.h/cpp # Metadata, thumbnails, and formatting settings
 │   │   │   ├── BinariesPage.h/cpp # External binary status + install actions
 │   │   ├── MainWindowUiBuilder.h/cpp # Builds UI for MainWindow
 │   │   ├── StartTabUiBuilder.h/cpp # Builds UI for StartTab
@@ -167,9 +171,4 @@ LzyDownloader/
 
 ## 6. Deployment
 - **Build System:** CMake.
-- **Qt Configure Resilience:** The build should succeed in IDE-driven configure runs by auto-detecting common Windows Qt SDK locations before `find_package(Qt6 ...)` executes.
-- **Installer:** NSIS will be used to create a Windows installer (`LzyDownloader-Setup.exe`).
-- **Executable Name:** The final executable will be named `LzyDownloader.exe` to ensure a seamless update from the Python version.
-- **Bundling:** All dependencies (Qt runtime DLLs, binaries) will be included in the installation directory.
-- **Qt Image Format Plugins:** Windows deployments must include the required `plugins/imageformats` codecs for active-download artwork and converted thumbnails, including `qjpeg`, `qpng`, `qwebp`, and `qico` (plus debug variants when available).
-- **User Data Preservation:** The NSIS installer MUST NOT overwrite user data files (`settings.ini`, `download_archive.db`, or log files). These are stored in platform-specific user data directories (e.g., `%APPDATA%` on Windows), separate from the installation directory, ensuring they persist across application updates.
+- **Qt Configure Resilience:** The build should succeed in IDE-driven configure 

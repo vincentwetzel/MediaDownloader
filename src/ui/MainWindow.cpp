@@ -15,7 +15,7 @@
 #include "core/UpdateStatus.h" // Include UpdateStatus enum
 #include "core/StartupWorker.h"
 #include "utils/ExtractorJsonParser.h"
-#include "YtDlpJsonExtractor.h"
+#include "core/download_pipeline/YtDlpDownloadInfoExtractor.h"
 #include "core/ProcessUtils.h"
 #include "ui/RuntimeSelectionDialog.h"
 #include "ui/FormatSelectionDialog.h"
@@ -98,12 +98,12 @@ MainWindow::MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent
     m_startupWorker = new StartupWorker(m_configManager, m_extractorJsonParser, nullptr);
     m_startupThread = new QThread(this);
 
-    m_runtimeExtractor = new YtDlpJsonExtractor(this);
-    connect(m_runtimeExtractor, &YtDlpJsonExtractor::extractionSuccess, this,
+    m_runtimeExtractor = new YtDlpDownloadInfoExtractor(this);
+    connect(m_runtimeExtractor, &YtDlpDownloadInfoExtractor::extractionSuccess, this,
             [this](const QString &, const QString &, const QList<DownloadTarget> &, const QString &, const QMap<QString, QString> &, const QVariantMap &metadata) {
                 onRuntimeInfoReady(metadata);
             });
-    connect(m_runtimeExtractor, &YtDlpJsonExtractor::extractionFailed, this, &MainWindow::onRuntimeInfoError);
+    connect(m_runtimeExtractor, &YtDlpDownloadInfoExtractor::extractionFailed, this, &MainWindow::onRuntimeInfoError);
 
     // Apply theme before UI setup
     m_uiBuilder = new MainWindowUiBuilder(m_configManager, this); // Initialize UI builder

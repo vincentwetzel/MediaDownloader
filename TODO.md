@@ -27,6 +27,7 @@
   - [x] **Worker Resilience**: Parse livestream indeterminate progress output and handle "Waiting for video" lines.
 
 ### Bug Fixes
+- [x] **Source-tree naming/layout cleanup**: Moved misplaced Start tab helper files into `src/ui/start_tab/`, moved the aria2 download pipeline into `src/core/download_pipeline/`, removed dead top-level/duplicate naming artifacts, and updated docs/build references so the codebase layout is clearer.
 - [x] **Single-Item Playlist Double Download**: The URL `https://music.youtube.com/watch?v=Bkh2BJ49DmQ&list=OLAK5uy_n3IQt8nfMSp3Xlma2hMsvKAyHBmBwk5Is` (a playlist with 1 item) downloads the audio file twice and sorts it to two different places. It should only download once and correctly trigger the "Audio Playlist Downloads" rule instead of the single "Audio Downloads" rule.
 - [x] **1-Item Playlist JSON Cleanup**: Fixed an issue where 1-item playlists left behind orphaned `info.json` files in the temporary directory by ensuring cleanup runs regardless of whether `playlist_index` is valid.
 - [x] **Section clip remux regression**: Fixed section downloads forcing an intermediate MKV remux plus extra FFmpeg merger args, which could leave MP4 clips with the original full-length duration metadata and glitchy playback near the real clip end.
@@ -67,8 +68,8 @@
 - Cancel/retry buttons, interface languages, runtime format selection
 - Backup download queue, clear completed downloads, cancel all downloads
 - Pause/resume downloads, download queue ordering
-- Generate `folder.jpg` for audio playlists, subtitle selection improvements
-- Settings storage location, crop audio thumbnails, split output templates
+- Subtitle selection improvements
+- Settings storage location, split output templates
 - Expand output template fields, `--split-chapters` support, geo-verification proxy
 
 ### Settings Architecture (Phase 16)
@@ -83,14 +84,6 @@
 ### UI/UX Enhancements (Phase 15)
 - Toggle switch visual fix, smart URL download type detection
 - gallery-dl output template fixes, progress bar updates, move logic fixes
+- **Metadata Options**: Added options to crop audio thumbnails to a square and to generate `folder.jpg` for audio playlists.
 - **Open folder buttons on Active Downloads tab**: **IMPLEMENTED**: Added "Open Temporary Folder" and "Open Downloads Folder" buttons to the Active Downloads tab toolbar, duplicating the functionality from the Start tab for easier access during downloads.
-- **External Downloader dropdown in Advanced Settings**: **IMPLEMENTED**: Changed "Download Options -> External Downloader (aria2)" from a ToggleSwitch to a QComboBox with two options: "yt-dlp (default)" and "aria2c". The setting is automatically hidden if aria2c is not installed/discovered. Default changed to yt-dlp for consistency with unbundled binary model.
-
-### Bug Fixes (Phase 14)
-- **Progress Bar Completion Issue**: YtDlpWorker now emits a 100% progress update before the finished signal, ensuring the UI progress bar reaches 100% and turns green.
-- **GUI Counters Update**: DownloadManager now tracks errors with `m_errorDownloadsCount` and emits it in the `downloadStatsUpdated` signal.
-- **Error Counter**: Added "Errors: X" label that tracks downloads that failed at any stage (worker failure, metadata embedding, file moves, playlist expansion, gallery downloads).
-- **Progress Parsing Verification**: Verified that the app correctly parses output from both yt-dlp and aria2c with dedicated parsing functions for each downloader.
-
-### Recent Additions
-*(Moved to CHANGELOG.md)*
+- **External Downloader dropdown in Advanced Settings**: **IMPLEMENTED**: Changed "Download Options -> External Downloader (aria2)" from a ToggleSwitch to a QComboBox with two options: "yt-dlp (default)" and "aria2c". The setting is automatica

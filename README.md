@@ -86,10 +86,14 @@ LzyDownloader/
 │   │   ├── MainWindowUiBuilder.h/cpp # Builds UI for MainWindow
 │   │   ├── StartTab.h/cpp        # Input Tab (Orchestrates helper classes for URL handling, download actions, and command preview)
 │   │   ├── StartTabUiBuilder.h/cpp # Builds UI for StartTab
-│   │   ├── StartTabDownloadActions.h/cpp # Handles download actions and format checking
-│   │   ├── StartTabUrlHandler.h/cpp # Manages URL input and clipboard
-│   │   ├── StartTabCommandPreviewUpdater.h/cpp # Updates command preview
+│   │   ├── start_tab/
+│   │   │   ├── StartTabDownloadActions.h/cpp # Handles download actions and format checking
+│   │   │   ├── StartTabUrlHandler.h/cpp # Manages URL input and clipboard
+│   │   │   └── StartTabCommandPreviewUpdater.h/cpp # Updates command preview
 │   │   ├── ActiveDownloadsTab.h/cpp # Progress Tab
+│   │   ├── advanced_settings/
+│   │   │   ├── MetadataPage.h/cpp    # Metadata & Thumbnail configuration
+│   │   │   └── ...
 │   │   └── ...
 │   └── utils/                  # Helper Modules
 │       └── StringUtils.h/cpp   # String/URL utilities
@@ -109,4 +113,4 @@ Contributions are welcome! Please:
 
 ## License
 
-This project is provided as-is. See LICENSE file for details.
+This project is

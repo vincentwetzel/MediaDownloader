@@ -47,7 +47,7 @@ This document outlines the specifications for the C++ port of the LzyDownloader 
 - **Start Tab**:
     - URL Input.
     - Clipboard auto-paste: when the URL field is focused/clicked, the app checks the clipboard against the extractor-domain list stored next to `LzyDownloader.exe` and auto-pastes a matching URL.
-    - If `auto_paste_on_focus` is enabled, focusing or hovering the app window will switch to Start Download and auto-paste when a valid clipboard URL is detected. This logic is now handled by `src/ui/StartTabUrlHandler.h/.cpp`.
+    - If `auto_paste_on_focus` is enabled, focusing or hovering the app window will switch to Start Download and auto-paste when a valid clipboard URL is detected. This logic is now handled by `src/ui/start_tab/StartTabUrlHandler.h/.cpp`.
     - Download Type dropdown, including "View Formats".
     - No per-download runtime quality/codec override dropdowns may appear on the Start tab; runtime format selection must be driven by Advanced Settings and download-time dialogs.
     - Video Settings group with quality, codec, extension, and audio codec defaults. Choosing `Quality = Select at Runtime` must hide the other video-format defaults on that page and defer the whole format decision to the runtime picker. Includes a "Lock Video Settings" checkbox.
@@ -103,6 +103,7 @@ This document outlines the specifications for the C++ port of the LzyDownloader 
   - Destination-aware native stages, including fragment downloads and auxiliary-file transfers
   - Primary-stream handoff detection must correctly switch the label from video to audio when multi-stream downloads restart progress on the next requested format, even if the temporary filename ends in `.part` or yt-dlp omits a fresh destination line
   - Stream labeling should prefer yt-dlp `format_id` clues from temp filenames such as `.f251.webm.part` before falling back to container extensions, since extensions like `.webm` can represent either audio-only or video streams
+  - **Download Sections Dialog**: When section downloads are enabled, the application presents a dialog. This dialog must include a visible instruction indicating how users can disable the "Download Sections" prompt in the Advanced Settings tab if they no longer wish to use it.
 - If `info.json` does not include `requested_downloads`, stream labeling should fall back to yt-dlp's announced format list (for example `Downloading 1 format(s): 399+251-13`) and aria2 command-line URL metadata such as `itag=251` and `mime=audio/webm` before relying on ambiguous extensions or progress-reset heuristics
 - If stream order was already inferred from stderr/stdout and `info.json` later arrives without `requested_downloads`, the worker must preserve the inferred order rather than clearing it and regressing the visible stage label
   - If no trustworthy filename handoff is available yet, the worker should also consider the active stream's emitted total size as a secondary clue before falling back to simple progress-reset ordering
@@ -165,15 +166,4 @@ This document outlines the specifications for the C++ port of the LzyDownloader 
 - **Qt Image Plugins**: Windows builds must deploy the Qt `imageformats` plugins required to display active-download thumbnails and converted artwork, including JPEG, PNG, WebP, and ICO support.
 
 ### 2.8. Logging
-- A structured file logger (`LzyDownloader_YYYY-MM-dd_HH-mm-ss.log`) must be implemented to capture application output for debugging.
-- **One log file per run**: Each application launch creates a new log file with a timestamp in the filename.
-- **Log retention**: The application automatically keeps only the 10 most recent log files, deleting older ones on startup.
-- Log files must be stored in the user's AppData configuration directory (`%LOCALAPPDATA%\LzyDownloader\` on Windows).
-
-## 3. Technical Stack
-- **Language**: C++20
-- **Framework**: Qt 6 (Widgets)
-- **Build System**: CMake
-- **Qt SDK Discovery**: CMake must honor explicit `Qt6_DIR`/`CMAKE_PREFIX_PATH` configuration and also auto-check common Windows Qt install prefixes (for example `C:\Qt\6.*\msvc2022_64`) so IDE-driven configure steps can find Qt without manual edits on typical developer machines.
-- **Database**: SQLite (via Qt SQL module)
-- **Process Management**: `QProcess`
+- A structured file logger (`LzyDownloader_YYYY-MM-dd_HH-mm-ss.log`) must be implemented to capture applica

@@ -6,8 +6,90 @@
 #include <QFileInfo>
 #include <QProcess>
 #include <QProcessEnvironment>
+#ifdef Q_OS_WIN
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
 
 namespace ProcessUtils {
+
+#ifdef Q_OS_WIN
+namespace {
+
+HANDLE ensureTrackedProcessJob()
+{
+    static HANDLE s_processJob = nullptr;
+    static bool s_initialized = false;
+
+    if (s_initialized) {
+        return s_processJob;
+    }
+    s_initialized = true;
+
+    s_processJob = CreateJobObjectW(nullptr, nullptr);
+    if (!s_processJob) {
+        qWarning() << "[ProcessUtils] Failed to create process cleanup job object:" << GetLastError();
+        return nullptr;
+    }
+
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION info = {};
+    info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+    if (!SetInformationJobObject(
+            s_processJob,
+            JobObjectExtendedLimitInformation,
+            &info,
+            sizeof(info))) {
+        qWarning() << "[ProcessUtils] Failed to configure process cleanup job object:" << GetLastError();
+        CloseHandle(s_processJob);
+        s_processJob = nullptr;
+    }
+
+    return s_processJob;
+}
+
+void assignProcessToTerminationJob(QProcess *process)
+{
+    if (!process) {
+        return;
+    }
+
+    const qint64 pid = process->processId();
+    if (pid <= 0) {
+        return;
+    }
+
+    HANDLE job = ensureTrackedProcessJob();
+    if (!job) {
+        return;
+    }
+
+    HANDLE processHandle = OpenProcess(
+        PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SET_QUOTA | PROCESS_TERMINATE,
+        FALSE,
+        static_cast<DWORD>(pid));
+    if (!processHandle) {
+        qWarning() << "[ProcessUtils] Failed to open process for job tracking. PID:" << pid
+                   << "error:" << GetLastError();
+        return;
+    }
+
+    if (!AssignProcessToJobObject(job, processHandle)) {
+        const DWORD error = GetLastError();
+        if (error != ERROR_ACCESS_DENIED) {
+            qWarning() << "[ProcessUtils] Failed to assign PID" << pid
+                       << "to cleanup job object. error:" << error;
+        }
+    } else {
+        qInfo() << "[ProcessUtils] Assigned PID" << pid << "to shutdown cleanup job.";
+    }
+
+    CloseHandle(processHandle);
+}
+
+} // namespace
+#endif
 
 // Static cache for resolved binary paths
 static QHash<QString, FoundBinary> s_binaryCache;
@@ -169,6 +251,19 @@ void setProcessEnvironment(QProcess &process) {
     env.insert("PYTHONUTF8", "1");
     env.insert("PYTHONIOENCODING", "utf-8");
     process.setProcessEnvironment(env);
+
+#ifdef Q_OS_WIN
+    if (!process.property("_lzy_shutdown_job_connected").toBool()) {
+        process.setProperty("_lzy_shutdown_job_connected", true);
+        QObject::connect(&process, &QProcess::started, &process, [&process]() {
+            assignProcessToTerminationJob(&process);
+        });
+    }
+
+    if (process.state() != QProcess::NotRunning) {
+        assignProcessToTerminationJob(&process);
+    }
+#endif
 }
 
 void terminateProcessTree(QProcess *process, int gracefulTimeoutMs) {

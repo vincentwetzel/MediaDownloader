@@ -6,23 +6,23 @@
 #include <QDebug>
 #include "core/YtDlpArgsBuilder.h"
 
-Aria2DownloadWorker::Aria2DownloadWorker(Aria2Daemon* globalDaemon, QObject* parent)
+Aria2DownloadWorker::Aria2DownloadWorker(Aria2RpcClient* globalDaemon, QObject* parent)
     : QObject(parent), m_daemon(globalDaemon)
 {
-    m_extractor = new YtDlpJsonExtractor(this);
-    m_ffmpeg = new FfmpegPostProcessor(this);
+    m_extractor = new YtDlpDownloadInfoExtractor(this);
+    m_ffmpeg = new FfmpegMuxer(this);
     m_pollTimer = new QTimer(this);
 
-    connect(m_extractor, &YtDlpJsonExtractor::extractionSuccess, this, &Aria2DownloadWorker::onExtractionSuccess);
-    connect(m_extractor, &YtDlpJsonExtractor::extractionFailed, this, &Aria2DownloadWorker::onExtractionFailed);
+    connect(m_extractor, &YtDlpDownloadInfoExtractor::extractionSuccess, this, &Aria2DownloadWorker::onExtractionSuccess);
+    connect(m_extractor, &YtDlpDownloadInfoExtractor::extractionFailed, this, &Aria2DownloadWorker::onExtractionFailed);
     
-    connect(m_ffmpeg, &FfmpegPostProcessor::mergeSuccess, this, &Aria2DownloadWorker::onMergeSuccess);
-    connect(m_ffmpeg, &FfmpegPostProcessor::mergeFailed, this, &Aria2DownloadWorker::onMergeFailed);
+    connect(m_ffmpeg, &FfmpegMuxer::mergeSuccess, this, &Aria2DownloadWorker::onMergeSuccess);
+    connect(m_ffmpeg, &FfmpegMuxer::mergeFailed, this, &Aria2DownloadWorker::onMergeFailed);
 
     connect(m_pollTimer, &QTimer::timeout, this, &Aria2DownloadWorker::pollAria2Status);
     
     // Listen to the global daemon's signals
-    connect(m_daemon, &Aria2Daemon::downloadProgress, this, &Aria2DownloadWorker::onDownloadProgress);
+    connect(m_daemon, &Aria2RpcClient::downloadProgress, this, &Aria2DownloadWorker::onDownloadProgress);
 }
 
 Aria2DownloadWorker::~Aria2DownloadWorker() {

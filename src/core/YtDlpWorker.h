@@ -49,6 +49,7 @@ private:
     bool handleAria2CommandLine(const QString &line);
     int inferPrimaryStreamIndexFromPath(const QString &path) const;
     int inferPrimaryStreamIndexFromTotalBytes(double totalBytes) const;
+    bool requestedAudioExtraction() const;
     QString inferPrimaryStreamStatusFromPath(const QString &path) const;
     QString inferPrimaryStreamStatusFromMetadata(int index) const;
     void updateInferredTransferStage(double percentage, double totalBytes);

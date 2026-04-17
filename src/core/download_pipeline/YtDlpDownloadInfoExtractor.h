@@ -18,11 +18,11 @@ struct DownloadTarget {
     QString ext;
 };
 
-class YtDlpJsonExtractor : public QObject
+class YtDlpDownloadInfoExtractor : public QObject
 {
     Q_OBJECT
 public:
-    explicit YtDlpJsonExtractor(QObject *parent = nullptr);
+    explicit YtDlpDownloadInfoExtractor(QObject *parent = nullptr);
 
     void extract(const QString &ytDlpPath, const QStringList &args);
     void cancel();
