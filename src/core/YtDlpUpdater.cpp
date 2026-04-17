@@ -12,6 +12,7 @@
 #include <QDebug>
 #include <QRegularExpression>
 #include <QThread>
+#include "core/ProcessUtils.h"
 
 YtDlpUpdater::YtDlpUpdater(QObject *parent) : QObject(parent), m_process(nullptr) {
     m_networkManager = new QNetworkAccessManager(this);
@@ -32,7 +33,7 @@ void YtDlpUpdater::stop() {
         // Disconnect from our slots to prevent calls on a deleted object
         disconnect(m_process, nullptr, this, nullptr);
         if (m_process->state() == QProcess::Running) {
-            m_process->terminate();
+            ProcessUtils::terminateProcessTree(m_process);
         }
         // The process will self-delete on finish, so we just null our pointer
         m_process = nullptr;

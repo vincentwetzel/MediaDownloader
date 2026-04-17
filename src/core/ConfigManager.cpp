@@ -38,7 +38,7 @@ void ConfigManager::initializeDefaultSettings() {
     m_defaultSettings["General"]["single_line_preview"] = false;
     m_defaultSettings["General"]["restrict_filenames"] = false;
     m_defaultSettings["Video"]["video_quality"] = "best";
-    m_defaultSettings["Video"]["video_codec"] = "H.264";
+    m_defaultSettings["Video"]["video_codec"] = "H.264 (AVC)";
     m_defaultSettings["Video"]["video_extension"] = "mp4";
     m_defaultSettings["Video"]["video_audio_codec"] = "AAC";
     m_defaultSettings["Video"]["video_multistreams"] = "Default Stream";

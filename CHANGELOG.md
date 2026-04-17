@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased] - YYYY-MM-DD
 
 ### Fixed
+- **Advanced Settings downloader wiring audit**: Fixed several settings paths that had drifted out of sync with the real yt-dlp arguments. `YtDlpArgsBuilder` now translates codec preferences into selectors that match real stream aliases such as `avc1`, `hev1`, and `mp4a`, so choosing `H.264 (AVC)` no longer falls through to AV1-heavy site defaults. The builder also now respects the `Restrict filenames` toggle, honors direct `format` overrides emitted by the runtime format picker, and merges runtime-selected audio format IDs into video downloads instead of silently dropping them.
+- **Clickable source links in yt-dlp error dialogs**: User-facing error popups now render rich text and include the failing source URL when one is available, making it easier to inspect, retry, or open the original page while still showing the cleaned technical details.
+- **Transient helper process cleanup**: Process-tree shutdown now also covers utility `QProcess` lifetimes used by cookie validation, output-template validation, updater runs, and other UI-spawned helpers, preventing stray background tools from surviving cancellation or app exit.
+- **Legacy codec label drift**: The default saved video codec label is now the canonical `H.264 (AVC)`, and the video settings page normalizes older `H.264`/`H.265` values when loading existing configs so the UI stays aligned with the downloader mappings.
 - **Audio-stage fallback from stream size**: When yt-dlp delays a clean filename handoff, `YtDlpWorker` now also matches the active stream by emitted total size before falling back to generic progress-reset ordering, which helps the audio stage switch at the right time even for ambiguous temp names.
 - **Audio-only WebM stream labeling**: `YtDlpWorker` now prefers yt-dlp `format_id` values embedded in temp filenames (for example `.f251.webm.part`) before falling back to container extensions, preventing audio-only WebM/Opus transfers from being mislabeled as video.
 - **Missing `requested_downloads` fallback for audio/video stage labels**: Some yt-dlp runs do not populate `requested_downloads` in `info.json`, so `YtDlpWorker` now seeds stream order from `[info] ... Downloading 1 format(s): 399+251-13` and also trusts aria2 command-line clues like `itag=251` plus `mime=audio/webm` to switch the GUI from video to audio at the correct handoff.
@@ -124,6 +128,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Runtime format audio filtering**: The format selection dialog now correctly filters out video-containing formats when the "Audio Only" download type is selected.
 
 ### Changed
+- **yt-dlp install recommendations in Advanced Settings**: The binaries page now distinguishes package managers that can install nightly-capable yt-dlp builds from those that only provide stable releases, using Scoop `yt-dlp-nightly` and Homebrew `--HEAD` where available and labeling stable-only options more clearly.
 - **Livestream wait time**: Increased the default wait interval for scheduled livestreams from 5-30 seconds to a more reasonable 1-5 minutes to reduce network traffic and log spam during long waits.
 - **Removed bundled binary support**: The application no longer checks for bundled executables in the `bin/` directory or application root. Binary resolution now only searches: (1) User-configured paths, (2) System PATH, (3) User-local install locations (e.g., `~/.deno/bin`, scoop shims, WindowsApps, Chocolatey). This completes the transition to the unbundled external-binary model.
 - **Removed update_binaries.ps1 script**: Deleted the binary update script as binaries are no longer bundled with the application.
@@ -157,7 +162,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Redundant startup config saves**: Startup no longer re-runs `ConfigManager::loadConfig()` from `StartTab`, and the Start tab lock-setting checkboxes no longer fire save-on-load handlers during initial UI hydration. Configuration saves now only occur from those paths when a setting actually changes.
 - **Qt Debug runtime plugin deployment on Windows**: CMake now deploys both release/debug Qt runtime DLLs and plugin variants (`platforms`, `sqldrivers`, `tls`) so Debug builds correctly load `QSQLITE` and TLS backends (`qsqlited.dll`, `qschannelbackendd.dll`) instead of failing with "Driver not loaded" / "No TLS backend is available".
 - **Active download thumbnail previews not rendering in C++ builds**: CMake now deploys the Qt `imageformats` plugins needed for converted thumbnails (`qjpeg`/`qpng` in addition to existing `qwebp`/`qico`), and `DownloadItemWidget` now uses `QImageReader` with retry-aware diagnostics so per-download artwork can render reliably beside the progress bar.
-- **Zombie background processes**: Fixed an issue where closing the application or canceling a download would leave `aria2c.exe`, `ffmpeg.exe`, or `yt-dlp.exe` running invisibly in the OS background.
+- **Zombie background processes**: Fixed an issue where closing the application or canceling a download would leave `aria2c.exe`, `ffmpeg.exe`, or `yt-dlp.exe` running invisibly in the OS background. Extended this fix to cover transient background utility processes (like auto-updaters, URL validators, cookie testers, and output template checkers) to ensure they are also properly tree-killed when destroyed or when the app exits.
 - **FFmpeg WebM and Audio Subtitle Crashes**: Prevented FFmpeg from crashing permanently when attempting to mux `srt` subtitles into `.webm` (now strictly uses `webvtt`) or audio-only containers.
 - **App process lingering after window close**: Closing the main window now exits the application instead of minimizing to tray and continuing in the background.
 - **Playlist UI memory leaks**: Captured transient `QObject::sender()` objects locally to prevent memory leakage and data loss during synchronous playlist message box prompts.
@@ -423,22 +428,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Download archive tracking (prevent re-downloads)
 - Robust error handling with user-friendly messages
 - Comprehensive logging to file and console
-- Enforced output directory selection on first run
-- In-app yt-dlp version management:
-  - Manual update button with stable/nightly channel selection
-  - Automatic version display
-- NSIS-based Windows installer for standalone distribution
-- PyInstaller bundled with all dependencies (yt-dlp, ffmpeg for Windows/Linux/macOS)
-
-### Fixed
-- Signal handler connection for file move operations (worker finished signal now properly invokes handler)
-- Snapshot fallback file detection by cleaning temp directory on test start
-- Early URL validation to prevent wasted UI artifacts for unsupported hosts
-
-
-
-
-
-
-
-
+- Enforced output directory selection

@@ -7,6 +7,20 @@
 #include <QComboBox>
 #include <QSignalBlocker>
 
+namespace {
+QString canonicalVideoCodecValue(QString codec)
+{
+    codec = codec.trimmed();
+    if (codec.compare("H.264", Qt::CaseInsensitive) == 0) {
+        return "H.264 (AVC)";
+    }
+    if (codec.compare("H.265", Qt::CaseInsensitive) == 0) {
+        return "H.265 (HEVC)";
+    }
+    return codec;
+}
+}
+
 VideoSettingsPage::VideoSettingsPage(ConfigManager *configManager, QWidget *parent)
     : QWidget(parent), m_configManager(configManager) {
     QVBoxLayout *layout = new QVBoxLayout(this);
@@ -64,7 +78,7 @@ void VideoSettingsPage::loadSettings() {
     QSignalBlocker b4(m_videoAudioCodecCombo);
 
     m_videoQualityCombo->setCurrentText(m_configManager->get("Video", "video_quality", m_configManager->getDefault("Video", "video_quality")).toString());
-    m_videoCodecCombo->setCurrentText(m_configManager->get("Video", "video_codec", m_configManager->getDefault("Video", "video_codec")).toString());
+    m_videoCodecCombo->setCurrentText(canonicalVideoCodecValue(m_configManager->get("Video", "video_codec", m_configManager->getDefault("Video", "video_codec")).toString()));
     m_videoExtCombo->setCurrentText(m_configManager->get("Video", "video_extension", m_configManager->getDefault("Video", "video_extension")).toString());
     m_videoAudioCodecCombo->setCurrentText(m_configManager->get("Video", "video_audio_codec", m_configManager->getDefault("Video", "video_audio_codec")).toString());
     updateVideoOptions();
@@ -81,7 +95,7 @@ void VideoSettingsPage::handleConfigSettingChanged(const QString &section, const
             m_videoQualityCombo->setCurrentText(value.toString());
             updateVideoOptions();
         } else if (key == "codec" || key == "video_codec") {
-            m_videoCodecCombo->setCurrentText(value.toString());
+            m_videoCodecCombo->setCurrentText(canonicalVideoCodecValue(value.toString()));
             updateVideoOptions();
         } else if (key == "extension" || key == "video_extension") {
             m_videoExtCombo->setCurrentText(value.toString());

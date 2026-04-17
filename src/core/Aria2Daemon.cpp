@@ -49,8 +49,7 @@ bool Aria2Daemon::start()
 void Aria2Daemon::stop()
 {
     if (isRunning()) {
-        m_process->kill();
-        m_process->waitForFinished(5000);
+        ProcessUtils::terminateProcessTree(m_process);
         qInfo() << "Aria2c daemon stopped.";
     }
 }

@@ -41,7 +41,7 @@ void GalleryDlWorker::start()
 void GalleryDlWorker::killProcess()
 {
     if (m_process->state() == QProcess::Running) {
-        m_process->kill();
+        ProcessUtils::terminateProcessTree(m_process);
     }
 }
 

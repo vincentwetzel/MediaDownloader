@@ -1,6 +1,7 @@
 #include "AuthenticationPage.h"
 #include "core/ConfigManager.h"
 #include "utils/BrowserUtils.h"
+#include "core/ProcessUtils.h"
 #include <QVBoxLayout>
 #include <QFormLayout>
 #include <QGroupBox>
@@ -63,8 +64,7 @@ AuthenticationPage::AuthenticationPage(ConfigManager *configManager, QWidget *pa
 
 AuthenticationPage::~AuthenticationPage() {
     if (m_cookieCheckProcess->state() != QProcess::NotRunning) {
-        m_cookieCheckProcess->terminate();
-        m_cookieCheckProcess->waitForFinished(1000);
+        ProcessUtils::terminateProcessTree(m_cookieCheckProcess);
     }
 }
 
@@ -131,7 +131,7 @@ void AuthenticationPage::onCookieCheckProcessErrorOccurred(QProcess::ProcessErro
 }
 void AuthenticationPage::onCookieCheckProcessReadyReadStandardOutput() { qDebug().noquote() << "yt-dlp stdout:" << m_cookieCheckProcess->readAllStandardOutput(); }
 void AuthenticationPage::onCookieCheckProcessReadyReadStandardError() { qWarning().noquote() << "yt-dlp stderr:" << m_cookieCheckProcess->readAllStandardError(); }
-void AuthenticationPage::onCookieCheckTimeout() { m_cookieCheckProcess->terminate(); unsetCursor(); m_cookiesBrowserCombo->setEnabled(true); QMessageBox::warning(this, "Timed Out", "The cookie check took too long to respond."); loadSettings(); }
+void AuthenticationPage::onCookieCheckTimeout() { ProcessUtils::terminateProcessTree(m_cookieCheckProcess); unsetCursor(); m_cookiesBrowserCombo->setEnabled(true); QMessageBox::warning(this, "Timed Out", "The cookie check took too long to respond."); loadSettings(); }
 void AuthenticationPage::handleConfigSettingChanged(const QString &section, const QString &key, const QVariant &value) {
     if (section == "General" && (key == "cookies_from_browser" || key == "gallery_cookies_from_browser")) {
         m_lastSavedBrowser = value.toString();

@@ -11,15 +11,16 @@ The application ensures that only one instance can run at a time. This is achiev
 ### 2.2 Core Components
 - **UI Layer (`src/ui/`):** Handles user interaction, input, and visual feedback using Qt Widgets.
   - **AdvancedSettingsTab navigation**: The left-side category list is a compact `QListWidget` whose stylesheet is rebuilt from `QPalette` values whenever the palette changes so it remains consistent with both light and dark themes.
-  - **Runtime format selection**: Advanced Settings can defer the entire video/audio format decision until enqueue time by setting `Quality` to `Select at Runtime`; `DownloadManager` fetches format metadata and `MainWindow` presents `FormatSelectionDialog`, which enqueues one item per selected format.
+  - **Runtime format selection**: Advanced Settings can defer the entire video/audio format decision until enqueue time by setting `Quality` to `Select at Runtime`; `DownloadManager` fetches format metadata and `MainWindow` presents `FormatSelectionDialog`, which enqueues one item per selected format and marks those selected format IDs as concrete downloader overrides so they do not loop back into the picker.
   - **UI Builders**: `MainWindowUiBuilder` and `StartTabUiBuilder` classes are introduced to encapsulate the creation and layout of UI elements for `MainWindow` and `StartTab` respectively, improving modularity.
   - **Sorting Rule Dialog**: The dialog for creating/editing sorting rules uses a `QScrollArea` with `QVBoxLayout` instead of `QListWidget` for smooth pixel-level scrolling without item-snapping. The scroll area is capped at 150-400px height with 4px spacing between conditions. Condition widgets use a `CONDITION_VALUE_INPUT_HEIGHT` constant (100px) for consistent text entry sizing via `setFixedHeight()`. Dialog minimum size is 650x500px.
 - **Core Logic (`src/core/`):** Manages download queues, file operations, configuration, and external process execution.
-- **Exit Cleanup:** `MainWindow::closeEvent` now calls `DownloadManager::shutdown()` before allowing the app to exit. `DownloadManager` walks descendant `QProcess` objects and uses `ProcessUtils::terminateProcessTree()` to tear down active downloader/post-processing trees on Windows and other platforms.
+- **Exit Cleanup:** `MainWindow::closeEvent` calls `DownloadManager::shutdown()` to cleanly tear down active downloader/post-processing trees. It then performs a catch-all sweep of its own `QProcess` children using `ProcessUtils::terminateProcessTree()` to ensure transient utilities (like auto-updaters, URL validators, and template checkers) do not become zombie processes on Windows and other platforms.
 - **Utilities (`src/utils/`):** Provides helper functions for tasks like string manipulation and URL normalization.
 - **Extractor Domain Loader:** `YtDlpJsonParser` loads the extractor-domain list from the app directory for clipboard auto-paste checks in `StartTab`.
-- **Auto-paste Control:** `AdvancedSettingsTab` saves `General/auto_paste_on_focus`, and `MainWindow` reacts to app focus/hover to route clipboard URLs to `StartTab` when enabled.
+- **Auto-paste Control:** `DownloadOptionsPage` saves `General/auto_paste_mode`, and `MainWindow` reacts to app focus/clipboard changes to route matching URLs to `StartTab` according to the selected mode.
 - **External Binaries:** Relies on user-installed binaries (`yt-dlp`, `ffmpeg`, `ffprobe`, `deno`, `gallery-dl`, `aria2c`) found in system paths or configured manually. **`deno` is used as the JavaScript runtime for yt-dlp's YouTube challenge solver (`--js-runtimes deno:...`).** The application includes `BinaryFinder` for startup discovery, `ProcessUtils` for runtime resolution, and `BinariesPage` for status/install UX.
+- **Error Dialog UX:** `DownloadManager` always forwards the active item's metadata with detected yt-dlp errors, and `MainWindow` renders rich-text popups that can include a clickable source URL for retry/open workflows.
 - **Qt SDK Discovery:** `CMakeLists.txt` auto-adds Qt search prefixes from `Qt6_DIR`/`QT_DIR`/`QTDIR` environment variables plus common Windows installs such as `C:\Qt\6.*\msvc2022_64`, which keeps CLion/Ninja configure steps working even when the IDE does not inherit a Qt kit path.
 
 ### 2.4 Window/Tray Lifecycle
@@ -154,7 +155,9 @@ LzyDownloader/
 ### 4.8 YtDlpArgsBuilder (`src/core/YtDlpArgsBuilder.h`)
 - **Responsibilities:**
   - Constructs the full `yt-dlp` command-line arguments from `ConfigManager` settings and per-download options.
-  - Handles format selection (codec mapping, quality constraints, runtime selection override), output templates, subtitle configuration, metadata/thumbnail embedding, JS runtime (`deno`), cookie extraction, and rate limiting.
+  - Handles format selection (codec mapping, quality constraints, direct runtime `format` overrides, and separate runtime video/audio format merges), output templates, subtitle configuration, metadata/thumbnail embedding, JS runtime (`deno`), cookie extraction, and rate limiting.
+  - Normalizes legacy codec labels from saved settings (for example `H.264` -> `H.264 (AVC)`) and translates codec preferences into yt-dlp regex selectors that match common aliases such as `avc1`, `hev1`, `hvc1`, and `mp4a`.
+  - Respects the Advanced Settings `restrict_filenames` toggle instead of hardcoding `--no-restrict-filenames`.
   - Preserves the requested output container for `--download-sections` jobs instead of forcing an intermediate MKV remux; section video jobs only add `--force-keyframes-at-cuts` for cleaner clip boundaries.
   - Injects a filename-safe section suffix into the output template when `download_sections_label` is present so clipped files identify the chosen time range or chapter in their saved filename.
 
@@ -170,10 +173,3 @@ LzyDownloader/
 - **Bundling:** All dependencies (Qt runtime DLLs, binaries) will be included in the installation directory.
 - **Qt Image Format Plugins:** Windows deployments must include the required `plugins/imageformats` codecs for active-download artwork and converted thumbnails, including `qjpeg`, `qpng`, `qwebp`, and `qico` (plus debug variants when available).
 - **User Data Preservation:** The NSIS installer MUST NOT overwrite user data files (`settings.ini`, `download_archive.db`, or log files). These are stored in platform-specific user data directories (e.g., `%APPDATA%` on Windows), separate from the installation directory, ensuring they persist across application updates.
-
-
-
-
-
-
-

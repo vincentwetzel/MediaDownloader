@@ -510,10 +510,10 @@ QList<BinariesPage::InstallOption> BinariesPage::buildInstallOptions(const QStri
 
     if (binaryName == "yt-dlp") {
         addOptionIfPresent("pip", {"install", "-U", "--pre", "yt-dlp"}, "Install or upgrade yt-dlp (nightly) with pip.");
-        if (isWindows()) addOptionIfPresent("winget", {"install", "yt-dlp", "--accept-package-agreements", "--accept-source-agreements"}, "Install yt-dlp with WinGet. Note: Usually installs stable version.");
-        if (isWindows()) addOptionIfPresent("choco", {"install", "-y", "yt-dlp"}, "Install yt-dlp with Chocolatey. Note: Usually installs stable version.");
-        if (isWindows()) addOptionIfPresent("scoop", {"install", "yt-dlp"}, "Install yt-dlp with Scoop. Note: Usually installs stable version.");
-        if (isMacOS() || isLinux()) addOptionIfPresent("brew", {"install", "yt-dlp"}, "Install yt-dlp with Homebrew. Note: Usually installs stable version.");
+        if (isWindows()) addOptionIfPresent("winget", {"install", "yt-dlp", "--accept-package-agreements", "--accept-source-agreements"}, "Install yt-dlp with WinGet. Note: This installs the stable version, as a nightly package is not available.");
+        if (isWindows()) addOptionIfPresent("choco", {"install", "-y", "yt-dlp"}, "Install yt-dlp with Chocolatey. Note: This installs the stable version, as a nightly package is not available.");
+        if (isWindows()) addOptionIfPresent("scoop", {"install", "yt-dlp-nightly"}, "Install yt-dlp (nightly) with Scoop. Requires the 'extras' bucket (`scoop bucket add extras`).");
+        if (isMacOS() || isLinux()) addOptionIfPresent("brew", {"install", "yt-dlp", "--HEAD"}, "Install yt-dlp (latest from master) with Homebrew.");
     } else if (binaryName == "ffmpeg" || binaryName == "ffprobe") {
         if (isWindows()) addOptionIfPresent("winget", {"install", "ffmpeg", "--accept-package-agreements", "--accept-source-agreements"}, "Install FFmpeg (includes ffprobe) with WinGet.");
         if (isWindows()) addOptionIfPresent("choco", {"install", "-y", "ffmpeg"}, "Install FFmpeg (includes ffprobe) with Chocolatey.");
