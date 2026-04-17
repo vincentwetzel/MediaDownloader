@@ -709,4 +709,8 @@ void MainWindow::setYtDlpVersion(const QString &version) {
     if (m_advancedSettingsTab) {
         m_advancedSettingsTab->setYtDlpVersion(version);
     }
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 1f7823d4c932568a9d3627a8c0f4aee303250983

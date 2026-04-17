@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.16)
 
+<<<<<<< HEAD
 project(LzyDownloader VERSION 1.0.20 LANGUAGES CXX)
+=======
+project(LzyDownloader VERSION 1.0.19 LANGUAGES CXX)
+>>>>>>> 1f7823d4c932568a9d3627a8c0f4aee303250983
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

@@ -228,4 +228,15 @@ Agents MUST NOT:
 - **Ensure all UI elements have tooltips** (`setToolTip`).
 - **File Size Limits (Context Preservation)**: Ensure that no single file (source code, headers, or documentation) exceeds **500 lines** in length (and `.md` files remain under 100KB) to preserve agent context usage. Refactor large C++ classes or split extensive markdown documents into smaller, logically separated files when approaching this limit.
 - **Ensure Theme Compatibility**: All UI elements MUST be designed to work correctly in both light and dark themes. Avoid hardcoded colors; use the application's `QPalette` to ensure elements adapt to the current theme.
-- **Update `SPEC.md`, `ARCHITECTURE.MD`, and `TODO.m
+- **Update `SPEC.md`, `ARCHITECTURE.MD`, and `TODO.md`** to reflect any changes to functional requirements, system design, or pending tasks.
+- **Discard Invalid Settings**: If any setting loaded from `settings.ini` does not match the current application's expected format, it MUST be discarded and replaced with the default value.
+- **Update Documentation on Functional Changes**: When you make changes to how the app works (e.g., progress parsing, download pipeline, UI behavior, configuration, external binary handling), you MUST update the relevant MD documentation files (`AGENTS.md`, `SPEC.md`, `ARCHITECTURE.md`, `TODO.md`, `CHANGELOG.md`) to reflect the new behavior. This is a mandatory requirement - do not leave documentation out of sync with the code.
+- **Use Q_INVOKABLE for Deferred Calls**: Methods called via `QMetaObject::invokeMethod` with `Qt::QueuedConnection` MUST be declared as `Q_INVOKABLE` in the header file, even if they are in the `private` or `private slots` sections. Without this, the invocation will fail silently at runtime with a warning like `No such method DownloadManager::saveQueueState()`.
+### You MUST NOT:
+- Change the schema of `download_archive.db` without a migration plan.
+- Introduce new external runtime dependencies without explicit instruction.
+- Break the standalone, portable nature of the application.
+- Assume network availability beyond what's needed for `yt-dlp` and the app updater.
+---
+## 7. Task Tracking
+Agents MUST use `TODO.md` to track pending tasks, planned features, and known issues. Before starting work, check `TODO.md` for high-priority items. After completing a task or identifying a new one, update `TODO.md` accordingly.

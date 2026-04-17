@@ -177,13 +177,19 @@ void DownloadFinalizer::finalize(const QString &id, DownloadItem item) {
     QString mediaInfoJsonPath = tempDir.filePath(tempFileInfo.completeBaseName() + ".info.json");
 
     if (item.options.value("type").toString() == "audio" && item.playlistIndex > 0) {
-        QString thumbTempPath = QDir(m_configManager->get("Paths", "temporary_downloads_directory").toString()).filePath(id + "_folder.jpg");
-        if (QFile::exists(thumbTempPath)) {
-            QString thumbDestPath = QDir(finalDir).filePath("folder.jpg");
+        // Find the generated folder image. It might not be .jpg if the user selected .png or no conversion
+        QStringList filters;
+        filters << id + "_folder.*";
+        QStringList thumbFiles = tempDir.entryList(filters, QDir::Files);
+        if (!thumbFiles.isEmpty()) {
+            QString thumbTempPath = tempDir.filePath(thumbFiles.first());
+            QFileInfo thumbInfo(thumbTempPath);
+            QString thumbDestPath = QDir(finalDir).filePath("folder." + thumbInfo.suffix());
             if (!QFile::exists(thumbDestPath)) {
                 QFile::copy(thumbTempPath, thumbDestPath);
             }
             QFile::remove(thumbTempPath);
+            qDebug() << "Moved playlist folder artwork to:" << thumbDestPath;
         }
     }
 

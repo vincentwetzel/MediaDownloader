@@ -171,4 +171,9 @@ LzyDownloader/
 
 ## 6. Deployment
 - **Build System:** CMake.
-- **Qt Configure Resilience:** The build should succeed in IDE-driven configure 
+- **Qt Configure Resilience:** The build should succeed in IDE-driven configure runs by auto-detecting common Windows Qt SDK locations before `find_package(Qt6 ...)` executes.
+- **Installer:** NSIS will be used to create a Windows installer (`LzyDownloader-Setup.exe`).
+- **Executable Name:** The final executable will be named `LzyDownloader.exe` to ensure a seamless update from the Python version.
+- **Bundling:** All dependencies (Qt runtime DLLs, binaries) will be included in the installation directory.
+- **Qt Image Format Plugins:** Windows deployments must include the required `plugins/imageformats` codecs for active-download artwork and converted thumbnails, including `qjpeg`, `qpng`, `qwebp`, and `qico` (plus debug variants when available).
+- **User Data Preservation:** The NSIS installer MUST NOT overwrite user data files (`settings.ini`, `download_archive.db`, or log files). These are stored in platform-specific user data directories (e.g., `%APPDATA%` on Windows), separate from the installation directory, ensuring they persist across application updates.

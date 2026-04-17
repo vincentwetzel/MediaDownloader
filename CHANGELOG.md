@@ -389,4 +389,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 02-08-2026
 - **Fixed Global Download Speed Indicator (Again)**: The previous fix for the download speed indicator was flawed and caused it to display `-- MB/s`. The calculation logic has been rewritten to be more robust and now correctly sums the I/O from the main process and all its children.
-- **Implementation**: The `_get_total_io_counters` function now simply sums the `read_bytes` from the main process and all its children, with proper error handling for termin
+- **Implementation**: The `_get_total_io_counters` function now simply sums the `read_bytes` from the main process and all its children, with proper error handling for terminated processes.
+- **Rationale**: This simpler implementation is more resilient and provides an accurate total download speed.
+
+### Fixed
+- Fixed PyInstaller build hang on PyQt6.QtGui hook processing (PyInstaller 6.18.0 issue)
+  - Solution: Created custom minimal PyQt6.QtGui hook to bypass problematic default hook
+  - Added `hooks/` directory with simplified PyQt6.QtGui hook
+  - Downgraded PyInstaller from 6.18.0 to 6.17.0 for better stability
+  - Build now completes successfully and exe launches correctly
+- Fixed critical app crash on startup caused by corrupted method merging in `main_window.py`
+- Fixed unhandled exception in version fetch from daemon thread (disabled for now pending future refactor)
+- Added robust error handling around signal emission in background threads
+- Do not auto-create `temp_downloads` or set default output directory on first run; leave paths unset until user selects them
+
+## [0.0.1] - 02-02-2026
+
+### Added
+- Initial release of LzyDownloader
+- PyQt6-based GUI for downloading media via yt-dlp
+- Support for 1000+ websites (YouTube, TikTok, Instagram, etc.)
+- Playlist detection and expansion
+- Concurrent download management with user-configurable limits (capped at 4 on startup)
+- Advanced download options:
+  - Audio/video quality selection
+  - Format filtering by codec
+  - SponsorBlock integration for automatic segment removal
+  - Filename sanitization and customization
+- Metadata and thumbnail embedding for videos and audio
+- Browser cookie integration for age-restricted content
+- Optional JavaScript runtime support (Deno/Node.js) for anti-bot challenges
+- GitHub-based auto-update system:
+  - Automatic release checking on app startup
+  - Silent installer-based updates via NSIS
+  - Manual update check button in Advanced Settings
+  - Configurable auto-check toggle (persisted to settings)
+  - Changelog display before updating
+- Responsive UI with comprehensive tooltips
+- File lifecycle management:
+  - Download to temporary directory
+  - File stability verification
+  - Move to completed downloads directory
+- Download archive tracking (prevent re-downloads)
+- Robust error handling with user-friendly messages
+- Comprehensive logging to file and console
+- Enforced output directory selection

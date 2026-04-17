@@ -166,4 +166,19 @@ This document outlines the specifications for the C++ port of the LzyDownloader 
 - **Qt Image Plugins**: Windows builds must deploy the Qt `imageformats` plugins required to display active-download thumbnails and converted artwork, including JPEG, PNG, WebP, and ICO support.
 
 ### 2.8. Logging
+<<<<<<< HEAD
 - A structured file logger (`LzyDownloader_YYYY-MM-dd_HH-mm-ss.log`) must be implemented to capture applica
+=======
+- A structured file logger (`LzyDownloader_YYYY-MM-dd_HH-mm-ss.log`) must be implemented to capture application output for debugging.
+- **One log file per run**: Each application launch creates a new log file with a timestamp in the filename.
+- **Log retention**: The application automatically keeps only the 10 most recent log files, deleting older ones on startup.
+- Log files must be stored in the user's AppData configuration directory (`%LOCALAPPDATA%\LzyDownloader\` on Windows).
+
+## 3. Technical Stack
+- **Language**: C++20
+- **Framework**: Qt 6 (Widgets)
+- **Build System**: CMake
+- **Qt SDK Discovery**: CMake must honor explicit `Qt6_DIR`/`CMAKE_PREFIX_PATH` configuration and also auto-check common Windows Qt install prefixes (for example `C:\Qt\6.*\msvc2022_64`) so IDE-driven configure steps can find Qt without manual edits on typical developer machines.
+- **Database**: SQLite (via Qt SQL module)
+- **Process Management**: `QProcess`
+>>>>>>> 1f7823d4c932568a9d3627a8c0f4aee303250983
