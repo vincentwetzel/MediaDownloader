@@ -124,7 +124,7 @@ void YtDlpWorker::start() {
 
 void YtDlpWorker::killProcess() {
     if (m_process && m_process->state() == QProcess::Running) {
-        m_process->kill();
+        ProcessUtils::terminateProcessTree(m_process);
     }
 }
 
@@ -1352,4 +1352,3 @@ QString YtDlpWorker::normalizeConsoleLine(const QString &line) const {
     normalized.remove(ansiRegex);
     return normalized.trimmed();
 }
-

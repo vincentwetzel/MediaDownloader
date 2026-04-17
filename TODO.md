@@ -38,11 +38,13 @@
 - [x] **Per-stream byte display preserved**: Kept video and audio byte counters separate so the active stream restarts from its own emitted size instead of inheriting an aggregated overall total.
 - [x] **Small overall job progress bar**: Added a slim secondary overall-progress indicator for multi-stream downloads while preserving the main bar as the active-stream progress display.
 - [x] **Progress parser regression hardening**: Fixed the follow-up regression where the UI could remain visually stuck at 0% by making extraction stages indeterminate again, broadening aria2 progress matching, and consuming aria2 `FILE:` lines to keep stream-target tracking in sync with active transfers.
-- [x] **App-exit process cleanup**: Closing the app now runs an explicit shutdown path that terminates active descendant process trees so `yt-dlp`-spawned `aria2c`, metadata-normalization `ffmpeg`, and other helper processes do not survive after exit.
+- [x] **App-exit process cleanup**: Closing the app now runs an explicit shutdown path that terminates active descendant process trees so `yt-dlp`-spawned `aria2c`, metadata-normalization `ffmpeg`, and other helper processes do not survive after exit. This includes a catch-all sweep for transient utility processes like auto-updaters, cookie checkers, and URL validators.
 - [x] **Audio-only WebM label detection**: Fixed stream-stage labeling for temp files like `.f251.webm.part` by matching yt-dlp `format_id` values from `requested_downloads` before falling back to ambiguous container extensions.
 - [x] **Audio-stage size fallback**: Added a second-stage matcher that uses the active stream's emitted total size when yt-dlp delays or omits a fresh target filename during the video-to-audio handoff.
 - [x] **Empty `requested_downloads` stage fallback**: Fixed runs where `info.json` omits `requested_downloads` by seeding stream order from yt-dlp's announced format list and aria2 command-line `itag`/`mime` values, so audio-only transfers like `f251-13.webm.part` no longer stay labeled as video.
 - [x] **Late info.json label overwrite**: Fixed a follow-up regression where a delayed `info.json` parse could clear the already-correct stderr-derived stream mapping and flip the GUI back from audio to video mid-handoff.
+- [x] **Advanced Settings codec/format wiring audit**: Fixed the downloader path so saved codec labels map to real yt-dlp codec aliases (`avc1`, `hev1`, `mp4a`, etc.), direct runtime `format` selections become concrete `-f` overrides, runtime-selected audio tracks are merged into video downloads, and the `Restrict filenames` toggle now reaches yt-dlp instead of being ignored.
+- [x] **Rich yt-dlp error popups**: Error dialogs now preserve the active download URL and render it as a clickable link in the popup so users can open the failing source page directly from the warning.
 
 ## Completed
 
@@ -92,11 +94,3 @@
 
 ### Recent Additions
 *(Moved to CHANGELOG.md)*
-
-
-
-
-
-
-
-

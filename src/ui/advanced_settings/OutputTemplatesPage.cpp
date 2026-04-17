@@ -134,7 +134,9 @@ void OutputTemplatesPage::validateAndSaveVideoTemplate() {
     QProcess process;
     ProcessUtils::setProcessEnvironment(process);
     process.start(ProcessUtils::findBinary("yt-dlp", m_configManager).path, QStringList() << "-o" << templateStr << "dummy:");
-    process.waitForFinished(2000);
+    if (!process.waitForFinished(2000)) {
+        ProcessUtils::terminateProcessTree(&process);
+    }
     QString err = process.readAllStandardError();
     if (err.contains("error:", Qt::CaseInsensitive) && (err.contains("template", Qt::CaseInsensitive) || err.contains("missing", Qt::CaseInsensitive))) {
         QMessageBox::warning(this, "Invalid Template", "yt-dlp rejected the template:\n" + err.trimmed());
@@ -152,7 +154,9 @@ void OutputTemplatesPage::validateAndSaveAudioTemplate() {
     QProcess process;
     ProcessUtils::setProcessEnvironment(process);
     process.start(ProcessUtils::findBinary("yt-dlp", m_configManager).path, QStringList() << "-o" << templateStr << "dummy:");
-    process.waitForFinished(2000);
+    if (!process.waitForFinished(2000)) {
+        ProcessUtils::terminateProcessTree(&process);
+    }
     QString err = process.readAllStandardError();
     if (err.contains("error:", Qt::CaseInsensitive) && (err.contains("template", Qt::CaseInsensitive) || err.contains("missing", Qt::CaseInsensitive))) {
         QMessageBox::warning(this, "Invalid Template", "yt-dlp rejected the template:\n" + err.trimmed());

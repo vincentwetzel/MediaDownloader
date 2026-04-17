@@ -188,6 +188,7 @@ MainWindow::MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent
                     // each to be enqueued as a separate download.
                     for (const QString &formatId : selectedFormats) {
                         QVariantMap newOptions = options;
+                        newOptions["runtime_format_selected"] = true;
                         newOptions["format"] = formatId;
                         m_downloadManager->enqueueDownload(url, newOptions);
                     }
@@ -330,6 +331,15 @@ void MainWindow::closeEvent(QCloseEvent *event) {
     if (m_downloadManager) {
         m_downloadManager->shutdown();
     }
+
+    // Catch any remaining detached UI-spawned processes (e.g., UrlValidator, Extractors)
+    const QList<QProcess*> remainingProcesses = findChildren<QProcess*>();
+    for (QProcess *process : remainingProcesses) {
+        if (process && process->state() == QProcess::Running) {
+            ProcessUtils::terminateProcessTree(process);
+        }
+    }
+
     if (m_trayIcon && m_trayIcon->isVisible()) {
         m_trayIcon->hide();
     }
@@ -621,6 +631,10 @@ void MainWindow::onDownloadStatsUpdated(int queued, int active, int completed, i
 void MainWindow::onYtDlpErrorPopup(const QString &id, const QString &errorType, const QString &userMessage, const QString &rawError, const QVariantMap &itemData) {
     Q_UNUSED(id);
 
+    QString url = itemData.value("url").toString();
+    QString urlHtml = url.isEmpty() ? "" : QString("<br><br><a href=\"%1\">%1</a>").arg(url.toHtmlEscaped());
+    QString richUserMessage = userMessage.toHtmlEscaped().replace("\n", "<br>");
+
     // Clean up the raw error string to make it more user-friendly
     QString cleanError = rawError;
     if (cleanError.startsWith("ERROR: ")) {
@@ -632,9 +646,11 @@ void MainWindow::onYtDlpErrorPopup(const QString &id, const QString &errorType, 
     if (errorType == "scheduled_livestream") {
         QMessageBox msgBox(this);
         msgBox.setWindowTitle("Scheduled Livestream");
-        msgBox.setText(userMessage);
+        msgBox.setTextFormat(Qt::RichText);
+        msgBox.setTextInteractionFlags(Qt::TextBrowserInteraction);
+        msgBox.setText(richUserMessage + urlHtml);
         if (!cleanError.isEmpty()) {
-            msgBox.setInformativeText(cleanError);
+            msgBox.setInformativeText(cleanError.toHtmlEscaped().replace("\n", "<br>"));
         }
         msgBox.setIcon(QMessageBox::Information);
 
@@ -678,9 +694,12 @@ void MainWindow::onYtDlpErrorPopup(const QString &id, const QString &errorType, 
         else if (errorType == "content_removed") title = "Content Removed";
         else title = "Download Error";
 
-        QMessageBox msgBox(QMessageBox::Warning, title, userMessage, QMessageBox::Ok, this);
+        QMessageBox msgBox(QMessageBox::Warning, title, "", QMessageBox::Ok, this);
+        msgBox.setTextFormat(Qt::RichText);
+        msgBox.setTextInteractionFlags(Qt::TextBrowserInteraction);
+        msgBox.setText(richUserMessage + urlHtml);
         if (!cleanError.isEmpty()) {
-            msgBox.setInformativeText(cleanError);
+            msgBox.setInformativeText(cleanError.toHtmlEscaped().replace("\n", "<br>"));
         }
         msgBox.exec();
     }
@@ -691,5 +710,3 @@ void MainWindow::setYtDlpVersion(const QString &version) {
         m_advancedSettingsTab->setYtDlpVersion(version);
     }
 }
-
-

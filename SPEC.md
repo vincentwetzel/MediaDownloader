@@ -65,7 +65,7 @@ This document outlines the specifications for the C++ port of the LzyDownloader 
         - **Metadata / Thumbnails**: Embed metadata, Embed thumbnail, Use high-quality thumbnail converter, Convert thumbnails to.
         - **Livestream Settings**: Record from beginning, Wait for video (with min/max intervals). The app dynamically scales these wait intervals for streams hours away vs seconds away. Download As (MPEG-TS or MKV), Use .part files, Quality, Convert To.
         - **Subtitles**: Subtitle language (using full words in a combo box), Embed subtitles in video, Write subtitles (separate file), Include automatically-generated subtitles, Subtitle file format (greyed out if "Embed subtitles in video" is selected).
-        - **External Binaries**: Per-binary status rows for `yt-dlp`, `ffmpeg`, `ffprobe`, `gallery-dl`, `aria2c`, and `deno`, with auto-detection status, manual `Browse` overrides, and `Install` actions that offer detected package-manager commands plus manual-download links.
+        - **External Binaries**: Per-binary status rows for `yt-dlp`, `ffmpeg`, `ffprobe`, `gallery-dl`, `aria2c`, and `deno`, with auto-detection status, manual `Browse` overrides, and `Install` actions that offer detected package-manager commands plus manual-download links. yt-dlp install suggestions should prefer nightly-capable commands where the platform supports them and clearly label stable-only package-manager options.
         - **Updates**: `yt-dlp` version (display only), Update `yt-dlp` (always to nightly), `gallery-dl` version (display only), Update `gallery-dl`.
         - **Restore defaults** button.
     - **Navigation Styling**: The left column uses a palette-aware `QListWidget` whose stylesheet is rebuilt on palette changes so the category list stays compact and theme-consistent without reverting to a plain scrollbar-heavy layout.
@@ -92,8 +92,10 @@ This document outlines the specifications for the C++ port of the LzyDownloader 
     - Embed chapters (`--embed-chapters`).
     - **Section Container Preservation**: Section downloads must preserve the user's requested output container/extension (for example MP4 video clips stay MP4) instead of forcing an intermediate MKV remux. The app may add `--force-keyframes-at-cuts` for video precision, but it must not silently switch the container behind the user's back.
     - **Section Filename Labeling**: When a section/chapter clip is queued, the output filename must include a filename-safe label describing the selected range or chapter (for example `[section 15-00_to_end]`) before the extension so the saved file clearly identifies which part of the source it contains.
+    - **Codec Preference Fidelity**: Advanced Settings video/audio codec choices must map to yt-dlp selectors that recognize common codec aliases reported by sites and containers (for example H.264 matching `avc1` streams, H.265 matching `hev1`/`hvc1`, and AAC matching `mp4a`), rather than only matching one literal codec token.
+    - **Runtime Format Overrides**: When the runtime picker supplies a concrete `format` ID, the downloader must treat it as an explicit `-f` override instead of re-opening the picker or falling back to the saved quality/codec defaults. If video and audio runtime format IDs are selected separately, both IDs must be merged into the final video `-f` expression.
 - **Output Parsing**: Must parse `yt-dlp` stdout/stderr for progress, final filename, and metadata JSON.
-- **Process Lifetime on Exit**: Closing the application must explicitly terminate active downloader/post-processor process trees (including child tools such as `aria2c` and `ffmpeg`) so no background media tasks survive after the UI exits.
+- **Process Lifetime on Exit**: Closing the application must explicitly terminate active downloader/post-processor process trees (including child tools such as `aria2c` and `ffmpeg`) as well as any transient utility processes (updaters, validators, template checkers, cookie testers) so no background tasks survive after the UI exits.
 - **Progress Compatibility**: The worker MUST understand and emit progress from **both** native `yt-dlp` progress lines **and** aria2c external downloader output, including:
   - Native yt-dlp format: `[download] XX.X% of YY.YMiB at ZZ.ZMiB/s ETA 0:00`
   - aria2c format: `[#XXXXX AA.AMiB/BB.BMiB(CC.C%)(...)ETA:0:00]`
@@ -144,7 +146,8 @@ This document outlines the specifications for the C++ port of the LzyDownloader 
 - **Encoding Robustness**: Worker process environment must force UTF-8 text output (`PYTHONUTF8=1`, `PYTHONIOENCODING=utf-8`) so Unicode filenames are preserved in stdout/stderr parsing.
 
 ### 2.6. Post-Processing
-- **File Lifecycle:**`r`n    - Section clips saved in MP4-family containers may run through one additional asynchronous ffprobe+ffmpeg normalization pass before final move. The app probes the clipped container duration with `ffprobe`, then remuxes with `-fflags +genpts`, `-ignore_editlist 1`, `-fix_sub_duration`, `-c:s mov_text`, `-t <clip_duration>`, `-shortest`, and `-movflags +faststart` so embedded subtitle streams are hard-limited to the clip timeline and players like VLC read the clipped duration more accurately.
+- **File Lifecycle:**
+    - Section clips saved in MP4-family containers may run through one additional asynchronous ffprobe+ffmpeg normalization pass before final move. The app probes the clipped container duration with `ffprobe`, then remuxes with `-fflags +genpts`, `-ignore_editlist 1`, `-fix_sub_duration`, `-c:s mov_text`, `-t <clip_duration>`, `-shortest`, and `-movflags +faststart` so embedded subtitle streams are hard-limited to the clip timeline and players like VLC read the clipped duration more accurately.
     - All downloads must go to a temporary directory first.
     - A file stability check must be performed before moving.
     - Files are moved to a final destination directory upon success.
@@ -174,12 +177,3 @@ This document outlines the specifications for the C++ port of the LzyDownloader 
 - **Qt SDK Discovery**: CMake must honor explicit `Qt6_DIR`/`CMAKE_PREFIX_PATH` configuration and also auto-check common Windows Qt install prefixes (for example `C:\Qt\6.*\msvc2022_64`) so IDE-driven configure steps can find Qt without manual edits on typical developer machines.
 - **Database**: SQLite (via Qt SQL module)
 - **Process Management**: `QProcess`
-
-
-
-
-
-
-
-
-

@@ -179,11 +179,6 @@ void terminateProcessTree(QProcess *process, int gracefulTimeoutMs) {
     const qint64 pid = process->processId();
     qInfo() << "[ProcessUtils] Terminating process tree for PID" << pid;
 
-    process->terminate();
-    if (process->waitForFinished(gracefulTimeoutMs)) {
-        return;
-    }
-
 #ifdef Q_OS_WIN
     if (pid > 0) {
         QProcess taskkill;
@@ -195,9 +190,13 @@ void terminateProcessTree(QProcess *process, int gracefulTimeoutMs) {
             qWarning() << "[ProcessUtils] taskkill failed for PID" << pid << taskkill.readAllStandardOutput();
         }
     }
+    process->waitForFinished(gracefulTimeoutMs);
 #else
-    process->kill();
-    process->waitForFinished(5000);
+    process->terminate();
+    if (!process->waitForFinished(gracefulTimeoutMs)) {
+        process->kill();
+        process->waitForFinished(5000);
+    }
 #endif
 }
 

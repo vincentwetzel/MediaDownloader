@@ -12,6 +12,7 @@
 #include <QDebug>
 #include <QRegularExpression>
 #include <QThread>
+#include "core/ProcessUtils.h"
 
 GalleryDlUpdater::GalleryDlUpdater(QObject *parent) : QObject(parent), m_process(nullptr) {
     m_networkManager = new QNetworkAccessManager(this);
@@ -31,7 +32,7 @@ void GalleryDlUpdater::stop() {
     if (m_process) {
         disconnect(m_process, nullptr, this, nullptr);
         if (m_process->state() == QProcess::Running) {
-            m_process->terminate();
+            ProcessUtils::terminateProcessTree(m_process);
         }
         m_process = nullptr;
     }

@@ -41,35 +41,49 @@ QString appendSectionLabelToTemplate(const QString &outputTemplate, const QStrin
     }
     return outputTemplate + suffix;
 }
+
+QString canonicalizeCodecSetting(QString codecName)
+{
+    codecName = codecName.trimmed();
+    if (codecName.compare("H.264", Qt::CaseInsensitive) == 0) {
+        return "H.264 (AVC)";
+    }
+    if (codecName.compare("H.265", Qt::CaseInsensitive) == 0) {
+        return "H.265 (HEVC)";
+    }
+    return codecName;
+}
 }
 
 YtDlpArgsBuilder::YtDlpArgsBuilder() {
 }
 
 QString YtDlpArgsBuilder::getCodecMapping(const QString& codecName) {
-    if (codecName == "H.264 (AVC)") return "h264";
-    if (codecName == "H.265 (HEVC)") return "h265";
-    if (codecName == "avc1 (h264)") return "avc1";
-    if (codecName == "VP9") return "vp9";
-    if (codecName == "AV1") return "av1";
+    const QString canonicalCodec = canonicalizeCodecSetting(codecName);
+
+    if (canonicalCodec == "H.264 (AVC)") return "(avc|avc1|h264)";
+    if (canonicalCodec == "H.265 (HEVC)") return "(hevc|h265|hev1|hvc1)";
+    if (canonicalCodec == "avc1 (h264)") return "(avc|avc1|h264)";
+    if (canonicalCodec == "VP9") return "vp0?9";
+    if (canonicalCodec == "AV1") return "(av0?1|av01)";
     if (codecName == "ProRes (Archive)") return "prores";
     if (codecName == "Theora") return "theora";
 
     // Audio codecs
-    if (codecName == "AAC") return "aac";
-    if (codecName == "Opus") return "opus";
-    if (codecName == "Vorbis") return "vorbis";
-    if (codecName == "MP3") return "mp3";
-    if (codecName == "FLAC") return "flac";
-    if (codecName == "PCM") return "pcm";
-    if (codecName == "WAV") return "wav";
-    if (codecName == "ALAC") return "alac";
-    if (codecName == "AC3") return "ac3";
-    if (codecName == "EAC3") return "eac3";
+    if (canonicalCodec == "AAC") return "(aac|mp4a)";
+    if (canonicalCodec == "Opus") return "opus";
+    if (canonicalCodec == "Vorbis") return "vorbis";
+    if (canonicalCodec == "MP3") return "(mp3|mpga)";
+    if (canonicalCodec == "FLAC") return "flac";
+    if (canonicalCodec == "PCM") return "(pcm|lpcm|wav)";
+    if (canonicalCodec == "WAV") return "(wav|pcm|lpcm)";
+    if (canonicalCodec == "ALAC") return "alac";
+    if (canonicalCodec == "AC3") return "ac-?3";
+    if (canonicalCodec == "EAC3") return "(e-?ac-?3|ec-?3)";
     if (codecName == "DTS") return "dts";
 
     // Fallback for any unmapped or simple names
-    return codecName.toLower();
+    return QRegularExpression::escape(canonicalCodec.toLower());
 }
 
 QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString &url, const QVariantMap &options) {
@@ -84,7 +98,8 @@ QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString 
     rawArgs << "--verbose";
     rawArgs << "--write-info-json";
     rawArgs << "--encoding" << "utf-8";
-    rawArgs << "--no-restrict-filenames";
+    if (configManager->get("General", "restrict_filenames", false).toBool()) rawArgs << "--restrict-filenames";
+    else rawArgs << "--no-restrict-filenames";
     rawArgs << "--newline";
     rawArgs << "--ignore-errors"; // Continue on non-fatal errors (like subtitle failures)
 
@@ -142,29 +157,39 @@ QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString 
         QString audioCodecSetting = options.contains("video_audio_codec") ? options.value("video_audio_codec").toString() : configManager->get("Video", "video_audio_codec", "Default").toString();
         QString requestedExtension = configManager->get("Video", "video_extension", "mp4").toString();
         finalOutputExtension = requestedExtension;
+        const QString directFormatOverride = options.value("format").toString().trimmed();
+        const QString runtimeVideoFormat = options.value("runtime_video_format").toString().trimmed();
+        const QString runtimeAudioFormat = options.value("runtime_audio_format").toString().trimmed();
 
         if (videoQuality == "Select at Runtime") videoQuality = "best";
+        videoCodecSetting = canonicalizeCodecSetting(videoCodecSetting);
         if (videoCodecSetting == "Select at Runtime") videoCodecSetting = "Default";
+        audioCodecSetting = canonicalizeCodecSetting(audioCodecSetting);
         if (audioCodecSetting == "Select at Runtime") audioCodecSetting = "Default";
 
-        if (options.contains("runtime_video_format") && !options.value("runtime_video_format").toString().isEmpty()) {
-            rawArgs << "-f" << options.value("runtime_video_format").toString();
+        QString vcodec = getCodecMapping(videoCodecSetting);
+        QString acodec = getCodecMapping(audioCodecSetting);
+        QString videoFormatSelector = "bestvideo";
+
+        if (videoQuality.toLower() == "best" || videoQuality.toLower() == "worst") {
+            videoFormatSelector = videoQuality.toLower() + "video";
+        } else {
+            videoFormatSelector += QString("[height<=?%1]").arg(videoQuality.split(' ').first().remove('p'));
+        }
+        if (videoCodecSetting != "Default") videoFormatSelector += QString("[vcodec~='(?i)%1']").arg(vcodec);
+
+        QString audioFormatSelector = "bestaudio";
+        if (audioCodecSetting != "Default") audioFormatSelector += QString("[acodec~='(?i)%1']").arg(acodec);
+
+        if (!directFormatOverride.isEmpty()) {
+            rawArgs << "-f" << directFormatOverride;
+            rawArgs << "--merge-output-format" << requestedExtension;
+        } else if (!runtimeVideoFormat.isEmpty() || !runtimeAudioFormat.isEmpty()) {
+            const QString selectedVideoFormat = runtimeVideoFormat.isEmpty() ? videoFormatSelector : runtimeVideoFormat;
+            const QString selectedAudioFormat = runtimeAudioFormat.isEmpty() ? audioFormatSelector : runtimeAudioFormat;
+            rawArgs << "-f" << QString("%1+%2/%1/bestvideo+bestaudio/best").arg(selectedVideoFormat, selectedAudioFormat);
             rawArgs << "--merge-output-format" << requestedExtension;
         } else {
-            QString vcodec = getCodecMapping(videoCodecSetting);
-            QString acodec = getCodecMapping(audioCodecSetting);
-            QString videoFormatSelector = "bestvideo";
-
-            if (videoQuality.toLower() == "best" || videoQuality.toLower() == "worst") {
-                videoFormatSelector = videoQuality.toLower() + "video";
-            } else {
-                videoFormatSelector += QString("[height<=?%1]").arg(videoQuality.split(' ').first().remove('p'));
-            }
-            if (videoCodecSetting != "Default") videoFormatSelector += QString("[vcodec~='(?i)%1']").arg(vcodec);
-
-            QString audioFormatSelector = "bestaudio";
-            if (audioCodecSetting != "Default") audioFormatSelector += QString("[acodec~='(?i)%1']").arg(acodec);
-
             rawArgs << "-f" << QString("%1+%2/%1/bestvideo+bestaudio/best").arg(videoFormatSelector, audioFormatSelector);
             rawArgs << "--merge-output-format" << requestedExtension;
         }
@@ -173,12 +198,17 @@ QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString 
         QString audioQuality = options.contains("audio_quality") ? options.value("audio_quality").toString() : configManager->get("Audio", "audio_quality", "Best").toString();
         QString audioCodecSetting = options.contains("audio_codec") ? options.value("audio_codec").toString() : configManager->get("Audio", "audio_codec", "Default").toString();
         finalOutputExtension = configManager->get("Audio", "audio_extension", "mp3").toString();
+        const QString directFormatOverride = options.value("format").toString().trimmed();
+        const QString runtimeAudioFormat = options.value("runtime_audio_format").toString().trimmed();
 
         if (audioQuality == "Select at Runtime") audioQuality = "best";
+        audioCodecSetting = canonicalizeCodecSetting(audioCodecSetting);
         if (audioCodecSetting == "Select at Runtime") audioCodecSetting = "Default";
 
-        if (options.contains("runtime_audio_format") && !options.value("runtime_audio_format").toString().isEmpty()) {
-            rawArgs << "-f" << options.value("runtime_audio_format").toString();
+        if (!directFormatOverride.isEmpty()) {
+            rawArgs << "-f" << directFormatOverride;
+        } else if (!runtimeAudioFormat.isEmpty()) {
+            rawArgs << "-f" << runtimeAudioFormat;
         } else {
             QString acodec = getCodecMapping(audioCodecSetting);
             QString formatSelector = "bestaudio";

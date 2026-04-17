@@ -450,7 +450,7 @@ void DownloadManager::restartDownloadWithOptions(const QVariantMap &itemData) {
     // 4. Create and start a new worker with the same ID and new options.
     YtDlpArgsBuilder argsBuilder;
     QStringList args = argsBuilder.build(m_configManager, item.url, item.options);
-    YtDlpWorker *newWorker = new YtDlpWorker(item.id, args, m_configManager);
+    YtDlpWorker *newWorker = new YtDlpWorker(item.id, args, m_configManager, this);
     m_activeWorkers[item.id] = newWorker;
 
     connect(newWorker, &YtDlpWorker::progressUpdated, this, &DownloadManager::onWorkerProgress);
@@ -659,7 +659,7 @@ void DownloadManager::proceedWithDownload() {
         GalleryDlArgsBuilder argsBuilder(m_configManager);
         QStringList args = argsBuilder.build(item.url, item.options);
 
-        GalleryDlWorker *worker = new GalleryDlWorker(item.id, args, m_configManager);
+        GalleryDlWorker *worker = new GalleryDlWorker(item.id, args, m_configManager, this);
         m_activeWorkers[item.id] = worker;
         m_activeItems[item.id] = item;
 
@@ -675,7 +675,7 @@ void DownloadManager::proceedWithDownload() {
         YtDlpArgsBuilder argsBuilder;
         QStringList args = argsBuilder.build(m_configManager, item.url, item.options);
 
-        YtDlpWorker *worker = new YtDlpWorker(item.id, args, m_configManager);
+        YtDlpWorker *worker = new YtDlpWorker(item.id, args, m_configManager, this);
         m_activeWorkers[item.id] = worker;
         m_activeItems[item.id] = item;
 
@@ -819,15 +819,13 @@ void DownloadManager::onYtDlpErrorDetected(const QString &id, const QString &err
         return;
     }
 
-    // For special error types, we can pass the item data to the UI to allow for actions like retrying.
+    // Pass the item data to the UI to allow for actions like retrying or opening the URL.
     QVariantMap itemData;
-    if (errorType == "scheduled_livestream") {
-        const DownloadItem& item = m_activeItems.value(id);
-        itemData["id"] = item.id;
-        itemData["url"] = item.url;
-        itemData["options"] = item.options;
-        itemData["playlistIndex"] = item.playlistIndex;
-    }
+    const DownloadItem& item = m_activeItems.value(id);
+    itemData["id"] = item.id;
+    itemData["url"] = item.url;
+    itemData["options"] = item.options;
+    itemData["playlistIndex"] = item.playlistIndex;
 
     // Forward to UI for popup display
     QMetaObject::invokeMethod(this, [this, id, errorType, userMessage, rawError, itemData]() {
@@ -900,5 +898,3 @@ void DownloadManager::onWorkerOutputReceived(const QString &id, const QString &o
 {
     qDebug().noquote() << output;
 }
-
-
