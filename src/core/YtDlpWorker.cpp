@@ -887,9 +887,12 @@ bool YtDlpWorker::parseYtDlpProgressLine(const QString &line) {
         R"(^\[download\]\s+([\d\.]+)%\s+of\s+(?:~\s*)?(.+?)(?=\s+at\s+|\s+ETA\s+|\s+\(frag\s+\d+/\d+\)|$)(?:\s+at\s+(.+?)(?=\s+ETA\s+|\s+\(frag\s+\d+/\d+\)|$))?(?:\s+ETA\s+([^\s]+))?(?:\s+\(frag\s+\d+/\d+\))?.*$)");
     static const QRegularExpression completedRegex(
         R"(^\[download\]\s+100(?:\.0+)?%\s+of\s+(?:~\s*)?(.+?)(?=\s+in\s+|\s+at\s+|\s+\(frag\s+\d+/\d+\)|$)(?:\s+in\s+([^\s]+))?(?:\s+at\s+(.+?)(?=\s+\(frag\s+\d+/\d+\)|$))?(?:\s+\(frag\s+\d+/\d+\))?.*$)");
+    static const QRegularExpression indeterminateRegex(
+        R"(^\[download\]\s+(.+?)\s+at\s+(.+?)\s+\(([^)]+)\).*$)");
 
     QRegularExpressionMatch match = progressRegex.match(normalized);
     const bool matchedCompletedFormat = !match.hasMatch() && (match = completedRegex.match(normalized)).hasMatch();
+    const bool matchedIndeterminate = !match.hasMatch() && (match = indeterminateRegex.match(normalized)).hasMatch();
     if (!match.hasMatch()) {
         qDebug() << "[YtDlpWorker] Unmatched native progress line:" << normalized;
         return false;
