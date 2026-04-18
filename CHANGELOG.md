@@ -7,9 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - YYYY-MM-DD
 
+### Added
+- **External Binaries version/update controls**: The External Binaries page now shows live per-binary version strings and hosts the inline `Update` actions for `yt-dlp` and `gallery-dl`, alongside install methods that include official-download options and direct standalone `curl` downloads where available.
+- **Windows debug console toggle**: A new `Show Debug Console` option in Advanced Settings can show or hide the app-owned console window at runtime on Windows builds.
+
+### Changed
+- **Dynamic missing binary labels**: The Start tab now automatically refreshes its `(missing binaries)` warnings whenever you switch back to it, ensuring that resolving issues in the External Binaries settings is immediately reflected without requiring an app restart.
+- **Start tab format selection**: Renamed "View Formats" to "View Video/Audio Formats" and added explicit tooltips to clarify that this feature uses yt-dlp and is not supported for gallery-dl links.
+- **Immediate download action feedback**: Clicking Pause, Resume, or Cancel on an active download now immediately updates the item's status label (e.g., "Pausing...", "Cancelling...") and disables the relevant buttons while waiting for the background worker to process the request.
+- **Clipboard auto-paste debounce**: Auto-paste now uses a short 500 ms debounce instead of a 5-second lockout, while still preventing duplicate enqueues through queue-state checks.
+- **Updater repository lookup**: App update checks now try the lowercase `vincentwetzel/lzy-downloader` repo first and then fall back to legacy repository API URLs if needed.
+- **Binary-management layout**: The old dedicated Updates page has been removed; external binary version display and downloader update actions now live directly inside the External Binaries page.
+- **Shutdown prompt wording**: Closing the app now warns specifically about queued or active downloads and explains that queue state will be saved and resumed on the next launch.
+
 ### Fixed
+- **Stopped-download persistence**: Failed, cancelled, and stopped downloads now retain their latest temp paths and cleanup candidates in `downloads_backup.json`, so resume and `Clear Temp Files` continue to work after restarting the app.
+- **Configured-binary version checks**: The yt-dlp/gallery-dl startup version probes and inline External Binaries version labels now use the configured or auto-detected executable instead of assuming a bundled app-directory binary.
+- **Package-managed updater safety**: The built-in yt-dlp and gallery-dl updaters now refuse to overwrite package-managed installations and instead direct the user back to their package manager or the External Binaries page.
+- **aria2 fallback on enqueue**: If `aria2c` is enabled in settings but no longer installed, the app now auto-reverts to yt-dlp's native downloader before queueing the download instead of letting the job fail immediately.
+- **Stable yt-dlp guidance**: When the app detects a stable three-part yt-dlp version, it now explains why nightly builds are preferred and offers direct shortcuts to the relevant settings pages.
+
+## [1.1.1] - 04-03-2026
+
+### Fixed
+- **Windows post-install relaunch path**: Fixed the built-in binary installer restart flow on Windows after package-manager installs such as `winget ffmpeg`. The app now normalizes the concrete `LzyDownloader.exe` path, strips any Windows `\\?\` prefix, and relaunches through a delayed PowerShell-to-Explorer handoff instead of `cmd /c start`, preventing the invalid `\\` target error during auto-restart.
+- **gallery-dl Winget install ambiguity**: Fixed the built-in gallery-dl installer on Windows so Winget commands now use explicit package IDs (`mikf.gallery-dl` and `mikf.gallery-dl.Nightly`) instead of the ambiguous `gallery-dl` name that can match multiple packages and fail before install starts.
 - **Windows shutdown cleanup for orphaned mergers**: All tracked `QProcess` downloads and helpers now join a Windows job object with kill-on-close semantics, so quitting the app while `yt-dlp`, `ffmpeg`, `aria2c`, or related helpers are still active no longer leaves orphaned background processes behind. The standalone ffmpeg merge worker now also uses the shared process environment/tracking path and cancels via the same process-tree termination helper.
 - **Advanced Settings downloader wiring audit**: Fixed several settings paths that had drifted out of sync with the real yt-dlp arguments. `YtDlpArgsBuilder` now translates codec preferences into selectors that match real stream aliases such as `avc1`, `hev1`, and `mp4a`, so choosing `H.264 (AVC)` no longer falls through to AV1-heavy site defaults. The builder also now respects the `Restrict filenames` toggle, honors direct `format` overrides emitted by the runtime format picker, and merges runtime-selected audio format IDs into video downloads instead of silently dropping them.
+- **FFmpeg version string display**: Cleaned up the version string extraction for FFmpeg and ffprobe so the UI displays a concise version number or build date instead of the verbose build configuration string.
 - **Clickable source links in yt-dlp error dialogs**: User-facing error popups now render rich text and include the failing source URL when one is available, making it easier to inspect, retry, or open the original page while still showing the cleaned technical details.
 - **Transient helper process cleanup**: Process-tree shutdown now also covers utility `QProcess` lifetimes used by cookie validation, output-template validation, updater runs, and other UI-spawned helpers, preventing stray background tools from surviving cancellation or app exit.
 - **Legacy codec label drift**: The default saved video codec label is now the canonical `H.264 (AVC)`, and the video settings page normalizes older `H.264`/`H.265` values when loading existing configs so the UI stays aligned with the downloader mappings.
@@ -20,8 +45,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Late info.json stream-label regression**: When `info.json` arrives after stderr has already identified the active streams, `YtDlpWorker` now preserves the inferred stream order if `requested_downloads` is empty instead of clearing it and accidentally flipping the audio phase back to `Downloading video stream...`.
 - **Exit cleanup for background tools**: Closing the app now triggers an explicit `DownloadManager` shutdown that terminates descendant process trees for active downloads and helpers, preventing orphaned `ffmpeg`, `aria2c`, and similar child processes from surviving after the window exits.
 - **yt-dlp/aria2 progress regression after small overall bar update**: Restored robust progress parsing by treating pre-download extraction as indeterminate instead of leaving the UI parked at 0%, accepting slightly noisier aria2 summary lines, and using aria2 `FILE:` output to keep active stream tracking aligned with the file actually being transferred.
+- **Authentication Settings hardcoded binary paths**: Fixed the browser cookies tester so it uses the user-configured or dynamically detected `yt-dlp` and `deno` paths instead of assuming they are always in a bundled `bin/` folder.
+- **Package manager installation PATH detection**: The built-in package-manager installer (winget, scoop, pip) now automatically restarts LzyDownloader through the OS shell upon success, ensuring the app instantly inherits the newly updated system PATH and detects the installed tool without requiring manual intervention.
 
 ### Added
+- **Strict dependency enforcement**: The application now actively prevents users from queuing video/audio downloads if `yt-dlp`, `ffmpeg`, `ffprobe`, or `deno` are missing, and blocks gallery downloads if `gallery-dl`, `ffmpeg`, or `ffprobe` are missing. When a missing binary is detected during enqueue, a helpful popup directs the user to the External Binaries settings page to resolve the issue.
 - **Advanced Metadata Settings**: Added new toggles for "Crop audio thumbnails to square" and "Generate folder.jpg for audio playlists" in the Metadata settings page. Thumbnails can now also be explicitly converted to `jpg` or `png` formats.
 - **Metadata UI Decoupling**: Extracted metadata and thumbnail settings from `AdvancedSettingsTab` into a dedicated `MetadataPage` component to improve modularity.
 - **Source layout cleanup**: Moved the Start tab helper classes into `src/ui/start_tab/` and grouped the aria2 download pipeline into `src/core/download_pipeline/`. The aria2 RPC wrapper, yt-dlp download-info extractor, and ffmpeg merge worker were also renamed to `Aria2RpcClient`, `YtDlpDownloadInfoExtractor`, and `FfmpegMuxer` to make their roles clearer and reduce collisions with other core classes.
@@ -123,7 +151,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Sorting Rule dialog condition text entry size**: Set `CONDITION_VALUE_INPUT_HEIGHT` constant to 100px applied via `setFixedHeight()` for consistent text entry sizing across all conditions.
 - **Sorting Rule dialog overflow**: Fixed condition text entry boxes exceeding dialog bounds. Increased dialog minimum size to 650x500.
 - **Download queue immediate start fix**: Fixed downloads failing to start after immediate queue UI feedback implementation. Items are now correctly added to the download queue before playlist expansion, and `saveQueueState`/`startNextDownload` are properly invokable for deferred execution.
-- **Log cycling**: Changed from size-based rotation to one log file per run with timestamp in filename (`LzyDownloader_YYYY-MM-dd_HH-mm-ss.log`). Automatically keeps only the 10 most recent logs.
+- **Log cycling**: Changed from size-based rotation to one log file per run with timestamp in filename (`LzyDownloader_YYYY-MM-dd_HH-mm-ss.log`). Automatically keeps only the 5 most recent logs.
 - **Toggle switches not displaying correctly**: Fixed `ToggleSwitch` widget not updating its visual position when `setChecked()` was called with `QSignalBlocker`. The `paintEvent()` now ensures the handle offset matches the checked state.
 - **gallery-dl executable not detected after pip install**: `GalleryDlWorker` now uses `ProcessUtils::findBinary()` to resolve the gallery-dl executable, properly detecting system PATH installations (e.g., via pip) instead of only checking bundled paths.
 - **gallery-dl output template handling**: Simplified gallery-dl template handling. The `-f` flag natively supports path templates with `/` separators, so no splitting is needed.

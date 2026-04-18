@@ -16,7 +16,7 @@ This document describes how to build, package, and release the C++ version of Lz
    - Required for building the application.
 
 4. **Git & GitHub**
-   - Repo: https://github.com/vincentwetzel/LzyDownloader
+   - Repo: https://github.com/vincentwetzel/lzy-downloader
    - Must have access to create Releases
 
 ## Build Process
@@ -32,39 +32,36 @@ python ./update_gallery-dl_extractors.py
 ```
 This will update `extractors_yt-dlp.json` and `extractors_gallery-dl.json`.
 
-### Step 3: Update Version Number
+### Step 2: Update Version Number
 
-Update the version in `CMakeLists.txt` (or a dedicated version header file).
+Update the version in `CMakeLists.txt` (`project(VERSION x.y.z)`). The app version is generated from there into `version.h` and used by the Windows resources.
 
-### Step 4: Build with CMake
+Keep the installer filename in `LzyDownloader.nsi` aligned with the release version before packaging.
 
-Configure and build the project in Release mode.
+### Step 3: Run the Release Builder
+
+The preferred release path is the helper script:
+```powershell
+.\build_release.ps1
+```
+
+This script:
+- Deletes the existing `build/` directory to avoid stale DLL mismatches
+- Refreshes both extractor JSON files
+- Configures a Release build with CMake
+- Builds `LzyDownloader.exe`
+- Runs `makensis` against `LzyDownloader.nsi`
+
+### Step 4: Manual Build Steps
+
+If you are not using `build_release.ps1`, run the equivalent commands manually:
 ```powershell
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
-```
-
-This generates `LzyDownloader.exe` in the build directory.
-
-### Step 5: Deploy Qt Dependencies
-
-Use `windeployqt` to copy necessary Qt DLLs to the build directory.
-```powershell
-windeployqt build/Release/LzyDownloader.exe
-```
-
-### Step 6: Create NSIS Installer
-
-Build the NSIS script to create a Windows installer. You will need to adapt the `LzyDownloader.nsi` script to point to the C++ build output directory instead of the Python `dist/` folder.
-
-```powershell
 & 'C:\Program Files (x86)\NSIS\makensis.exe' LzyDownloader.nsi
 ```
 
-Output:
-```
-LzyDownloader-Setup-X.X.X.exe
-```
+`CMakeLists.txt` already runs `windeployqt`, re-copies the resolved Qt runtime DLLs from the configured Qt installation, and removes stray `zlib*.dll` variants from the output directory to avoid incompatible dependency mixes.
 
 ## Release to GitHub
 
@@ -77,7 +74,7 @@ git push origin vX.X.X
 
 ### Step 2: Create GitHub Release
 
-Navigate to https://github.com/vincentwetzel/LzyDownloader/releases and:
+Navigate to https://github.com/vincentwetzel/lzy-downloader/releases and:
 
 1. Click "Create a new release"
 2. **Tag version:** `vX.X.X` (must match Git tag)
@@ -90,10 +87,11 @@ Navigate to https://github.com/vincentwetzel/LzyDownloader/releases and:
 
 - [ ] Extractor lists updated (`extractors_yt-dlp.json`, `extractors_gallery-dl.json`)
 - [ ] Version number updated in `CMakeLists.txt`
-- [ ] Built in Release mode with `windeployqt`
-- [ ] NSIS installer tested (silent install preserves `settings.ini` and `download_archive.db`)
-- [ ] AppData logging verified (logs at `%APPDATA%\LzyDownloader\LzyDownloader.log`)
-- [ ] Log rotation verified (old logs cycle automatically, max 5 files at 2 MB each)
+- [ ] `LzyDownloader.nsi` output filename matches the intended release version
+- [ ] Release build completed (`build_release.ps1` or equivalent manual steps)
+- [ ] NSIS installer tested (install/uninstall preserves `%LOCALAPPDATA%\LzyDownloader\settings.ini`, `download_archive.db`, `downloads_backup.json`, and log files)
+- [ ] Timestamped logging verified (`%LOCALAPPDATA%\LzyDownloader\LzyDownloader_YYYY-MM-dd_HH-mm-ss.log`)
+- [ ] Log retention verified (startup cleanup keeps only the 5 most recent logs)
 - [ ] GitHub release published with installer asset
 
 ## Application Data Locations (Windows)
@@ -102,8 +100,9 @@ The application stores user data in standard Windows directories:
 
 | File | Location |
 |------|----------|
-| Settings | `%APPDATA%\LzyDownloader\LzyDownloader\settings.ini` |
-| Archive | `%APPDATA%\LzyDownloader\LzyDownloader\download_archive.db` |
-| Logs | `%APPDATA%\LzyDownloader\LzyDownloader.log` (with rotation: `.log.1`, `.log.2`, etc.) |
+| Settings | `%LOCALAPPDATA%\LzyDownloader\settings.ini` |
+| Archive | `%LOCALAPPDATA%\LzyDownloader\download_archive.db` |
+| Queue Backup | `%LOCALAPPDATA%\LzyDownloader\downloads_backup.json` |
+| Logs | `%LOCALAPPDATA%\LzyDownloader\LzyDownloader_YYYY-MM-dd_HH-mm-ss.log` (one new file per run; oldest logs deleted after the most recent 5) |
 
-**Important:** The NSIS installer must NOT overwrite `settings.ini`, `download_archive.db`, or log files. These are stored in user data directories, not the installation directory.
+**Important:** The NSIS installer must NOT overwrite `settings.ini`, `download_archive.db`, `downloads_backup.json`, or log files. These are stored in user data directories, not the installation directory.

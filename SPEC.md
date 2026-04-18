@@ -76,7 +76,8 @@ This document outlines the specifications for the C++ port of the LzyDownloader 
 ### 2.5. Download Engine (yt-dlp & gallery-dl)
 - **Execution**: `QProcess` to run `yt-dlp.exe` or `gallery-dl.exe`.
 - **Launch Error Handling**: If process start fails (`QProcess::FailedToStart` or related launch errors), the download must transition to a terminal error state with a clear message (no indefinite "Downloading..." state).
-- **Binary Discovery**: On launch, the application must search for required external binaries in system `PATH` and other common locations. The UI must adapt based on which binaries are found.
+- **Binary Discovery & Enforcement**: On launch, the application must search for required external binaries in system `PATH` and other common locations. The application must actively prevent the user from queuing video/audio downloads if `yt-dlp`, `ffmpeg`, `ffprobe`, or `deno` are missing, and block gallery downloads if `gallery-dl`, `ffmpeg`, or `ffprobe` are missing, prompting the user to install them via the Advanced Settings.
+- **Binary Management UI**: The External Binaries page must show the detected/configured path and current version for each supported binary. `yt-dlp` and `gallery-dl` update actions must live there, and in-app binary updates must refuse to overwrite package-managed installations.
 - **Argument Construction**: Must dynamically build arguments based on all user settings, including:
     - Subtitle flags (`--write-subs`, `--embed-subs`, `--sub-langs`).
     - Filename restriction (`--restrict-filenames`).
@@ -150,6 +151,8 @@ This document outlines the specifications for the C++ port of the LzyDownloader 
 - **File Lifecycle:**
     - Section clips saved in MP4-family containers may run through one additional asynchronous ffprobe+ffmpeg normalization pass before final move. The app probes the clipped container duration with `ffprobe`, then remuxes with `-fflags +genpts`, `-ignore_editlist 1`, `-fix_sub_duration`, `-c:s mov_text`, `-t <clip_duration>`, `-shortest`, and `-movflags +faststart` so embedded subtitle streams are hard-limited to the clip timeline and players like VLC read the clipped duration more accurately.
     - All downloads must go to a temporary directory first.
+    - **Resuming and Clearing:** Partially downloaded files are retained in the temporary directory when a download is stopped. `DownloadQueueState` persists the current `tempFilePath`, `originalDownloadedFilePath`, and tracked cleanup candidates so users can resume or manually clean up across application restarts.
+    - **Manual Cleanup:** If a user clicks "Clear Temp Files" for a stopped or failed download, the application must use the tracked cleanup candidate paths gathered during the worker run and then apply literal stem matching to sweep up associated media files, fragments (`.part-Frag`), tracking files (`.aria2`, `.ytdl`), metadata (`.info.json`), thumbnails, subtitles, and other partial sidecars. The cleanup filter must use literal string matching (`==` and `startsWith`) rather than wildcard globbing to prevent failure when video titles contain bracket characters `[]` (like YouTube IDs).
     - A file stability check must be performed before moving.
     - Files are moved to a final destination directory upon success.
     - Final file movement must be Unicode-safe and shell-independent (use Qt file APIs with copy/remove fallback for cross-volume moves).
@@ -166,13 +169,11 @@ This document outlines the specifications for the C++ port of the LzyDownloader 
 - **Qt Image Plugins**: Windows builds must deploy the Qt `imageformats` plugins required to display active-download thumbnails and converted artwork, including JPEG, PNG, WebP, and ICO support.
 
 ### 2.8. Logging
-<<<<<<< HEAD
-- A structured file logger (`LzyDownloader_YYYY-MM-dd_HH-mm-ss.log`) must be implemented to capture applica
-=======
 - A structured file logger (`LzyDownloader_YYYY-MM-dd_HH-mm-ss.log`) must be implemented to capture application output for debugging.
 - **One log file per run**: Each application launch creates a new log file with a timestamp in the filename.
-- **Log retention**: The application automatically keeps only the 10 most recent log files, deleting older ones on startup.
+- **Log retention**: The application automatically keeps only the 5 most recent log files, deleting older ones on startup.
 - Log files must be stored in the user's AppData configuration directory (`%LOCALAPPDATA%\LzyDownloader\` on Windows).
+- The app-update checker must tolerate repository renames by trying a primary GitHub Releases API URL plus fallback repository API URLs before surfacing an update-check failure.
 
 ## 3. Technical Stack
 - **Language**: C++20
@@ -181,4 +182,3 @@ This document outlines the specifications for the C++ port of the LzyDownloader 
 - **Qt SDK Discovery**: CMake must honor explicit `Qt6_DIR`/`CMAKE_PREFIX_PATH` configuration and also auto-check common Windows Qt install prefixes (for example `C:\Qt\6.*\msvc2022_64`) so IDE-driven configure steps can find Qt without manual edits on typical developer machines.
 - **Database**: SQLite (via Qt SQL module)
 - **Process Management**: `QProcess`
->>>>>>> 1f7823d4c932568a9d3627a8c0f4aee303250983

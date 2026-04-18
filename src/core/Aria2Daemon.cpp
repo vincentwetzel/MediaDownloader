@@ -49,6 +49,7 @@ bool Aria2Daemon::start()
 void Aria2Daemon::stop()
 {
     if (isRunning()) {
+        m_process->disconnect(); // Prevent re-entrant read operations on the dying process buffer
         ProcessUtils::terminateProcessTree(m_process);
         qInfo() << "Aria2c daemon stopped.";
     }

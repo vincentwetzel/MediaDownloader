@@ -8,7 +8,6 @@
 #include "advanced_settings/DownloadOptionsPage.h"
 #include "advanced_settings/MetadataPage.h"
 #include "advanced_settings/SubtitlesPage.h"
-#include "advanced_settings/UpdatesPage.h"
 #include "advanced_settings/BinariesPage.h"
 #include "core/ConfigManager.h"
 #include <QVBoxLayout>
@@ -18,11 +17,16 @@
 #include <QStackedWidget>
 #include <QPushButton>
 #include <QMessageBox>
+#include <QCheckBox>
 #include <QPalette>
 #include <QApplication>
 #include <QSizePolicy>
 #include <QEvent>
 #include <array>
+
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
 
 AdvancedSettingsTab::AdvancedSettingsTab(ConfigManager *configManager, QWidget *parent)
     : QWidget(parent), m_configManager(configManager) {
@@ -104,7 +108,7 @@ void AdvancedSettingsTab::setupUI() {
         QString tooltip;
     };
 
-    const std::array<PageDescriptor, 11> descriptors = {{
+    const std::array<PageDescriptor, 10> descriptors = {{
         { "Configuration", configPage, "General application settings, download locations, and theme." },
         { "Video Settings", new VideoSettingsPage(m_configManager, this), "Control video codec, resolution, and formats." },
         { "Audio Settings", new AudioSettingsPage(m_configManager, this), "Adjust audio codecs, quality, and extensions." },
@@ -114,8 +118,7 @@ void AdvancedSettingsTab::setupUI() {
         { "Metadata", new MetadataPage(m_configManager, this), "Embed metadata, artwork, and thumbnails into media." },
         { "Subtitles", new SubtitlesPage(m_configManager, this), "Subtitle languages, formats, and embedding behavior." },
         { "Livestream Settings", new LivestreamSettingsPage(m_configManager, this), "Configure livestream recording, quality, and post-download conversion." },
-        { "External Binaries", new BinariesPage(m_configManager, this), "Manage paths to external dependencies like yt-dlp and ffmpeg." },
-        { "Updates", new UpdatesPage(m_configManager, this), "Check for new versions of yt-dlp, gallery-dl, and the app." }
+        { "External Binaries", new BinariesPage(m_configManager, this), "Manage paths, versions, and updates for external dependencies." }
     }};
 
     for (const auto &descriptor : descriptors) {
@@ -136,9 +139,39 @@ void AdvancedSettingsTab::setupUI() {
     });
     m_categoryList->setCurrentRow(0);
 
+    QHBoxLayout *bottomLayout = new QHBoxLayout();
+
+#ifdef Q_OS_WIN
+    bool isDebug = false;
+#ifdef QT_DEBUG
+    isDebug = true;
+#elif !defined(NDEBUG)
+    isDebug = true;
+#endif
+    QCheckBox *consoleToggle = new QCheckBox("Show Debug Console", this);
+    consoleToggle->setChecked(m_configManager->get("General", "show_debug_console", isDebug).toBool());
+    
+    DWORD processList[2];
+    DWORD numProcesses = GetConsoleProcessList(processList, 2);
+    if (numProcesses > 1) {
+        consoleToggle->setEnabled(false);
+        consoleToggle->setToolTip("Console visibility cannot be toggled because the application was launched from an existing terminal.");
+    } else {
+        consoleToggle->setToolTip("Show or hide the command prompt / debug console window while the application is running.");
+    }
+
+    connect(consoleToggle, &QCheckBox::toggled, this, [this](bool checked) {
+        m_configManager->set("General", "show_debug_console", checked);
+    });
+    bottomLayout->addWidget(consoleToggle);
+#endif
+
+    bottomLayout->addStretch();
+
     m_restoreDefaultsButton = new QPushButton("Restore defaults", this);
     m_restoreDefaultsButton->setToolTip("Reset all advanced settings to defaults.");
-    mainLayout->addWidget(m_restoreDefaultsButton, 0, Qt::AlignRight);
+    bottomLayout->addWidget(m_restoreDefaultsButton);
+    mainLayout->addLayout(bottomLayout);
     connect(m_restoreDefaultsButton, &QPushButton::clicked, this, &AdvancedSettingsTab::restoreDefaults);
 }
 
@@ -168,13 +201,13 @@ void AdvancedSettingsTab::changeEvent(QEvent *event) {
 }
 
 void AdvancedSettingsTab::setGalleryDlVersion(const QString &version) {
-    if (auto page = m_stackedWidget->findChild<UpdatesPage*>()) {
+    if (auto page = m_stackedWidget->findChild<BinariesPage*>()) {
         page->setGalleryDlVersion(version);
     }
 }
 
 void AdvancedSettingsTab::setYtDlpVersion(const QString &version) {
-    if (auto page = m_stackedWidget->findChild<UpdatesPage*>()) {
+    if (auto page = m_stackedWidget->findChild<BinariesPage*>()) {
         page->setYtDlpVersion(version);
     }
 }

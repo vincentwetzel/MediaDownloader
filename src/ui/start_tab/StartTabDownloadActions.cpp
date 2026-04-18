@@ -13,6 +13,8 @@
 #include <QPushButton>
 #include <QComboBox>
 #include "ui/ToggleSwitch.h"
+#include "core/ProcessUtils.h"
+#include <QTimer>
 
 StartTabDownloadActions::StartTabDownloadActions(ConfigManager *configManager, StartTabUiBuilder *uiBuilder,
                                                  YtDlpArgsBuilder *ytDlpArgsBuilder, GalleryDlArgsBuilder *galleryDlArgsBuilder,
@@ -34,6 +36,12 @@ StartTabDownloadActions::StartTabDownloadActions(ConfigManager *configManager, S
     if (m_uiBuilder->openDownloadsFolderButton()) {
         connect(m_uiBuilder->openDownloadsFolderButton(), &QPushButton::clicked, this, &StartTabDownloadActions::openDownloadsFolder);
     }
+
+    connect(m_configManager, &ConfigManager::settingChanged, this, [this](const QString &group, const QString &/*key*/, const QVariant &/*value*/) {
+        if (group == "Binaries") {
+            QTimer::singleShot(0, this, &StartTabDownloadActions::updateDynamicUI);
+        }
+    });
 }
 
 StartTabDownloadActions::~StartTabDownloadActions()
@@ -108,12 +116,21 @@ void StartTabDownloadActions::onDownloadTypeChanged(int index)
         return;
     }
     QString type = m_uiBuilder->downloadTypeCombo()->itemData(index).toString();
-    QString typeText = m_uiBuilder->downloadTypeCombo()->currentText();
-    if (type == "formats") {
-        m_uiBuilder->downloadButton()->setText("View Formats");
-    } else {
-        m_uiBuilder->downloadButton()->setText("Download " + typeText);
+    
+    if (type == "video") {
+        m_uiBuilder->downloadButton()->setText("Download Video");
+        m_uiBuilder->downloadButton()->setToolTip("Click to add the URL(s) to the download queue.");
+    } else if (type == "audio") {
+        m_uiBuilder->downloadButton()->setText("Download Audio");
+        m_uiBuilder->downloadButton()->setToolTip("Click to add the URL(s) to the download queue.");
+    } else if (type == "gallery") {
+        m_uiBuilder->downloadButton()->setText("Download Gallery");
+        m_uiBuilder->downloadButton()->setToolTip("Click to add the URL(s) to the download queue.");
+    } else if (type == "formats") {
+        m_uiBuilder->downloadButton()->setText("View Video/Audio Formats");
+        m_uiBuilder->downloadButton()->setToolTip("Query yt-dlp to list available video and audio formats without downloading. Not supported for galleries.");
     }
+    
     emit updateCommandPreview();
 }
 
@@ -138,8 +155,27 @@ void StartTabDownloadActions::checkFormats(const QString &url) {
 
     const QString ytDlpPath = resolveExecutablePath("yt-dlp.exe");
     if (ytDlpPath.isEmpty()) {
-        QMessageBox::critical(m_parentWidget, "Error", "yt-dlp executable not found. Please configure it in the Advanced Settings tab.");
-        onViewFormatsFinished(1, QProcess::CrashExit);
+        if (m_uiBuilder->downloadButton()) {
+            m_uiBuilder->downloadButton()->setEnabled(true);
+        }
+        if (m_uiBuilder->downloadTypeCombo()) {
+            onDownloadTypeChanged(m_uiBuilder->downloadTypeCombo()->currentIndex());
+        }
+
+        QMessageBox msgBox(m_parentWidget);
+        msgBox.setIcon(QMessageBox::Warning);
+        msgBox.setWindowTitle("Missing Required Binaries");
+        msgBox.setText("Cannot view formats because the following required binaries are missing:\nyt-dlp");
+        msgBox.setInformativeText("Please install them or configure their paths in the Advanced Settings.\n\nWould you like to open the External Binaries settings now?");
+
+        QPushButton *fixButton = msgBox.addButton("Take Me There", QMessageBox::ActionRole);
+        msgBox.addButton(QMessageBox::Cancel);
+        msgBox.exec();
+
+        if (msgBox.clickedButton() == fixButton) {
+            emit navigateToExternalBinaries();
+        }
+
         process->deleteLater();
         return;
     }
@@ -195,59 +231,52 @@ void StartTabDownloadActions::openDownloadsFolder() {
 }
 
 void StartTabDownloadActions::updateDynamicUI() {
-    const bool hasYtDlp = ProcessUtils::findBinary("yt-dlp", m_configManager).source != "Not Found";
-    const bool hasGalleryDl = ProcessUtils::findBinary("gallery-dl", m_configManager).source != "Not Found";
-
     if (!m_uiBuilder || !m_uiBuilder->downloadTypeCombo() || !m_uiBuilder->downloadButton()) {
         qWarning() << "StartTabDownloadActions::updateDynamicUI - UI elements not fully initialized yet.";
         return;
     }
 
-    QStandardItemModel *model = qobject_cast<QStandardItemModel*>(m_uiBuilder->downloadTypeCombo()->model());
-    if (model) {
-        auto setItemEnabled = [this, model](const QString &dataValue, bool enabled) {
-            int index = m_uiBuilder->downloadTypeCombo()->findData(dataValue);
-            if (index != -1) {
-                QStandardItem *item = model->item(index);
-                if (item) item->setEnabled(enabled);
-            }
-        };
-        setItemEnabled("video", hasYtDlp);
-        setItemEnabled("audio", hasYtDlp);
-        setItemEnabled("formats", hasYtDlp);
-        setItemEnabled("gallery", hasGalleryDl);
-    }
-
-    // Disconnect existing signals before potentially reconnecting
-    if (m_uiBuilder->downloadButton()) {
-        disconnect(m_uiBuilder->downloadButton(), &QPushButton::clicked, this, &StartTabDownloadActions::onDownloadButtonClicked);
-        // The navigateToExternalBinaries signal is emitted by StartTab, so we disconnect from StartTab's slot
-        // and reconnect to StartTab's signal in StartTab itself.
-        // Here we only disconnect the internal connection to this object's slot.
-        // The connection to StartTab::navigateToExternalBinaries is handled in StartTab.cpp
-    }
-
-    if (!hasYtDlp && !hasGalleryDl) {
-        m_uiBuilder->downloadButton()->setText("Setup External Binaries");
-        m_uiBuilder->downloadButton()->setStyleSheet("QPushButton { font-size: 16px; font-weight: bold; background-color: #d73a49; color: white; border-radius: 5px; padding: 10px; } QPushButton:hover { background-color: #cb2431; }");
-        m_uiBuilder->downloadButton()->setToolTip("No download utilities found. Click to configure external binaries.");
-        emit navigateToExternalBinaries(); // Signal to StartTab to re-emit to MainWindow
-    } else {
-        m_uiBuilder->downloadButton()->setStyleSheet("QPushButton { font-size: 16px; font-weight: bold; background-color: #0078d7; color: white; border-radius: 5px; padding: 10px; } QPushButton:hover { background-color: #005a9e; } QPushButton:pressed { background-color: #004578; }");
-
-        QString currentData = m_uiBuilder->downloadTypeCombo()->currentData().toString();
-        if (!hasYtDlp && currentData != "gallery") {
-            int galleryIdx = m_uiBuilder->downloadTypeCombo()->findData("gallery");
-            if (galleryIdx != -1) m_uiBuilder->downloadTypeCombo()->setCurrentIndex(galleryIdx);
-        } else if (!hasGalleryDl && currentData == "gallery") {
-            int videoIdx = m_uiBuilder->downloadTypeCombo()->findData("video");
-            if (videoIdx != -1) m_uiBuilder->downloadTypeCombo()->setCurrentIndex(videoIdx);
+    QStringList requiredYt = {"yt-dlp", "ffmpeg", "ffprobe", "deno"};
+    bool hasMissingYt = false;
+    for (const QString &bin : requiredYt) {
+        QString source = ProcessUtils::findBinary(bin, m_configManager).source;
+        if (source == "Not Found" || source == "Invalid Custom") {
+            hasMissingYt = true;
+            break;
         }
-
-        int index = m_uiBuilder->downloadTypeCombo()->currentIndex();
-        onDownloadTypeChanged(index); // Update button text based on current selection
-        connect(m_uiBuilder->downloadButton(), &QPushButton::clicked, this, &StartTabDownloadActions::onDownloadButtonClicked);
     }
+
+    QStringList requiredGallery = {"gallery-dl", "ffmpeg", "ffprobe"};
+    bool hasMissingGallery = false;
+    for (const QString &bin : requiredGallery) {
+        QString source = ProcessUtils::findBinary(bin, m_configManager).source;
+        if (source == "Not Found" || source == "Invalid Custom") {
+            hasMissingGallery = true;
+            break;
+        }
+    }
+
+    QString ytSource = ProcessUtils::findBinary("yt-dlp", m_configManager).source;
+    bool ytDlpOnlyMissing = (ytSource == "Not Found" || ytSource == "Invalid Custom");
+
+    auto updateItemText = [this](const QString &dataValue, const QString &baseText, bool isMissing) {
+        int index = m_uiBuilder->downloadTypeCombo()->findData(dataValue);
+        if (index != -1) {
+            QString newText = baseText + (isMissing ? " (missing binaries)" : "");
+            m_uiBuilder->downloadTypeCombo()->setItemText(index, newText);
+        }
+    };
+
+    updateItemText("video", "Video", hasMissingYt);
+    updateItemText("audio", "Audio Only", hasMissingYt);
+    updateItemText("gallery", "Gallery", hasMissingGallery);
+    updateItemText("formats", "View Video/Audio Formats", ytDlpOnlyMissing);
+
+    m_uiBuilder->downloadButton()->setStyleSheet("QPushButton { font-size: 16px; font-weight: bold; background-color: #0078d7; color: white; border-radius: 5px; padding: 10px; } QPushButton:hover { background-color: #005a9e; } QPushButton:pressed { background-color: #004578; }");
+    m_uiBuilder->downloadButton()->setToolTip("Click to add the URL(s) to the download queue.");
+
+    int index = m_uiBuilder->downloadTypeCombo()->currentIndex();
+    onDownloadTypeChanged(index);
 }
 
 QString StartTabDownloadActions::resolveExecutablePath(const QString &name) const {

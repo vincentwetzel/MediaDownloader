@@ -58,7 +58,7 @@ void DownloadItemWidget::setupUi() {
     m_overallProgressBar->hide();
 
     m_clearButton = new QPushButton("X", this);
-    m_clearButton->setToolTip("Clear this download from the list.");
+    m_clearButton->setToolTip("Clear this download from the queue.");
     m_clearButton->setFixedSize(20, 20);
     m_clearButton->setStyleSheet("QPushButton { font-weight: bold; color: red; border: none; } QPushButton:hover { background-color: rgba(150,150,150,0.3); }");
     m_clearButton->hide();
@@ -73,22 +73,25 @@ void DownloadItemWidget::setupUi() {
     infoLayout->addWidget(m_overallProgressLabel);
     infoLayout->addWidget(m_overallProgressBar);
 
-    m_pauseResumeButton = new QPushButton("Pause", this);
-    m_pauseResumeButton->setToolTip("Pause or resume this download.");
-    m_cancelButton = new QPushButton("Cancel", this);
-    m_cancelButton->setToolTip("Cancel this download.");
+    m_cancelButton = new QPushButton("Stop", this);
+    m_cancelButton->setToolTip("Stop this download.");
     m_retryButton = new QPushButton("Retry", this);
     m_retryButton->setToolTip("Retry this failed or cancelled download.");
     m_openFolderButton = new QPushButton("Open Folder", this);
     m_openFolderButton->setToolTip("Open the folder where this file was saved.");
 
+    QPushButton *clearTempButton = new QPushButton("Clear Temp Files", this);
+    clearTempButton->setObjectName("clearTempButton");
+    clearTempButton->setToolTip("Delete partial download files from disk to free up space.");
+    clearTempButton->hide();
+
     m_retryButton->hide();
     m_openFolderButton->hide();
 
     QHBoxLayout *buttonLayout = new QHBoxLayout();
-    buttonLayout->addWidget(m_pauseResumeButton);
     buttonLayout->addWidget(m_cancelButton);
     buttonLayout->addWidget(m_retryButton);
+    buttonLayout->addWidget(clearTempButton);
     buttonLayout->addWidget(m_openFolderButton);
     buttonLayout->addStretch();
 
@@ -114,8 +117,21 @@ void DownloadItemWidget::setupUi() {
     connect(m_cancelButton, &QPushButton::clicked, this, &DownloadItemWidget::onCancelClicked);
     connect(m_retryButton, &QPushButton::clicked, this, &DownloadItemWidget::onRetryClicked);
     connect(m_openFolderButton, &QPushButton::clicked, this, &DownloadItemWidget::onOpenContainingFolderClicked);
-    connect(m_clearButton, &QPushButton::clicked, this, [this]() { emit clearRequested(getId()); });
-    connect(m_pauseResumeButton, &QPushButton::clicked, this, &DownloadItemWidget::onPauseResumeClicked);
+    connect(m_clearButton, &QPushButton::clicked, this, [this]() { 
+        m_clearButton->setEnabled(false);
+        emit cancelRequested(getId()); // Tell the backend to clean up temp files
+        emit clearRequested(getId()); 
+    });
+    connect(clearTempButton, &QPushButton::clicked, this, [this, clearTempButton]() {
+        clearTempButton->setEnabled(false);
+        clearTempButton->setText("Files Cleared");
+        if (m_progressBar) {
+            m_progressBar->setRange(0, 100);
+            m_progressBar->setValue(0);
+            m_progressBar->setProgressText("0% (Files Cleared)");
+        }
+        emit cancelRequested(getId()); // Tells backend to delete files since it's already stopped
+    });
     connect(m_moveUpButton, &QPushButton::clicked, this, &DownloadItemWidget::onMoveUpClicked);
     connect(m_moveDownButton, &QPushButton::clicked, this, &DownloadItemWidget::onMoveDownClicked);
 }
@@ -240,7 +256,6 @@ void DownloadItemWidget::setFinalPath(const QString &path) {
 }
 
 void DownloadItemWidget::setFinished(bool success, const QString &message) {
-    m_pauseResumeButton->hide();
     m_cancelButton->hide();
     m_moveUpButton->hide();
     m_moveDownButton->hide();
@@ -249,12 +264,20 @@ void DownloadItemWidget::setFinished(bool success, const QString &message) {
     m_clearButton->show();
 
     if (!success) {
+        m_retryButton->setEnabled(true);
+        m_retryButton->setText("Retry");
         m_retryButton->show();
         m_statusLabel->setStyleSheet("color: #dc2626;");
         m_progressBar->setStyleSheet("QProgressBar { color: #dc2626; }");
         m_progressBar->setProgressText("Download failed");
         m_overallProgressBar->hide();
         m_overallProgressLabel->hide();
+
+        if (QPushButton *clearTempButton = findChild<QPushButton*>("clearTempButton")) {
+            clearTempButton->show();
+            clearTempButton->setEnabled(true);
+            clearTempButton->setText("Clear Temp Files");
+        }
     } else {
         m_statusLabel->setStyleSheet("");
         m_progressBar->setRange(0, 100);
@@ -272,35 +295,70 @@ void DownloadItemWidget::setFinished(bool success, const QString &message) {
 }
 
 void DownloadItemWidget::setCancelled() {
-    m_pauseResumeButton->hide();
     m_cancelButton->hide();
     m_moveUpButton->hide();
     m_moveDownButton->hide();
+    m_retryButton->setEnabled(true);
+    m_retryButton->setText("Resume");
     m_retryButton->show();
     m_isFinished = true;
     m_isSuccessful = false;
     m_clearButton->show();
     m_statusLabel->setStyleSheet("color: #dc2626;");
-    m_statusLabel->setText("Cancelled");
+    m_statusLabel->setText("Stopped");
     m_progressBar->setStyleSheet("QProgressBar { color: #dc2626; }");
-    m_progressBar->setProgressText("Cancelled");
+    m_progressBar->setProgressText("Stopped");
     m_overallProgressBar->hide();
     m_overallProgressLabel->hide();
+
+    if (QPushButton *clearTempButton = findChild<QPushButton*>("clearTempButton")) {
+        clearTempButton->show();
+        clearTempButton->setEnabled(true);
+        clearTempButton->setText("Clear Temp Files");
+    }
 }
 
 void DownloadItemWidget::setPaused(bool paused) {
     m_isPaused = paused;
-    m_pauseResumeButton->setText(paused ? "Resume" : "Pause");
     if (paused) {
         m_statusLabel->setText("Paused");
     }
 }
 
 void DownloadItemWidget::onCancelClicked() {
+    showCancellingFeedback();
     emit cancelRequested(getId());
 }
 
 void DownloadItemWidget::onRetryClicked() {
+    m_retryButton->setEnabled(false);
+    if (m_retryButton->text() == "Resume") {
+        m_retryButton->setText("Resuming...");
+    } else {
+        m_retryButton->setText("Retrying...");
+    }
+    
+    // Reset state so it can accept progress updates again
+    m_isFinished = false;
+    m_isSuccessful = false;
+    m_isPaused = false;
+    
+    // Restore normal buttons
+    m_retryButton->hide();
+    m_clearButton->hide();
+    
+    if (QPushButton *clearTempButton = findChild<QPushButton*>("clearTempButton")) {
+        clearTempButton->hide();
+    }
+
+    m_cancelButton->show();
+    m_cancelButton->setEnabled(true);
+    m_cancelButton->setText("Stop");
+    
+    // Clear red error/stopped stylesheets
+    m_statusLabel->setStyleSheet("");
+    m_progressBar->setStyleSheet("");
+    
     emit retryRequested(m_itemData);
 }
 
@@ -309,6 +367,7 @@ void DownloadItemWidget::onOpenContainingFolderClicked() {
 }
 
 void DownloadItemWidget::onPauseResumeClicked() {
+    showPausingFeedback(!m_isPaused);
     if (m_isPaused) {
         emit unpauseRequested(getId());
     } else {
@@ -322,4 +381,24 @@ void DownloadItemWidget::onMoveUpClicked() {
 
 void DownloadItemWidget::onMoveDownClicked() {
     emit moveDownRequested(getId());
+}
+
+void DownloadItemWidget::showCancellingFeedback()
+{
+    if (m_statusLabel) {
+        m_statusLabel->setText("Stopping...");
+    }
+    
+    // Disable buttons so the user knows the click registered
+    if (m_cancelButton) {
+        m_cancelButton->setEnabled(false);
+        m_cancelButton->setText("Stopping...");
+    }
+}
+
+void DownloadItemWidget::showPausingFeedback(bool pausing)
+{
+    if (m_statusLabel) {
+        m_statusLabel->setText(pausing ? "Pausing..." : "Resuming...");
+    }
 }

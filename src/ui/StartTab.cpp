@@ -49,6 +49,8 @@ StartTab::StartTab(ConfigManager *configManager, ExtractorJsonParser *extractorJ
     });
 
     m_uiBuilder = new StartTabUiBuilder(m_configManager, this);
+    setupUI(); // UI elements are created here using the builder
+
     m_urlHandler = new StartTabUrlHandler(m_configManager, m_extractorJsonParser, m_uiBuilder, this);
     m_downloadActions = new StartTabDownloadActions(m_configManager, m_uiBuilder, m_ytDlpArgsBuilder, m_galleryDlArgsBuilder, this);
     m_commandPreviewUpdater = new StartTabCommandPreviewUpdater(m_configManager, m_uiBuilder, m_ytDlpArgsBuilder, m_galleryDlArgsBuilder, this);
@@ -59,7 +61,6 @@ StartTab::StartTab(ConfigManager *configManager, ExtractorJsonParser *extractorJ
     connect(m_downloadActions, &StartTabDownloadActions::downloadRequested, this, &StartTab::downloadRequested);
     connect(m_downloadActions, &StartTabDownloadActions::navigateToExternalBinaries, this, &StartTab::navigateToExternalBinaries);
 
-    setupUI(); // UI elements are created here using the builder
     loadSettings();
     if (m_uiBuilder->urlInput()) { // Added null check
         m_uiBuilder->urlInput()->setEnabled(false);

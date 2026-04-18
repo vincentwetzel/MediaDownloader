@@ -4,12 +4,13 @@
 #include <QObject>
 #include <QNetworkAccessManager>
 #include <QUrl>
+#include <QStringList>
 
 class AppUpdater : public QObject {
     Q_OBJECT
 
 public:
-    explicit AppUpdater(const QString &repoUrl, const QString &currentVersion, QObject *parent = nullptr);
+    explicit AppUpdater(const QStringList &repoUrls, const QString &currentVersion, QObject *parent = nullptr);
     void checkForUpdates();
     void downloadAndInstall(const QUrl &downloadUrl);
 
@@ -25,7 +26,10 @@ private slots:
     void onDownloadFinished(QNetworkReply *reply);
 
 private:
-    QString m_repoUrl;
+    void fetchNextUrl();
+
+    QStringList m_repoUrls;
+    int m_currentUrlIndex;
     QString m_currentVersion;
     QNetworkAccessManager *m_networkManager;
 };

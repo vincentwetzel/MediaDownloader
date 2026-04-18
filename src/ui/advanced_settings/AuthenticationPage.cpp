@@ -93,13 +93,12 @@ void AuthenticationPage::onCookiesBrowserChanged(const QString &text) {
     QStringList args;
     args << "--cookies-from-browser" << text.toLower() << "--simulate" << "--verbose" << "https://www.youtube.com/watch?v=7x52ID-2H0E";
 
-    QString denoPath;
-    const QString appDir = QCoreApplication::applicationDirPath();
-    if (QFile::exists(QDir(appDir).filePath("deno.exe"))) denoPath = QDir(appDir).filePath("deno.exe");
-    else if (QFile::exists(QDir(appDir).filePath("bin/deno.exe"))) denoPath = QDir(appDir).filePath("bin/deno.exe");
+    ProcessUtils::FoundBinary denoBinary = ProcessUtils::findBinary("deno", m_configManager);
+    if (denoBinary.source != "Not Found") {
+        args << "--js-runtimes" << QString("deno:%1").arg(denoBinary.path);
+    }
 
-    if (!denoPath.isEmpty()) args << "--js-runtimes" << QString("deno:%1").arg(denoPath);
-    m_cookieCheckProcess->start("yt-dlp", args);
+    m_cookieCheckProcess->start(ProcessUtils::findBinary("yt-dlp", m_configManager).path, args);
 }
 
 void AuthenticationPage::onCookieCheckProcessStarted() { m_cookieCheckTimeoutTimer->start(30000); }
@@ -126,7 +125,7 @@ void AuthenticationPage::onCookieCheckProcessErrorOccurred(QProcess::ProcessErro
     m_cookieCheckTimeoutTimer->stop();
     if (m_cookieCheckProcess->state() == QProcess::NotRunning) return;
     unsetCursor(); m_cookiesBrowserCombo->setEnabled(true);
-    QMessageBox::critical(this, "Process Error", error == QProcess::FailedToStart ? "Failed to start yt-dlp. Please ensure 'yt-dlp.exe' is in the application directory or 'bin/' folder." : QString("An unknown error occurred: %1").arg(m_cookieCheckProcess->errorString()));
+    QMessageBox::critical(this, "Process Error", error == QProcess::FailedToStart ? "Failed to start yt-dlp. Please ensure it is installed and configured in Advanced Settings." : QString("An unknown error occurred: %1").arg(m_cookieCheckProcess->errorString()));
     loadSettings();
 }
 void AuthenticationPage::onCookieCheckProcessReadyReadStandardOutput() { qDebug().noquote() << "yt-dlp stdout:" << m_cookieCheckProcess->readAllStandardOutput(); }

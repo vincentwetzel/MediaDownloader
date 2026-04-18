@@ -34,6 +34,25 @@ bool shouldNormalizeSectionContainer(const DownloadItem &item)
     const QString suffix = QFileInfo(item.tempFilePath).suffix().toLower();
     return suffix == "mp4" || suffix == "m4v" || suffix == "mov" || suffix == "m4a";
 }
+
+bool isMetadataSidecarPath(const QString &path)
+{
+    return path.endsWith(".info.json", Qt::CaseInsensitive);
+}
+
+void appendCleanupCandidate(QVariantMap &options, const QString &path)
+{
+    const QString normalizedPath = QDir::fromNativeSeparators(path.trimmed());
+    if (normalizedPath.isEmpty()) {
+        return;
+    }
+
+    QStringList cleanupCandidates = options.value("cleanup_candidates").toStringList();
+    if (!cleanupCandidates.contains(normalizedPath, Qt::CaseInsensitive)) {
+        cleanupCandidates.append(normalizedPath);
+        options["cleanup_candidates"] = cleanupCandidates;
+    }
+}
 }
 
 DownloadManager::DownloadManager(ConfigManager *configManager, QObject *parent) : QObject(parent),
@@ -96,8 +115,13 @@ void DownloadManager::shutdown() {
 
     qInfo() << "[DownloadManager] Shutdown requested. Terminating active downloads and helper processes.";
 
+    if (m_queueManager) {
+        m_queueManager->saveQueueState(m_activeItems);
+    }
+
     const QList<QProcess*> descendantProcesses = findChildren<QProcess*>();
     for (QProcess *process : descendantProcesses) {
+        process->disconnect(); // Prevent reading buffers from dying process
         ProcessUtils::terminateProcessTree(process);
     }
 
@@ -345,23 +369,36 @@ void DownloadManager::cancelDownload(const QString &id) {
 
     if (m_queueManager->m_pendingExpansions.contains(id)) {
         m_queueManager->m_pendingExpansions.remove(id);
-        emit downloadCancelled(id); // Emit again if it was a pending expansion, as queue manager already emitted for removal
-        return;
+        
+        // Find and terminate the background PlaylistExpander process
+        const QList<PlaylistExpander*> expanders = findChildren<PlaylistExpander*>();
+        for (PlaylistExpander *expander : expanders) {
+            if (expander->property("queueId").toString() == id) {
+                expander->disconnect(this);
+                const QList<QProcess*> processes = expander->findChildren<QProcess*>();
+                for (QProcess *p : processes) {
+                    if (p->state() != QProcess::NotRunning) {
+                        p->disconnect(); // Prevent reading buffers from dying process
+                        ProcessUtils::terminateProcessTree(p);
+                        p->kill();
+                    }
+                }
+                expander->deleteLater();
+                break;
+            }
+        }
+        
+        if (!cancelled) {
+            emit downloadCancelled(id); 
+            cancelled = true;
+        }
     }
 
-    if (!cancelled && m_activeWorkers.contains(id)) {
+    // Always check active workers to ensure no ghost processes remain
+    if (m_activeWorkers.contains(id)) {
         QObject *worker = m_activeWorkers.take(id);
-        DownloadItem item = m_activeItems.value(id);
+        DownloadItem item = m_activeItems.take(id);
 
-        if (!item.tempFilePath.isEmpty()) {
-            QFile::remove(item.tempFilePath);
-            QFileInfo fi(item.tempFilePath);
-            QString infoFilePath = fi.absoluteDir().filePath(fi.completeBaseName() + ".info.json");
-            QFile::remove(infoFilePath);
-            qDebug() << "Cleaned up temporary files for cancelled download:" << id;
-        }
-
-        m_activeItems.remove(id);
         m_workerSpeeds.remove(id);
         updateTotalSpeed();
 
@@ -375,29 +412,57 @@ void DownloadManager::cancelDownload(const QString &id) {
             }
         }
 
+        worker->disconnect(this);
+        
+        // Ensure all child processes belonging to this worker are forcefully killed
+        const QList<QProcess*> processes = worker->findChildren<QProcess*>();
+        for (QProcess *p : processes) {
+            if (p->state() != QProcess::NotRunning) {
+                p->disconnect();
+                ProcessUtils::terminateProcessTree(p);
+                p->kill();
+            }
+        }
+
         worker->deleteLater();
         m_activeDownloadsCount--;
-        emit downloadCancelled(id);
-        cancelled = true;
-    } else if (!cancelled && m_activeEmbedders.contains(id)) {
+        
+        item.options["is_stopped"] = true;
+        m_queueManager->m_pausedItems[id] = item;
+        
+        if (!cancelled) {
+            emit downloadCancelled(id);
+            cancelled = true;
+        }
+    } 
+    
+    if (m_activeEmbedders.contains(id)) {
         // Cancel a download that is currently in the post-processing metadata phase
         QObject *embedder = m_activeEmbedders.take(id);
         DownloadItem item = m_activeItems.take(id);
         
-        if (!item.tempFilePath.isEmpty()) {
-            QFile::remove(item.tempFilePath);
-            QFileInfo fi(item.tempFilePath);
-            QString infoFilePath = fi.absoluteDir().filePath(fi.completeBaseName() + ".info.json");
-            QFile::remove(infoFilePath);
-            qDebug() << "Cleaned up temporary files for cancelled metadata embed:" << id;
-        }
+        embedder->disconnect(this);
         
+        const QList<QProcess*> processes = embedder->findChildren<QProcess*>();
+        for (QProcess *p : processes) {
+            if (p->state() != QProcess::NotRunning) {
+                p->disconnect();
+                ProcessUtils::terminateProcessTree(p);
+                p->kill();
+            }
+        }
+
         // Deleting the embedder will kill any active QProcess internally
         embedder->deleteLater();
         
+        item.options["is_stopped"] = true;
+        m_queueManager->m_pausedItems[id] = item;
+        
         m_activeDownloadsCount--;
-        emit downloadCancelled(id);
-        cancelled = true;
+        if (!cancelled) {
+            emit downloadCancelled(id);
+            cancelled = true;
+        }
     }
 
     if (cancelled) {
@@ -433,6 +498,16 @@ void DownloadManager::restartDownloadWithOptions(const QVariantMap &itemData) {
         if (ytDlpWorker) {
             ytDlpWorker->killProcess();
         }
+        
+        const QList<QProcess*> processes = worker->findChildren<QProcess*>();
+        for (QProcess *p : processes) {
+            if (p->state() != QProcess::NotRunning) {
+                p->disconnect();
+                ProcessUtils::terminateProcessTree(p);
+                p->kill();
+            }
+        }
+
         worker->deleteLater();
     }
 
@@ -487,6 +562,17 @@ void DownloadManager::pauseDownload(const QString &id) {
             }
         }
         
+        worker->disconnect(this);
+        
+        const QList<QProcess*> processes = worker->findChildren<QProcess*>();
+        for (QProcess *p : processes) {
+            if (p->state() != QProcess::NotRunning) {
+                p->disconnect();
+                ProcessUtils::terminateProcessTree(p);
+                p->kill();
+            }
+        }
+
         worker->deleteLater();
         m_activeDownloadsCount--;
         qDebug() << "Paused active download:" << id;
@@ -716,6 +802,24 @@ void DownloadManager::onSleepTimerTimeout() {
 }
 
 void DownloadManager::onWorkerProgress(const QString &id, const QVariantMap &progressData) {
+    if (m_activeItems.contains(id)) {
+        DownloadItem &item = m_activeItems[id];
+        const QString currentFile = progressData.value("current_file").toString().trimmed();
+        if (!currentFile.isEmpty()) {
+            const QString normalizedCurrentFile = QDir::fromNativeSeparators(currentFile);
+            item.tempFilePath = normalizedCurrentFile;
+            appendCleanupCandidate(item.options, normalizedCurrentFile);
+            if (!isMetadataSidecarPath(normalizedCurrentFile)) {
+                item.originalDownloadedFilePath = normalizedCurrentFile;
+            }
+        }
+
+        const QString thumbnailPath = progressData.value("thumbnail_path").toString().trimmed();
+        if (!thumbnailPath.isEmpty()) {
+            appendCleanupCandidate(item.options, thumbnailPath);
+        }
+    }
+
     m_workerSpeeds[id] = progressData.value("speed_bytes", 0.0).toDouble();
     updateTotalSpeed();
     emit downloadProgress(id, progressData);
@@ -733,7 +837,10 @@ void DownloadManager::onWorkerFinished(const QString &id, bool success, const QS
     m_activeDownloadsCount--;
 
     if (!success) {
-        m_activeItems.remove(id);
+        DownloadItem item = m_activeItems.take(id);
+        item.options["is_failed"] = true;
+        m_queueManager->m_pausedItems[id] = item;
+        
         m_errorDownloadsCount++;
         emit downloadFinished(id, false, message); // This will trigger emitDownloadStats()
         m_queueManager->saveQueueState(m_activeItems);
@@ -796,7 +903,10 @@ void DownloadManager::onGalleryDlWorkerFinished(const QString &id, bool success,
     m_activeDownloadsCount--;
 
     if (!success) {
-        m_activeItems.remove(id);
+        DownloadItem item = m_activeItems.take(id);
+        item.options["is_failed"] = true;
+        m_queueManager->m_pausedItems[id] = item;
+        
         m_errorDownloadsCount++;
         emit downloadFinished(id, false, message); // This will trigger emitDownloadStats()
         m_queueManager->saveQueueState(m_activeItems);
@@ -844,7 +954,10 @@ void DownloadManager::onMetadataEmbedded(const QString &id, bool success, const 
     if (success) {
         m_finalizer->finalize(id, item);
     } else {
-        m_activeItems.remove(id);
+        DownloadItem item = m_activeItems.take(id);
+        item.options["is_failed"] = true;
+        m_queueManager->m_pausedItems[id] = item;
+        
         m_errorDownloadsCount++;
         emit downloadFinished(id, false, "Metadata embedding failed: " + error); // This will trigger emitDownloadStats()
         m_queueManager->saveQueueState(m_activeItems);

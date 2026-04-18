@@ -101,6 +101,7 @@ QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString 
     if (configManager->get("General", "restrict_filenames", false).toBool()) rawArgs << "--restrict-filenames";
     else rawArgs << "--no-restrict-filenames";
     rawArgs << "--newline";
+    rawArgs << "--force-overwrites";
     rawArgs << "--ignore-errors"; // Continue on non-fatal errors (like subtitle failures)
 
     QString downloadType = options.value("type").toString();
@@ -239,10 +240,13 @@ QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString 
     // --- General Options ---
     if (configManager->get("General", "sponsorblock", false).toBool()) rawArgs << "--sponsorblock-remove" << "all";
     const ProcessUtils::FoundBinary aria2Binary = ProcessUtils::findBinary("aria2c", configManager);
-    if (configManager->get("Metadata", "use_aria2c", false).toBool() && aria2Binary.source != "Not Found") {
+    if (configManager->get("Metadata", "use_aria2c", false).toBool() && aria2Binary.source != "Not Found" && aria2Binary.source != "Invalid Custom") {
         QString aria2cPath = aria2Binary.path;
         rawArgs << "--external-downloader" << aria2cPath;
         rawArgs << "--external-downloader-args" << "aria2c:--summary-interval=1";
+        qInfo() << "YtDlpArgsBuilder: Using aria2c as external downloader (" << aria2cPath << ")";
+    } else {
+        qInfo() << "YtDlpArgsBuilder: Using native yt-dlp downloader";
     }
     
     QString geoProxy = configManager->get("DownloadOptions", "geo_verification_proxy", "").toString();
@@ -400,7 +404,3 @@ QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString 
 
     return rawArgs;
 }
-
-
-
-

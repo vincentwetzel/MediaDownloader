@@ -15,6 +15,9 @@ class QProgressBar;
 class ProgressLabelBar : public QProgressBar {
     Q_OBJECT
 public:
+    void showCancellingFeedback();
+    void showPausingFeedback(bool pausing);
+
     explicit ProgressLabelBar(QWidget *parent = nullptr) : QProgressBar(parent) {
         setMinimumHeight(24);
         setTextVisible(false); // We draw our own centered text
@@ -104,6 +107,8 @@ public:
     void setPaused(bool paused);
     bool isFinished() const { return m_isFinished; }
     bool isSuccessful() const { return m_isSuccessful; }
+    void showCancellingFeedback();
+    void showPausingFeedback(bool pausing);
 };
 
 #endif // DOWNLOADITEMWIDGET_H

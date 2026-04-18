@@ -24,8 +24,7 @@ void ActiveDownloadsTab::setupUi() {
     mainLayout->setContentsMargins(20, 20, 20, 20);
 
     QHBoxLayout *toolbarLayout = new QHBoxLayout();
-    m_pauseResumeAllButton = new QPushButton("Pause All", this);
-    m_cancelAllButton = new QPushButton("Cancel All", this);
+    m_cancelAllButton = new QPushButton("Stop All", this);
     m_clearCompletedButton = new QPushButton("Clear Completed", this);
     
     // Add folder buttons for quick access to download directories
@@ -55,7 +54,6 @@ void ActiveDownloadsTab::setupUi() {
         QDesktopServices::openUrl(QUrl::fromLocalFile(downloadsDir));
     });
     
-    toolbarLayout->addWidget(m_pauseResumeAllButton);
     toolbarLayout->addWidget(m_cancelAllButton);
     toolbarLayout->addWidget(m_clearCompletedButton);
     toolbarLayout->addStretch();
@@ -105,7 +103,6 @@ void ActiveDownloadsTab::setupUi() {
 
     updatePlaceholderVisibility();
 
-    connect(m_pauseResumeAllButton, &QPushButton::clicked, this, &ActiveDownloadsTab::togglePauseAllDownloads);
     connect(m_clearCompletedButton, &QPushButton::clicked, this, &ActiveDownloadsTab::clearCompletedDownloads);
     connect(m_cancelAllButton, &QPushButton::clicked, this, &ActiveDownloadsTab::cancelAllDownloads);
 }
@@ -186,12 +183,10 @@ void ActiveDownloadsTab::removeExpandingPlaylist(const QString &url, int count) 
 void ActiveDownloadsTab::updatePlaceholderVisibility() {
     if (m_downloadItems.isEmpty()) {
         m_stackedLayout->setCurrentIndex(0); // Show placeholder
-        m_pauseResumeAllButton->setEnabled(false);
         m_cancelAllButton->setEnabled(false);
         m_clearCompletedButton->setEnabled(false);
     } else {
         m_stackedLayout->setCurrentIndex(1); // Show downloads
-        m_pauseResumeAllButton->setEnabled(true);
         m_cancelAllButton->setEnabled(true);
         m_clearCompletedButton->setEnabled(true);
     }
@@ -210,8 +205,23 @@ void ActiveDownloadsTab::clearCompletedDownloads() {
 }
 
 void ActiveDownloadsTab::cancelAllDownloads() {
+    bool hasActive = false;
     for (auto it = m_downloadItems.begin(); it != m_downloadItems.end(); ++it) {
         if (!it.value()->isFinished()) {
+            hasActive = true;
+            break;
+        }
+    }
+    
+    if (!hasActive) return;
+
+    if (QMessageBox::question(this, "Stop All", "Are you sure you want to stop all active downloads?", QMessageBox::Yes | QMessageBox::No) == QMessageBox::No) {
+        return;
+    }
+
+    for (auto it = m_downloadItems.begin(); it != m_downloadItems.end(); ++it) {
+        if (!it.value()->isFinished()) {
+            it.value()->showCancellingFeedback();
             emit cancelDownloadRequested(it.key());
         }
     }
@@ -219,10 +229,10 @@ void ActiveDownloadsTab::cancelAllDownloads() {
 
 void ActiveDownloadsTab::togglePauseAllDownloads() {
     m_isAllPaused = !m_isAllPaused;
-    m_pauseResumeAllButton->setText(m_isAllPaused ? "Resume All" : "Pause All");
     
     for (auto it = m_downloadItems.begin(); it != m_downloadItems.end(); ++it) {
         if (!it.value()->isFinished()) {
+            it.value()->showPausingFeedback(m_isAllPaused);
             if (m_isAllPaused) {
                 emit pauseDownloadRequested(it.key());
             } else {

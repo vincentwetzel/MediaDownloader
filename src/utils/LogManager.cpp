@@ -9,15 +9,21 @@
 #include <QCoreApplication>
 #include <QStandardPaths>
 #include <QRegularExpression>
+#include <QMutex>
 
 // Define a static file pointer for the log file
 static QFile *logFile = nullptr;
 
+// Mutex to prevent concurrent file I/O from multiple threads
+static QMutex s_logMutex;
+
 // Maximum number of log files to keep (oldest will be deleted)
-static const int MAX_LOG_FILES = 10;
+static const int MAX_LOG_FILES = 5;
 
 // Custom message handler
 void customMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg) {
+    QMutexLocker locker(&s_logMutex);
+
     QString formattedMsg;
     QTextStream stream(&formattedMsg);
     stream.setEncoding(QStringConverter::Utf8);
@@ -77,17 +83,30 @@ static void cleanupOldLogs(const QString &logDir) {
         return;
     }
 
-    // Find all log files matching the pattern
-    QStringList logFiles = dir.entryList(QStringList() << "LzyDownloader_*.log", QDir::Files, QDir::Time);
+    // Find all log files matching the pattern, sort by name descending (newest first)
+    QStringList logFiles = dir.entryList(QStringList() << "LzyDownloader*.log", QDir::Files, QDir::Name | QDir::Reversed);
     
+    // We want to keep exactly MAX_LOG_FILES - 1 files before creating the new one
+    const int maxKeep = MAX_LOG_FILES > 0 ? MAX_LOG_FILES - 1 : 0;
+
     // Delete oldest files if we exceed the limit
-    if (logFiles.size() > MAX_LOG_FILES) {
-        for (int i = MAX_LOG_FILES; i < logFiles.size(); ++i) {
+    if (logFiles.size() > maxKeep) {
+        for (int i = maxKeep; i < logFiles.size(); ++i) {
             QString oldLog = dir.filePath(logFiles[i]);
             if (QFile::exists(oldLog)) {
                 QFile::remove(oldLog);
                 qDebug() << "Removed old log file:" << logFiles[i];
             }
+        }
+    }
+
+    // Also cleanup legacy size-rotated logs if they exist
+    QStringList legacyLogs = dir.entryList(QStringList() << "LzyDownloader.log.*", QDir::Files);
+    for (const QString& legacyLog : legacyLogs) {
+        QString path = dir.filePath(legacyLog);
+        if (QFile::exists(path)) {
+            QFile::remove(path);
+            qDebug() << "Removed legacy log file:" << legacyLog;
         }
     }
 }

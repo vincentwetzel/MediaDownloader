@@ -1,63 +1,93 @@
 !include "MUI2.nsh"
+!include "LogicLib.nsh"
 
-; General Settings
+;--------------------------------
+; General Configuration
 Name "LzyDownloader"
-OutFile "LzyDownloader_Installer.exe"
+OutFile "LzyDownloader-Setup-1.1.0.exe"
 InstallDir "$PROGRAMFILES64\LzyDownloader"
-InstallDirRegKey HKLM "Software\LzyDownloader" "Install_Dir"
+InstallDirRegKey HKLM "Software\LzyDownloader" "InstallLocation"
 RequestExecutionLevel admin
 
-; UI Settings
+;--------------------------------
+; Interface Settings
 !define MUI_ABORTWARNING
-!define MUI_ICON "src\ui\assets\icon.ico" ; Make sure this path points to your actual icon
-!define MUI_UNICON "src\ui\assets\icon.ico"
 
+; Uncomment these if you have an icon file available in your source tree
+; !define MUI_ICON "src\resources\icon.ico"
+; !define MUI_UNICON "src\resources\icon.ico"
+
+;--------------------------------
 ; Pages
+!insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
+!insertmacro MUI_PAGE_FINISH
 
 !insertmacro MUI_UNPAGE_CONFIRM
 !insertmacro MUI_UNPAGE_INSTFILES
 
-; Language
+;--------------------------------
+; Languages
 !insertmacro MUI_LANGUAGE "English"
 
-Section "LzyDownloader" SecMain
+;--------------------------------
+; Installer Section
+Section "Install"
+    ; Ensure the app is closed before installing over it
+    ExecWait 'taskkill /F /IM LzyDownloader.exe /T'
+
+    ; Remove old installation files to prevent DLL conflicts from prior versions
+    RMDir /r "$INSTDIR"
+
     SetOutPath "$INSTDIR"
 
-    ; --- SEAMLESS UPDATE CLEANUP ---
-    ; Clean up old Python (PyInstaller) artifacts so they don't waste space
-    RMDir /r "$INSTDIR\_internal"
-    Delete "$INSTDIR\LzyDownloader.exe"
+    ; Copy all files from the CMake build Release directory
+    ; This includes LzyDownloader.exe, Qt DLLs, plugins, and extractor JSONs
+    File /r "build\Release\*.*"
 
-    ; Assuming CMake places all deployment-ready files (exe, DLLs, bin/) in a folder named 'deploy'
-    ; Change 'deploy\*.*' to your actual packaging output directory
-    File /r "deploy\*.*"
+    ; Guard against stray zlib DLLs that can break Qt6Network startup on
+    ; clean machines when they export plain inflate() instead of z_inflate().
+    Delete "$INSTDIR\zlib1.dll"
+    Delete "$INSTDIR\zlib.dll"
+    Delete "$INSTDIR\libz.dll"
+    Delete "$INSTDIR\libzlib.dll"
 
-    ; Write the installation path into the registry
-    WriteRegStr HKLM "Software\LzyDownloader" "Install_Dir" "$INSTDIR"
-
-    ; Write the uninstall keys for Windows Add/Remove Programs
-    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\LzyDownloader" "DisplayName" "LzyDownloader"
-    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\LzyDownloader" "UninstallString" '"$INSTDIR\uninstall.exe"'
-    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\LzyDownloader" "DisplayIcon" '"$INSTDIR\LzyDownloader.exe"'
-    WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\LzyDownloader" "NoModify" 1
-    WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\LzyDownloader" "NoRepair" 1
-    WriteUninstaller "$INSTDIR\uninstall.exe"
-
-    ; Create shortcuts
+    ; Create Start Menu shortcut
     CreateDirectory "$SMPROGRAMS\LzyDownloader"
     CreateShortcut "$SMPROGRAMS\LzyDownloader\LzyDownloader.lnk" "$INSTDIR\LzyDownloader.exe"
+    
+    ; Create Desktop shortcut
     CreateShortcut "$DESKTOP\LzyDownloader.lnk" "$INSTDIR\LzyDownloader.exe"
+
+    ; Create uninstaller
+    WriteUninstaller "$INSTDIR\Uninstall.exe"
+
+    ; Write registry keys for Windows "Add/Remove Programs"
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\LzyDownloader" "DisplayName" "LzyDownloader"
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\LzyDownloader" "UninstallString" "$\"$INSTDIR\Uninstall.exe$\""
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\LzyDownloader" "QuietUninstallString" "$\"$INSTDIR\Uninstall.exe$\" /S"
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\LzyDownloader" "InstallLocation" "$INSTDIR"
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\LzyDownloader" "DisplayIcon" "$INSTDIR\LzyDownloader.exe"
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\LzyDownloader" "Publisher" "Vincent Wetzel"
 SectionEnd
 
+;--------------------------------
+; Uninstaller Section
 Section "Uninstall"
+    ; Ensure the app is closed before uninstalling
+    ExecWait 'taskkill /F /IM LzyDownloader.exe /T'
+
+    ; Remove installation directory and files
+    RMDir /r "$INSTDIR"
+
+    ; Remove shortcuts
+    Delete "$DESKTOP\LzyDownloader.lnk"
+    RMDir /r "$SMPROGRAMS\LzyDownloader"
+
     ; Remove registry keys
     DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\LzyDownloader"
-    DeleteRegKey HKLM "Software\LzyDownloader"
-
-    ; Remove all files and directories
-    RMDir /r "$INSTDIR"
-    RMDir /r "$SMPROGRAMS\LzyDownloader"
-    Delete "$DESKTOP\LzyDownloader.lnk"
+    
+    ; Note: %LOCALAPPDATA%\LzyDownloader is intentionally left intact 
+    ; to preserve the user's settings.ini, download_archive.db, and log files.
 SectionEnd

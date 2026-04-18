@@ -15,6 +15,8 @@ namespace ProcessUtils {
     void setProcessEnvironment(QProcess &process);
     void terminateProcessTree(QProcess *process, int gracefulTimeoutMs = 2000);
 
+    QString fetchFfmpegVersion(const QString& execPath);
+
     // Cache management
     void clearCache();
     void cacheBinary(const QString& name, const FoundBinary& found);

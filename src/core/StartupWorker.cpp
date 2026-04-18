@@ -8,8 +8,8 @@ StartupWorker::StartupWorker(ConfigManager *configManager, ExtractorJsonParser *
     : QObject(parent),
       m_configManager(configManager),
       m_extractorJsonParser(extractorJsonParser),
-      m_ytDlpUpdater(std::make_unique<YtDlpUpdater>()),
-      m_galleryDlUpdater(std::make_unique<GalleryDlUpdater>()),
+      m_ytDlpUpdater(std::make_unique<YtDlpUpdater>(m_configManager)),
+      m_galleryDlUpdater(std::make_unique<GalleryDlUpdater>(m_configManager)),
       m_ytDlpCheckDone(false),
       m_galleryDlCheckDone(false),
       m_extractorsCheckDone(false)

@@ -8,11 +8,13 @@
 
 #include "UpdateStatus.h"
 
+class ConfigManager;
+
 class YtDlpUpdater : public QObject {
     Q_OBJECT
 
 public:
-    explicit YtDlpUpdater(QObject *parent = nullptr);
+    explicit YtDlpUpdater(ConfigManager *configManager, QObject *parent = nullptr);
     ~YtDlpUpdater();
     void fetchVersion();
 
@@ -44,6 +46,7 @@ private:
     QProcess *m_process;
     QString m_currentLocalVersion;
     QString m_cachedVersion;
+    ConfigManager *m_configManager;
 };
 
 #endif // YTDLPUPDATER_H

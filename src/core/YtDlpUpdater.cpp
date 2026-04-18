@@ -12,9 +12,11 @@
 #include <QDebug>
 #include <QRegularExpression>
 #include <QThread>
+#include <QTimer>
 #include "core/ProcessUtils.h"
+#include "core/ConfigManager.h"
 
-YtDlpUpdater::YtDlpUpdater(QObject *parent) : QObject(parent), m_process(nullptr) {
+YtDlpUpdater::YtDlpUpdater(ConfigManager *configManager, QObject *parent) : QObject(parent), m_configManager(configManager), m_process(nullptr) {
     m_networkManager = new QNetworkAccessManager(this);
     m_currentLocalVersion = "0.0.0";
     m_cachedVersion = loadStoredVersion();
@@ -48,6 +50,10 @@ void YtDlpUpdater::stop() {
 }
 
 void YtDlpUpdater::fetchVersion() {
+    if (m_process) {
+        return; // Already checking
+    }
+
     m_process = new QProcess(); // No parent
     connect(m_process, &QProcess::finished, this, &YtDlpUpdater::onVersionFetchFinished);
     connect(m_process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
@@ -63,8 +69,28 @@ void YtDlpUpdater::fetchVersion() {
     // Ensure the process deletes itself when it's done.
     connect(m_process, &QProcess::finished, m_process, &QObject::deleteLater);
 
-    QString appDir = QCoreApplication::applicationDirPath();
-    m_process->start(appDir + "/yt-dlp.exe", {"--version"});
+    ProcessUtils::FoundBinary binary = ProcessUtils::resolveBinary("yt-dlp", m_configManager);
+    if (binary.path.isEmpty() || binary.source == "Not Found" || binary.source == "Invalid Custom") {
+        emit versionFetched("Not Found");
+        emit updateFinished(Updater::UpdateStatus::Error, "yt-dlp executable not found.");
+        m_process->deleteLater();
+        m_process = nullptr;
+        return;
+    }
+
+    ProcessUtils::setProcessEnvironment(*m_process);
+
+    // Add a watchdog timer to prevent infinite hangs if the binary freezes
+    QTimer *watchdog = new QTimer(m_process);
+    watchdog->setSingleShot(true);
+    QProcess *p = m_process;
+    connect(watchdog, &QTimer::timeout, p, [p]() {
+        qWarning() << "yt-dlp --version timed out. Killing process.";
+        if (p->state() == QProcess::Running) p->kill();
+    });
+    watchdog->start(10000); // 10 seconds
+
+    m_process->start(binary.path, {"--version"});
 }
 
 void YtDlpUpdater::onReleaseCheckFinished() {
@@ -130,16 +156,43 @@ void YtDlpUpdater::onDownloadFinished() {
     }
 
     QString newVersion = reply->property("newVersion").toString();
-    QString appDir = QCoreApplication::applicationDirPath();
-    QString targetPath = appDir + "/yt-dlp.exe";
+
+    ProcessUtils::FoundBinary binary = ProcessUtils::resolveBinary("yt-dlp", m_configManager);
+    QString targetPath = binary.path;
+
+    // Prevent corruption of package-managed system environments
+    if (binary.source != "Custom" && binary.source != "App Directory" && binary.source != "Not Found") {
+        emit updateFinished(Updater::UpdateStatus::Error, 
+            QString("yt-dlp is managed by %1. Please update it using your package manager or the External Binaries tab.").arg(binary.source));
+        reply->deleteLater();
+        return;
+    }
+
+    if (targetPath.isEmpty() || binary.source == "Not Found") {
+        QString appDir = QCoreApplication::applicationDirPath();
+#ifdef Q_OS_WIN
+        targetPath = appDir + "/yt-dlp.exe";
+#else
+        targetPath = appDir + "/yt-dlp";
+#endif
+    }
 
     QFile file(targetPath);
     if (file.open(QIODevice::WriteOnly)) {
         file.write(reply->readAll());
         file.close();
+
+#ifndef Q_OS_WIN
+        // Ensure it's executable on Unix platforms
+        file.setPermissions(file.permissions() | QFileDevice::ExeOwner | QFileDevice::ExeGroup | QFileDevice::ExeOther);
+#endif
+
         m_currentLocalVersion = newVersion;
         m_cachedVersion = newVersion;
         saveStoredVersion(newVersion);
+
+        ProcessUtils::clearCache(); // Ensure next run uses the freshly downloaded binary
+
         emit versionFetched(m_currentLocalVersion);
         emit updateFinished(Updater::UpdateStatus::UpdateAvailable, QString("yt-dlp updated successfully to %1.").arg(newVersion));
     } else {
@@ -150,13 +203,16 @@ void YtDlpUpdater::onDownloadFinished() {
 }
 
 void YtDlpUpdater::onVersionFetchFinished(int exitCode, QProcess::ExitStatus exitStatus) {
-    if (exitStatus == QProcess::CrashExit) {
-        // If we're here, it's likely because stop() was called, and the process was terminated.
-        // We don't need to do anything else. The process will self-delete.
+    QProcess *process = qobject_cast<QProcess*>(sender());
+
+    if (exitStatus == QProcess::CrashExit || exitCode != 0) {
+        emit versionFetched("Error");
+        qWarning() << "Failed to fetch yt-dlp version:" << (process ? process->readAllStandardError() : QByteArray());
+        emit updateFinished(Updater::UpdateStatus::Error, "Failed to determine local yt-dlp version.");
+        m_process = nullptr;
         return;
     }
 
-    QProcess *process = qobject_cast<QProcess*>(sender());
     if (exitCode == 0) {
         QString versionOutput = process->readAllStandardOutput().trimmed();
         m_currentLocalVersion = versionOutput;
@@ -170,10 +226,6 @@ void YtDlpUpdater::onVersionFetchFinished(int exitCode, QProcess::ExitStatus exi
         request.setHeader(QNetworkRequest::UserAgentHeader, "LzyDownloader");
         QNetworkReply *reply = m_networkManager->get(request);
         connect(reply, &QNetworkReply::finished, this, &YtDlpUpdater::onReleaseCheckFinished);
-    } else {
-        emit versionFetched("Error");
-        qWarning() << "Failed to fetch yt-dlp version:" << process->readAllStandardError();
-        emit updateFinished(Updater::UpdateStatus::Error, "Failed to determine local yt-dlp version.");
     }
     m_process = nullptr; // The process will self-delete, so we clear our pointer.
 }

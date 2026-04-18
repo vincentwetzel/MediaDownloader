@@ -59,15 +59,6 @@ DownloadOptionsPage::DownloadOptionsPage(ConfigManager *configManager, QWidget *
     layout->addWidget(downloadOptionsGroup);
     layout->addStretch();
 
-    // Check if aria2c is available; hide the setting if not
-    ProcessUtils::FoundBinary aria2Binary = ProcessUtils::findBinary("aria2c", m_configManager);
-    if (aria2Binary.source == "Not Found" || aria2Binary.path.isEmpty()) {
-        // Hide the external downloader setting if aria2c is not available
-        m_externalDownloaderCombo->setVisible(false);
-        // Set default to yt-dlp
-        m_externalDownloaderCombo->setCurrentIndex(0);
-    }
-
     connect(m_externalDownloaderCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &DownloadOptionsPage::onExternalDownloaderChanged);
     connect(m_sponsorBlockCheck, &ToggleSwitch::toggled, this, &DownloadOptionsPage::onSponsorBlockToggled);
     connect(m_embedChaptersCheck, &ToggleSwitch::toggled, this, &DownloadOptionsPage::onEmbedChaptersToggled);
@@ -93,8 +84,20 @@ void DownloadOptionsPage::loadSettings() {
     QSignalBlocker b9(m_autoClearCompletedCheck);    
     QSignalBlocker b10(m_downloadSectionsCheck);
 
+    ProcessUtils::FoundBinary aria2Binary = ProcessUtils::findBinary("aria2c", m_configManager);
+    bool aria2Available = (aria2Binary.source != "Not Found" && aria2Binary.source != "Invalid Custom" && !aria2Binary.path.isEmpty());
+    
     bool useAria2c = m_configManager->get("Metadata", "use_aria2c", false).toBool();
-    m_externalDownloaderCombo->setCurrentIndex(useAria2c ? 1 : 0);
+    if (!aria2Available) {
+        m_externalDownloaderCombo->setVisible(false);
+        m_externalDownloaderCombo->setCurrentIndex(0); // yt-dlp
+        if (useAria2c) {
+            m_configManager->set("Metadata", "use_aria2c", false); // Auto-correct stale config
+        }
+    } else {
+        m_externalDownloaderCombo->setVisible(true);
+        m_externalDownloaderCombo->setCurrentIndex(useAria2c ? 1 : 0);
+    }
     m_sponsorBlockCheck->setChecked(m_configManager->get("General", "sponsorblock", false).toBool());
     m_embedChaptersCheck->setChecked(m_configManager->get("Metadata", "embed_chapters", true).toBool());
     m_splitChaptersCheck->setChecked(m_configManager->get("DownloadOptions", "split_chapters", false).toBool());

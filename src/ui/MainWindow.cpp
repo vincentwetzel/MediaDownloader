@@ -45,13 +45,45 @@
 #include <QEvent>
 #include <QStyleHints>
 #include <QComboBox>
+#include <QCheckBox>
 #include <QSizePolicy>
 #include <QPushButton>
 #include <QStandardPaths>
 #include <QDateTime>
 
-const QString REPO_URL = "https://api.github.com/repos/vincentwetzel/LzyDownloader";
-const QString GITHUB_PROJECT_URL = "https://github.com/vincentwetzel/LzyDownloader";
+#ifdef Q_OS_WIN
+#include <windows.h>
+#include <cstdio>
+
+static bool s_consoleAllocatedByUs = false;
+
+static void ApplyConsoleState(bool show) {
+    HWND consoleWindow = GetConsoleWindow();
+    if (show) {
+        if (consoleWindow == NULL) {
+            if (AllocConsole()) {
+                s_consoleAllocatedByUs = true;
+                FILE* dummy;
+                freopen_s(&dummy, "CONOUT$", "w", stdout);
+                freopen_s(&dummy, "CONOUT$", "w", stderr);
+                freopen_s(&dummy, "CONIN$", "r", stdin);
+            }
+        } else {
+            ShowWindow(consoleWindow, SW_SHOW);
+        }
+    } else {
+        if (consoleWindow != NULL && s_consoleAllocatedByUs) {
+            ShowWindow(consoleWindow, SW_HIDE);
+        }
+    }
+}
+#endif
+
+const QStringList REPO_URLS = {
+    "https://api.github.com/repos/vincentwetzel/lzy-downloader",
+    "https://api.github.com/repos/vincentwetzel/MediaDownloader"
+};
+const QString GITHUB_PROJECT_URL = "https://github.com/vincentwetzel/lzy-downloader";
 const QString DEVELOPER_DISCORD_URL_PART1 = "https://discord.gg/";
 const QString DEVELOPER_DISCORD_URL_PART2 = "NfWaqK";
 const QString DEVELOPER_DISCORD_URL_PART3 = "gYRG";
@@ -76,7 +108,7 @@ MainWindow::MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent
     m_configManager = new ConfigManager(configPath, this);
     m_archiveManager = new ArchiveManager(m_configManager, this);
     m_downloadManager = new DownloadManager(m_configManager, this);
-    m_appUpdater = new AppUpdater(REPO_URL, QString(APP_VERSION_STRING), this);
+    m_appUpdater = new AppUpdater(REPO_URLS, QString(APP_VERSION_STRING), this);
     m_urlValidator = new UrlValidator(m_configManager, this);
     m_clipboard = QApplication::clipboard(); // Initialize QClipboard
 
@@ -108,6 +140,22 @@ MainWindow::MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent
     // Apply theme before UI setup
     m_uiBuilder = new MainWindowUiBuilder(m_configManager, this); // Initialize UI builder
     applyTheme(m_configManager->get("General", "theme", "System").toString());
+
+#ifdef Q_OS_WIN
+    bool isDebug = false;
+#ifdef QT_DEBUG
+    isDebug = true;
+#elif !defined(NDEBUG)
+    isDebug = true;
+#endif
+    bool showConsole = m_configManager->get("General", "show_debug_console", isDebug).toBool();
+    ApplyConsoleState(showConsole);
+    connect(m_configManager, &ConfigManager::settingChanged, this, [](const QString &section, const QString &key, const QVariant &value) {
+        if (section == "General" && key == "show_debug_console") {
+            ApplyConsoleState(value.toBool());
+        }
+    });
+#endif
 
     setupUI();
     setupTrayIcon();
@@ -192,7 +240,7 @@ MainWindow::MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent
                         newOptions["format"] = formatId;
                         m_downloadManager->enqueueDownload(url, newOptions);
                     }
-                    m_tabWidget->setCurrentWidget(m_activeDownloadsTab);
+                    m_uiBuilder->tabWidget()->setCurrentWidget(m_activeDownloadsTab);
                 }
             }
         });
@@ -288,6 +336,12 @@ void MainWindow::setupUI() {
         m_uiBuilder->tabWidget()->setCurrentWidget(m_advancedSettingsTab);
     });
     connect(m_advancedSettingsTab, &AdvancedSettingsTab::themeChanged, this, &MainWindow::applyTheme);
+
+    connect(m_uiBuilder->tabWidget(), &QTabWidget::currentChanged, this, [this](int index) {
+        if (m_uiBuilder->tabWidget()->widget(index) == m_startTab) {
+            m_startTab->updateDynamicUI();
+        }
+    });
 }
 
 void MainWindow::setupTrayIcon() {
@@ -312,18 +366,27 @@ void MainWindow::closeEvent(QCloseEvent *event) {
         return;
     }
 
-    QString tempDir = m_configManager->get("Paths", "temporary_downloads_directory").toString();
-    if (!tempDir.isEmpty() && QDir(tempDir).exists()) {
-        QStringList files = QDir(tempDir).entryList(QDir::Files);
-        if (!files.isEmpty()) {
-            QMessageBox::StandardButton reply;
-            reply = QMessageBox::warning(this, "Temporary Files Found",
-                                         "The temporary directory is not empty. This may indicate incomplete downloads. Do you want to exit anyway?",
-                                         QMessageBox::Yes|QMessageBox::No);
-            if (reply == QMessageBox::No) {
-                event->ignore();
-                return;
-            }
+    int activeCount = 0;
+    int queuedCount = 0;
+    
+    QString activeText = m_uiBuilder->activeDownloadsLabel()->text();
+    if (activeText.startsWith("Active: ")) {
+        activeCount = activeText.mid(8).toInt();
+    }
+    
+    QString queuedText = m_uiBuilder->queuedDownloadsLabel()->text();
+    if (queuedText.startsWith("Queued: ")) {
+        queuedCount = queuedText.mid(8).toInt();
+    }
+
+    if (activeCount > 0 || queuedCount > 0) {
+        QMessageBox::StandardButton reply;
+        reply = QMessageBox::warning(this, "Downloads in Progress",
+                                     "There are downloads currently running or queued.\n\nAre you sure you want to exit?\nYour downloads will be safely saved and will resume the next time you start the application.",
+                                     QMessageBox::Yes | QMessageBox::No);
+        if (reply == QMessageBox::No) {
+            event->ignore();
+            return;
         }
     }
 
@@ -336,6 +399,7 @@ void MainWindow::closeEvent(QCloseEvent *event) {
     const QList<QProcess*> remainingProcesses = findChildren<QProcess*>();
     for (QProcess *process : remainingProcesses) {
         if (process && process->state() == QProcess::Running) {
+            process->disconnect(); // Prevent re-entrant read operations on the dying process buffer
             ProcessUtils::terminateProcessTree(process);
         }
     }
@@ -382,13 +446,14 @@ void MainWindow::onClipboardChanged()
 
 void MainWindow::handleClipboardAutoPaste(bool forceEnqueue)
 {
-    if (!m_startTab || !m_tabWidget || !m_startTab->isEnabled()) {
+    if (!m_startTab || !m_uiBuilder || !m_uiBuilder->tabWidget() || !m_startTab->isEnabled()) {
         return;
     }
 
-    // Enforce a cooldown period (5 seconds) to prevent rapid re-triggering
+    // Enforce a brief cooldown period (500ms) to debounce rapid clipboard signals from the OS,
+    // rather than a 5-second lock that prevents users from quickly copying multiple URLs.
     qint64 now = QDateTime::currentMSecsSinceEpoch();
-    if (now - m_lastAutoPasteTimestamp < 5000) {
+    if (now - m_lastAutoPasteTimestamp < 500) {
         return;
     }
 
@@ -439,6 +504,62 @@ void MainWindow::onDownloadRequested(const QString &url, const QVariantMap &opti
         return;
     }
 
+    QString type = options.value("type").toString();
+    QStringList missingBinaries;
+
+    if (type == "gallery") {
+        QStringList required = {"gallery-dl", "ffmpeg", "ffprobe"};
+        for (const QString &bin : required) {
+            QString source = ProcessUtils::findBinary(bin, m_configManager).source;
+            if (source == "Not Found" || source == "Invalid Custom") {
+                missingBinaries << bin;
+            }
+        }
+    } else if (type == "view_formats") {
+        QString source = ProcessUtils::findBinary("yt-dlp", m_configManager).source;
+        if (source == "Not Found" || source == "Invalid Custom") {
+            missingBinaries << "yt-dlp";
+        }
+    } else {
+        QStringList required = {"yt-dlp", "ffmpeg", "ffprobe", "deno"};
+        for (const QString &bin : required) {
+            QString source = ProcessUtils::findBinary(bin, m_configManager).source;
+            if (source == "Not Found" || source == "Invalid Custom") {
+                missingBinaries << bin;
+            }
+        }
+
+        // Auto-revert to yt-dlp native downloader if aria2c is enabled but missing.
+        // This prevents yt-dlp from instantly crashing and escapes the hidden-combobox UI trap.
+        bool useAria2c = m_configManager->get("Metadata", "use_aria2c", false).toBool();
+        if (useAria2c) {
+            QString ariaSource = ProcessUtils::findBinary("aria2c", m_configManager).source;
+            if (ariaSource == "Not Found" || ariaSource == "Invalid Custom") {
+                qWarning() << "aria2c is enabled but missing. Auto-reverting to yt-dlp native downloader.";
+                m_configManager->set("Metadata", "use_aria2c", false);
+                m_configManager->save();
+            }
+        }
+    }
+
+    if (!missingBinaries.isEmpty()) {
+        QMessageBox msgBox(this);
+        msgBox.setIcon(QMessageBox::Warning);
+        msgBox.setWindowTitle("Missing Required Binaries");
+        msgBox.setText("Cannot queue download because the following required binaries are missing:\n" + missingBinaries.join(", "));
+        msgBox.setInformativeText("Please install them or configure their paths in the Advanced Settings.\n\nWould you like to open the External Binaries settings now?");
+
+        QPushButton *fixButton = msgBox.addButton("Take Me There", QMessageBox::ActionRole);
+        msgBox.addButton(QMessageBox::Cancel);
+        msgBox.exec();
+
+        if (msgBox.clickedButton() == fixButton) {
+            m_uiBuilder->tabWidget()->setCurrentWidget(m_advancedSettingsTab);
+            m_advancedSettingsTab->navigateToCategory("External Binaries");
+        }
+        return;
+    }
+
     QVariantMap mutableOptions = options;
     bool overrideArchive = mutableOptions.value("override_archive", m_configManager->get("General", "override_archive", false)).toBool();
 
@@ -453,11 +574,10 @@ void MainWindow::onDownloadRequested(const QString &url, const QVariantMap &opti
         mutableOptions["override_archive"] = true;
     }
 
-    bool runtimeVideo = m_configManager->get("Video", "video_multistreams", "Default Stream").toString() == "Select at Runtime" && mutableOptions.value("type").toString() == "video";
-    bool runtimeAudio = m_configManager->get("Audio", "audio_multistreams", "Default Stream").toString() == "Select at Runtime"; // Audio tracks apply to video and audio types
+    // Handle runtime subtitle selection. (Video and Audio runtime formats are handled internally by DownloadManager).
     bool runtimeSubs = m_configManager->get("Subtitles", "languages", "en").toString().split(',').contains("runtime");
 
-    if (runtimeVideo || runtimeAudio || runtimeSubs) {
+    if (runtimeSubs) {
         m_pendingUrl = url;
         m_pendingOptions = mutableOptions;
         statusBar()->showMessage("Fetching media info for runtime selection...");
@@ -483,21 +603,18 @@ void MainWindow::onDownloadRequested(const QString &url, const QVariantMap &opti
 
 void MainWindow::onRuntimeInfoReady(const QVariantMap &info) {
     statusBar()->clearMessage();
-    bool runtimeVideo = m_configManager->get("Video", "video_multistreams", "Default Stream").toString() == "Select at Runtime" && m_pendingOptions.value("type").toString() == "video";
-    bool runtimeAudio = m_configManager->get("Audio", "audio_multistreams", "Default Stream").toString() == "Select at Runtime";
     bool runtimeSubs = m_configManager->get("Subtitles", "languages", "en").toString().split(',').contains("runtime");
 
-    RuntimeSelectionDialog dialog(info, runtimeVideo, runtimeAudio, runtimeSubs, this);
+    // We only use RuntimeSelectionDialog for subtitles now. Video/Audio formats use FormatSelectionDialog.
+    RuntimeSelectionDialog dialog(info, false, false, runtimeSubs, this);
     if (dialog.exec() == QDialog::Accepted) {
         QVariantMap opts = m_pendingOptions;
-        if (runtimeVideo) opts["runtime_video_format"] = dialog.getSelectedVideoFormat();
-        if (runtimeAudio) opts["runtime_audio_format"] = dialog.getSelectedAudioFormat();
         if (runtimeSubs) {
             QStringList subs = dialog.getSelectedSubtitles();
             if (!subs.isEmpty()) opts["runtime_subtitles"] = subs.join(',');
-            } // Corrected: m_downloadManager
-            m_downloadManager->enqueueDownload(m_pendingUrl, opts); // Corrected: m_downloadManager
-            m_uiBuilder->tabWidget()->setCurrentWidget(m_activeDownloadsTab);
+        }
+        m_downloadManager->enqueueDownload(m_pendingUrl, opts);
+        m_uiBuilder->tabWidget()->setCurrentWidget(m_activeDownloadsTab);
     }
     m_pendingUrl.clear();
     m_pendingOptions.clear();
@@ -709,8 +826,55 @@ void MainWindow::setYtDlpVersion(const QString &version) {
     if (m_advancedSettingsTab) {
         m_advancedSettingsTab->setYtDlpVersion(version);
     }
-<<<<<<< HEAD
+
+    // Check if the user has opted out of this warning
+    bool warnStable = m_configManager->get("General", "warn_stable_yt_dlp", true).toBool();
+    if (!warnStable) {
+        return;
+    }
+
+    // Stable versions typically have 3 segments (e.g., "2023.11.16")
+    // Nightly versions typically have 4+ segments (e.g., "2024.02.24.232323")
+    QStringList parts = version.split('.');
+    if (parts.size() == 3 && !version.contains("-") && !version.contains("unknown") && version != "Not Found" && version != "Error") {
+        QMessageBox msgBox(this);
+        msgBox.setIcon(QMessageBox::Information);
+        msgBox.setWindowTitle("Stable yt-dlp Version Detected");
+        msgBox.setTextFormat(Qt::RichText);
+        msgBox.setText("You are currently using a stable release of yt-dlp (" + version + ").");
+
+        QString informativeText =
+            "It is highly recommended to use the <b>nightly</b> channel of yt-dlp. Websites frequently change their extraction methods, and nightly builds contain the latest fixes.<br><br>"
+            "How to upgrade depends on how yt-dlp was installed:<ul>"
+            "<li><b>Standalone Binary:</b> If you manually downloaded yt-dlp.exe, you can update it directly from the 'Updates' page in Advanced Settings.</li>"
+            "<li><b>pip:</b> Run <code>pip install -U --pre yt-dlp</code></li>"
+            "<li><b>Scoop:</b> Run <code>scoop install yt-dlp-nightly</code></li>"
+            "<li><b>Homebrew:</b> Run <code>brew install yt-dlp --HEAD</code></li></ul>"
+            "<b>Note:</b> Package managers like <b>winget</b> and <b>Chocolatey</b> only provide stable builds and should not be used for yt-dlp.<br><br>"
+            "Would you like to go to the External Binaries settings to view your installation options now?";
+
+        msgBox.setInformativeText(informativeText);
+
+        QPushButton *goToSettingsButton = msgBox.addButton("Go to Settings", QMessageBox::AcceptRole);
+        QPushButton *goToUpdatesButton = msgBox.addButton("Go to Updates", QMessageBox::ActionRole);
+        QPushButton *ignoreButton = msgBox.addButton("Ignore", QMessageBox::RejectRole);
+        
+        QCheckBox *dontShowAgain = new QCheckBox("Don't show this warning again", &msgBox);
+        msgBox.setCheckBox(dontShowAgain);
+        
+        msgBox.exec();
+        
+        if (dontShowAgain->isChecked()) {
+            m_configManager->set("General", "warn_stable_yt_dlp", false);
+            m_configManager->save();
+        }
+
+        if (msgBox.clickedButton() == goToSettingsButton) {
+            m_uiBuilder->tabWidget()->setCurrentWidget(m_advancedSettingsTab);
+            m_advancedSettingsTab->navigateToCategory("External Binaries");
+        } else if (msgBox.clickedButton() == goToUpdatesButton) {
+            m_uiBuilder->tabWidget()->setCurrentWidget(m_advancedSettingsTab);
+            m_advancedSettingsTab->navigateToCategory("Updates");
+        }
+    }
 }
-=======
-}
->>>>>>> 1f7823d4c932568a9d3627a8c0f4aee303250983

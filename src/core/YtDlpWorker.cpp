@@ -123,8 +123,10 @@ void YtDlpWorker::start() {
 }
 
 void YtDlpWorker::killProcess() {
-    if (m_process && m_process->state() == QProcess::Running) {
+    if (m_process && m_process->state() != QProcess::NotRunning) {
+        m_process->disconnect(); // Prevent re-entrant read operations on the dying process buffer
         ProcessUtils::terminateProcessTree(m_process);
+        m_process->kill(); // Forcefully kill the QProcess instance as fallback
     }
 }
 
@@ -159,6 +161,17 @@ void YtDlpWorker::onProcessFinished(int exitCode, QProcess::ExitStatus exitStatu
 
     QVariantMap metadata;
     if (success) {
+        // Ensure metadata is loaded if it hasn't been asynchronously parsed yet
+        if (m_fullMetadata.isEmpty() && !m_infoJsonPath.isEmpty() && QFile::exists(m_infoJsonPath)) {
+            QFile jsonFile(m_infoJsonPath);
+            if (jsonFile.open(QIODevice::ReadOnly)) {
+                QJsonDocument doc = QJsonDocument::fromJson(jsonFile.readAll());
+                if (doc.isObject()) {
+                    m_fullMetadata = doc.object().toVariantMap();
+                }
+            }
+        }
+
         // Use the full metadata that was already parsed from info.json during readInfoJsonWithRetry
         if (!m_fullMetadata.isEmpty()) {
             metadata = m_fullMetadata;
@@ -804,6 +817,14 @@ void YtDlpWorker::handleOutputLine(const QString &line) {
         m_infoJsonPath = infoJsonMatch.captured(1).trimmed();
         // Normalize path separators if necessary, although QFile should handle it
         m_infoJsonPath = QDir::toNativeSeparators(m_infoJsonPath);
+        
+        // Delete any pre-existing info.json from previously stopped runs.
+        // This prevents yt-dlp from crashing on Windows with FileExistsError during os.rename.
+        if (QFile::exists(m_infoJsonPath)) {
+            QFile::remove(m_infoJsonPath);
+            qDebug() << "[YtDlpWorker] Deleted pre-existing info.json to prevent FileExistsError on resume:" << m_infoJsonPath;
+        }
+
         qDebug() << "Detected info.json path and initiating retry mechanism:" << m_infoJsonPath;
         m_infoJsonRetryCount = 0; // Reset retry count for a new file
         readInfoJsonWithRetry(); // Start the retry mechanism
@@ -890,14 +911,32 @@ bool YtDlpWorker::parseYtDlpProgressLine(const QString &line) {
     }
 
     QVariantMap progressData;
-    const double percentage = matchedCompletedFormat ? 100.0 : match.captured(1).toDouble();
-    const QString totalString = (matchedCompletedFormat ? match.captured(1) : match.captured(2)).trimmed();
-    const QString speedString = (matchedCompletedFormat ? match.captured(3) : match.captured(3)).trimmed();
-    const QString etaString = matchedCompletedFormat ? QStringLiteral("0:00") : match.captured(4).trimmed();
+    double percentage = 0.0;
+    QString totalString;
+    QString speedString;
+    QString etaString;
+    double totalBytes = 0.0;
+    double downloadedBytes = 0.0;
+    double speedBytes = 0.0;
 
-    const double totalBytes = parseSizeStringToBytes(totalString);
-    const double downloadedBytes = totalBytes > 0.0 ? (totalBytes * (percentage / 100.0)) : 0.0;
-    const double speedBytes = parseSizeStringToBytes(speedString);
+    if (matchedIndeterminate) {
+        percentage = -1.0; // Puts the progress bar into indeterminate scrolling mode
+        downloadedBytes = parseSizeStringToBytes(match.captured(1));
+        totalString = "Unknown";
+        speedString = match.captured(2).trimmed();
+        speedBytes = parseSizeStringToBytes(speedString);
+        etaString = match.captured(3).trimmed();
+        if (etaString.isEmpty()) etaString = "Unknown";
+    } else {
+        percentage = matchedCompletedFormat ? 100.0 : match.captured(1).toDouble();
+        totalString = (matchedCompletedFormat ? match.captured(1) : match.captured(2)).trimmed();
+        speedString = match.captured(3).trimmed();
+        etaString = matchedCompletedFormat ? QStringLiteral("0:00") : match.captured(4).trimmed();
+
+        totalBytes = parseSizeStringToBytes(totalString);
+        downloadedBytes = totalBytes > 0.0 ? (totalBytes * (percentage / 100.0)) : 0.0;
+        speedBytes = parseSizeStringToBytes(speedString);
+    }
 
     updateInferredTransferStage(percentage, totalBytes);
 
@@ -915,6 +954,18 @@ bool YtDlpWorker::parseYtDlpProgressLine(const QString &line) {
     if (!m_thumbnailPath.isEmpty()) {
         progressData["thumbnail_path"] = m_thumbnailPath;
     }
+        
+        QString currentFile;
+        if (!m_originalDownloadedFilename.isEmpty()) {
+            currentFile = m_originalDownloadedFilename;
+        } else if (!m_currentTransferTarget.isEmpty() && !m_currentTransferIsAuxiliary) {
+            currentFile = m_currentTransferTarget;
+        } else if (!m_infoJsonPath.isEmpty()) {
+            currentFile = m_infoJsonPath;
+        }
+        if (!currentFile.isEmpty()) {
+            progressData["current_file"] = currentFile;
+        }
 
     emit progressUpdated(m_id, progressData);
     qDebug() << "yt-dlp: Progress match found (native).";
@@ -925,20 +976,17 @@ bool YtDlpWorker::parseAria2ProgressLine(const QString &line) {
     const QString normalized = line.trimmed();
 
     static const QRegularExpression ariaRegex(
-        R"(^.*\[#\w+\s+([\d\.]+\s*[KMGTPE]?i?B)/([\d\.]+\s*[KMGTPE]?i?B)\(([\d\.]+)%\)(?:\s+CN:\d+)?(?:\s+DL:((?:[\d\.]+\s*[KMGTPE]?i?B(?:/s)?)|(?:0B(?:/s)?)))?(?:\s+ETA:([\d\w:]+))?\].*$)");
+        R"(^.*\[#\w+\s+([\d\.]+\s*[KMGTPE]?i?B)(?:/([\d\.]+\s*[KMGTPE]?i?B)\(([\d\.]+)%\))?(?:\s+CN:\d+)?(?:\s+DL:((?:[\d\.]+\s*[KMGTPE]?i?B(?:/s)?)|(?:0B(?:/s)?)))?(?:\s+ETA:([\d\w:]+))?\].*$)");
     const QRegularExpressionMatch match = ariaRegex.match(normalized);
     if (!match.hasMatch()) {
-        if (normalized.contains("[#")) {
-            qDebug() << "[YtDlpWorker] Unmatched aria2 progress line:" << normalized;
-        }
         return false;
     }
 
     QVariantMap progressData;
     double downloadedBytes = parseSizeStringToBytes(match.captured(1));
-    double totalBytes = parseSizeStringToBytes(match.captured(2));
+    double totalBytes = match.captured(2).isEmpty() ? 0.0 : parseSizeStringToBytes(match.captured(2));
+    double percentage = match.captured(3).isEmpty() ? -1.0 : match.captured(3).toDouble();
     const double speedBytes = parseSizeStringToBytes(match.captured(4));
-    double percentage = match.captured(3).toDouble();
 
     updateInferredTransferStage(percentage, totalBytes);
 
@@ -956,6 +1004,18 @@ bool YtDlpWorker::parseAria2ProgressLine(const QString &line) {
     if (!m_thumbnailPath.isEmpty()) {
         progressData["thumbnail_path"] = m_thumbnailPath;
     }
+        
+        QString currentFile;
+        if (!m_originalDownloadedFilename.isEmpty()) {
+            currentFile = m_originalDownloadedFilename;
+        } else if (!m_currentTransferTarget.isEmpty() && !m_currentTransferIsAuxiliary) {
+            currentFile = m_currentTransferTarget;
+        } else if (!m_infoJsonPath.isEmpty()) {
+            currentFile = m_infoJsonPath;
+        }
+        if (!currentFile.isEmpty()) {
+            progressData["current_file"] = currentFile;
+        }
 
     emit progressUpdated(m_id, progressData);
     qDebug() << "yt-dlp: Progress match found (aria2c raw).";
@@ -1310,6 +1370,18 @@ void YtDlpWorker::emitStatusUpdate(const QString &status, int progress) {
     if (!m_thumbnailPath.isEmpty()) {
         progressData["thumbnail_path"] = m_thumbnailPath;
     }
+        
+        QString currentFile;
+        if (!m_originalDownloadedFilename.isEmpty()) {
+            currentFile = m_originalDownloadedFilename;
+        } else if (!m_currentTransferTarget.isEmpty() && !m_currentTransferIsAuxiliary) {
+            currentFile = m_currentTransferTarget;
+        } else if (!m_infoJsonPath.isEmpty()) {
+            currentFile = m_infoJsonPath;
+        }
+        if (!currentFile.isEmpty()) {
+            progressData["current_file"] = currentFile;
+        }
     emit progressUpdated(m_id, progressData);
 }
 

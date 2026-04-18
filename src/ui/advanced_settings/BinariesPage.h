@@ -18,6 +18,8 @@ public:
 
 public slots:
     void loadSettings();
+    void setYtDlpVersion(const QString &version);
+    void setGalleryDlVersion(const QString &version);
 
 private slots:
     void handleConfigSettingChanged(const QString &section, const QString &key, const QVariant &value);
@@ -37,6 +39,7 @@ private:
                   const QString &configKey,
                   const QString &manualUrl,
                   bool optional = false);
+    void fetchBinaryVersion(const QString &binaryName, const QString &path);
     QString browseBinary(const QString &title) const;
     void browseBinaryFor(const QString &binaryName);
     void installBinaryFor(const QString &binaryName);
@@ -53,5 +56,7 @@ private:
     QMap<QString, QString> m_displayNames;
     QSet<QString> m_optionalBinaries;
     QMap<QString, QLabel *> m_statusLabels;
+    QMap<QString, QLabel *> m_versionLabels;
     QMap<QString, QPushButton *> m_installButtons;
+    QMap<QString, QPushButton *> m_updateButtons;
 };

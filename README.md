@@ -14,6 +14,8 @@ A lightweight, high-performance desktop application for downloading media (video
 - 🎛️ **Runtime Format Selection** — Optionally prompt for specific video/audio qualities on every download, supporting multiple simultaneous format selections for the same media
 - 🔄 **Auto-Update** — Checks GitHub for newer releases and updates silently
 - 📊 **Concurrent Downloads** — Queue and manage multiple downloads simultaneously
+- ⏸️ **Pause & Resume** — Safely stop downloads, preserve partial `.part` files, and resume them across application restarts
+- 🧰 **External Binaries Manager** — Detect, version-check, install, and update `yt-dlp`, `gallery-dl`, `ffmpeg`, `ffprobe`, `aria2c`, and `deno` from inside the app
 - 🖼️ **Thumbnail Embedding** — Automatic thumbnail download and embedding for videos and audio
 - 🌐 **Browser Cookies** — Use saved cookies from Firefox, Chrome, Edge, or other browsers for age-restricted content
 - 📂 **Smart Sorting** — Automatically organize downloads into subfolders based on uploader, playlist, date, or custom patterns

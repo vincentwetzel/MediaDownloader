@@ -47,13 +47,13 @@ public slots: // Changed from private slots:
     void onExtractorsReady();
     void updateCommandPreview();
     void onDuplicateDownloadDetected(const QString &url, const QString &reason);
+    void updateDynamicUI();
 
 private:
     void setupUI();
     void loadSettings();
     void applyUrlInputStyleSheet();
     void applyCommandPreviewStyleSheet(); // Added this line
-    void updateDynamicUI();
 
     enum class ExtractorSupport {
         None,

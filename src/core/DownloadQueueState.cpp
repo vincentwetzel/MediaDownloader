@@ -43,6 +43,8 @@ void DownloadQueueState::save(const QList<DownloadItem>& activeItems, const QMap
         obj["options"] = QJsonObject::fromVariantMap(item.options);
         obj["status"] = "queued"; // Active items revert to queued on app start
         obj["playlistIndex"] = item.playlistIndex;
+        obj["tempFilePath"] = item.tempFilePath;
+        obj["originalDownloadedFilePath"] = item.originalDownloadedFilePath;
         queueArray.append(obj);
     }
     for (const DownloadItem &item : pausedItems) {
@@ -50,8 +52,14 @@ void DownloadQueueState::save(const QList<DownloadItem>& activeItems, const QMap
         obj["id"] = item.id;
         obj["url"] = item.url;
         obj["options"] = QJsonObject::fromVariantMap(item.options);
-        obj["status"] = "paused";
+        if (item.options.value("is_stopped").toBool() || item.options.value("is_failed").toBool()) {
+            obj["status"] = "stopped";
+        } else {
+            obj["status"] = "paused";
+        }
         obj["playlistIndex"] = item.playlistIndex;
+        obj["tempFilePath"] = item.tempFilePath;
+        obj["originalDownloadedFilePath"] = item.originalDownloadedFilePath;
         queueArray.append(obj);
     }
     for (const auto& item : downloadQueue) {
@@ -61,6 +69,8 @@ void DownloadQueueState::save(const QList<DownloadItem>& activeItems, const QMap
         obj["options"] = QJsonObject::fromVariantMap(item.options);
         obj["status"] = "queued";
         obj["playlistIndex"] = item.playlistIndex;
+        obj["tempFilePath"] = item.tempFilePath;
+        obj["originalDownloadedFilePath"] = item.originalDownloadedFilePath;
         queueArray.append(obj);
     }
 

@@ -8,11 +8,13 @@
 
 #include "UpdateStatus.h"
 
+class ConfigManager;
+
 class GalleryDlUpdater : public QObject {
     Q_OBJECT
 
 public:
-    explicit GalleryDlUpdater(QObject *parent = nullptr);
+    explicit GalleryDlUpdater(ConfigManager *configManager, QObject *parent = nullptr);
     ~GalleryDlUpdater();
     void fetchVersion();
 
@@ -42,6 +44,7 @@ private:
     QProcess *m_process;
     QString m_currentLocalVersion;
     QString m_cachedVersion;
+    ConfigManager *m_configManager;
 };
 
 #endif // GALLERYDLUPDATER_H

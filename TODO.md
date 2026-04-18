@@ -28,6 +28,10 @@
 
 ### Bug Fixes
 - [x] **Source-tree naming/layout cleanup**: Moved misplaced Start tab helper files into `src/ui/start_tab/`, moved the aria2 download pipeline into `src/core/download_pipeline/`, removed dead top-level/duplicate naming artifacts, and updated docs/build references so the codebase layout is clearer.
+- [x] **FFmpeg version string display**: Cleaned up the version string extraction for FFmpeg and ffprobe so the UI displays a concise version number or build date instead of the verbose build configuration string.
+- [x] **External Binaries version/update consolidation**: Moved yt-dlp/gallery-dl version display and update actions into the External Binaries page, added per-binary version probing, and stopped the in-app updater from overwriting package-managed installs.
+- [x] **Windows debug-console toggle**: Added a runtime `Show Debug Console` setting that only appears when the app owns its console window, letting release builds stay `WIN32` while still supporting opt-in debugging.
+- [x] **App update repo fallback**: Hardened release checks to try the lowercase `lzy-downloader` GitHub repo first and then fall back to legacy repository API URLs so repo renames do not silently break update discovery.
 - [x] **Single-Item Playlist Double Download**: The URL `https://music.youtube.com/watch?v=Bkh2BJ49DmQ&list=OLAK5uy_n3IQt8nfMSp3Xlma2hMsvKAyHBmBwk5Is` (a playlist with 1 item) downloads the audio file twice and sorts it to two different places. It should only download once and correctly trigger the "Audio Playlist Downloads" rule instead of the single "Audio Downloads" rule.
 - [x] **1-Item Playlist JSON Cleanup**: Fixed an issue where 1-item playlists left behind orphaned `info.json` files in the temporary directory by ensuring cleanup runs regardless of whether `playlist_index` is valid.
 - [x] **Section clip remux regression**: Fixed section downloads forcing an intermediate MKV remux plus extra FFmpeg merger args, which could leave MP4 clips with the original full-length duration metadata and glitchy playback near the real clip end.
@@ -43,9 +47,13 @@
 - [x] **Audio-only WebM label detection**: Fixed stream-stage labeling for temp files like `.f251.webm.part` by matching yt-dlp `format_id` values from `requested_downloads` before falling back to ambiguous container extensions.
 - [x] **Audio-stage size fallback**: Added a second-stage matcher that uses the active stream's emitted total size when yt-dlp delays or omits a fresh target filename during the video-to-audio handoff.
 - [x] **Empty `requested_downloads` stage fallback**: Fixed runs where `info.json` omits `requested_downloads` by seeding stream order from yt-dlp's announced format list and aria2 command-line `itag`/`mime` values, so audio-only transfers like `f251-13.webm.part` no longer stay labeled as video.
+- [x] **Clear Temp Files bracket bug**: Fixed "Clear Temp Files" failing to delete leftover `.part` files when the video title contains brackets (like `[youtube_id]`) by bypassing Qt's wildcard globbing and using literal string matching.
+- [x] **Clear Temp Files state persistence**: Saved active download file paths to `downloads_backup.json` so "Clear Temp Files" correctly sweeps multi-stream fragments (even stripping format IDs like `.f299`) after the application is restarted.
 - [x] **Late info.json label overwrite**: Fixed a follow-up regression where a delayed `info.json` parse could clear the already-correct stderr-derived stream mapping and flip the GUI back from audio to video mid-handoff.
 - [x] **Advanced Settings codec/format wiring audit**: Fixed the downloader path so saved codec labels map to real yt-dlp codec aliases (`avc1`, `hev1`, `mp4a`, etc.), direct runtime `format` selections become concrete `-f` overrides, runtime-selected audio tracks are merged into video downloads, and the `Restrict filenames` toggle now reaches yt-dlp instead of being ignored.
 - [x] **Rich yt-dlp error popups**: Error dialogs now preserve the active download URL and render it as a clickable link in the popup so users can open the failing source page directly from the warning.
+- [x] **Immediate action feedback**: Added immediate UI feedback ("Cancelling...", "Pausing...") to download items when clicking Cancel or Pause so the UI doesn't feel unresponsive while waiting for the background process to acknowledge the state change.
+- [x] **View Formats clarity**: Renamed the "View Formats" download type to "View Video/Audio Formats" and added tooltips to clarify it does not work for gallery-dl URLs.
 
 ## Completed
 

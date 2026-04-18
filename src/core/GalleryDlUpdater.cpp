@@ -12,9 +12,11 @@
 #include <QDebug>
 #include <QRegularExpression>
 #include <QThread>
+#include <QTimer>
 #include "core/ProcessUtils.h"
+#include "core/ConfigManager.h"
 
-GalleryDlUpdater::GalleryDlUpdater(QObject *parent) : QObject(parent), m_process(nullptr) {
+GalleryDlUpdater::GalleryDlUpdater(ConfigManager *configManager, QObject *parent) : QObject(parent), m_configManager(configManager), m_process(nullptr) {
     m_networkManager = new QNetworkAccessManager(this);
     m_currentLocalVersion = "0.0.0";
     m_cachedVersion = loadStoredVersion();
@@ -45,6 +47,10 @@ void GalleryDlUpdater::stop() {
 }
 
 void GalleryDlUpdater::fetchVersion() {
+    if (m_process) {
+        return; // Already checking
+    }
+
     m_process = new QProcess(); // No parent
     connect(m_process, &QProcess::finished, this, &GalleryDlUpdater::onVersionCheckFinished);
     connect(m_process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
@@ -59,8 +65,18 @@ void GalleryDlUpdater::fetchVersion() {
     });
     connect(m_process, &QProcess::finished, m_process, &QObject::deleteLater);
 
-    QString appDir = QCoreApplication::applicationDirPath();
-    m_process->start(appDir + "/gallery-dl.exe", {"--version"});
+    ProcessUtils::setProcessEnvironment(*m_process);
+
+    ProcessUtils::FoundBinary binary = ProcessUtils::resolveBinary("gallery-dl", m_configManager);
+    if (binary.path.isEmpty() || binary.source == "Not Found" || binary.source == "Invalid Custom") {
+        emit versionFetched("Not Found");
+        emit updateFinished(Updater::UpdateStatus::Error, "gallery-dl executable not found.");
+        m_process->deleteLater();
+        m_process = nullptr;
+        return;
+    }
+
+    m_process->start(binary.path, {"--version"});
 }
 
 void GalleryDlUpdater::onReleaseCheckFinished() {
@@ -126,16 +142,43 @@ void GalleryDlUpdater::onDownloadFinished() {
     }
 
     QString newVersion = reply->property("newVersion").toString();
-    QString appDir = QCoreApplication::applicationDirPath();
-    QString targetPath = appDir + "/gallery-dl.exe";
+
+    ProcessUtils::FoundBinary binary = ProcessUtils::resolveBinary("gallery-dl", m_configManager);
+    QString targetPath = binary.path;
+
+    // Prevent corruption of package-managed system environments
+    if (binary.source != "Custom" && binary.source != "App Directory" && binary.source != "Not Found") {
+        emit updateFinished(Updater::UpdateStatus::Error, 
+            QString("gallery-dl is managed by %1. Please update it using your package manager or the External Binaries tab.").arg(binary.source));
+        reply->deleteLater();
+        return;
+    }
+
+    if (targetPath.isEmpty() || binary.source == "Not Found") {
+        QString appDir = QCoreApplication::applicationDirPath();
+#ifdef Q_OS_WIN
+        targetPath = appDir + "/gallery-dl.exe";
+#else
+        targetPath = appDir + "/gallery-dl";
+#endif
+    }
 
     QFile file(targetPath);
     if (file.open(QIODevice::WriteOnly)) {
         file.write(reply->readAll());
         file.close();
+
+#ifndef Q_OS_WIN
+        // Ensure it's executable on Unix platforms
+        file.setPermissions(file.permissions() | QFileDevice::ExeOwner | QFileDevice::ExeGroup | QFileDevice::ExeOther);
+#endif
+
         m_currentLocalVersion = newVersion;
         m_cachedVersion = newVersion;
         saveStoredVersion(newVersion);
+
+        ProcessUtils::clearCache(); // Ensure next run uses the freshly downloaded binary
+
         emit versionFetched(m_currentLocalVersion);
         emit updateFinished(Updater::UpdateStatus::UpdateAvailable, QString("gallery-dl updated successfully to %1.").arg(newVersion));
     } else {
@@ -146,11 +189,16 @@ void GalleryDlUpdater::onDownloadFinished() {
 }
 
 void GalleryDlUpdater::onVersionCheckFinished(int exitCode, QProcess::ExitStatus exitStatus) {
-    if (exitStatus == QProcess::CrashExit) {
+    QProcess *process = qobject_cast<QProcess*>(sender());
+
+    if (exitStatus == QProcess::CrashExit || exitCode != 0) {
+        emit versionFetched("Error");
+        qWarning() << "Failed to fetch gallery-dl version:" << (process ? process->readAllStandardError() : QByteArray());
+        emit updateFinished(Updater::UpdateStatus::Error, "Failed to determine local gallery-dl version.");
+        m_process = nullptr;
         return;
     }
 
-    QProcess *process = qobject_cast<QProcess*>(sender());
     if (exitCode == 0) {
         QString versionOutput = process->readAllStandardOutput().trimmed();
         QStringList parts = versionOutput.split(' ');
@@ -164,9 +212,6 @@ void GalleryDlUpdater::onVersionCheckFinished(int exitCode, QProcess::ExitStatus
         request.setHeader(QNetworkRequest::UserAgentHeader, "LzyDownloader");
         QNetworkReply *reply = m_networkManager->get(request);
         connect(reply, &QNetworkReply::finished, this, &GalleryDlUpdater::onReleaseCheckFinished);
-    } else {
-        emit versionFetched("Error");
-        emit updateFinished(Updater::UpdateStatus::Error, "Failed to determine local gallery-dl version.");
     }
     m_process = nullptr;
 }

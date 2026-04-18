@@ -1,0 +1,33 @@
+$ErrorActionPreference = "Stop"
+
+Write-Host "=== LzyDownloader Release Builder ===" -ForegroundColor Cyan
+
+Write-Host "`n[0/4] Cleaning old build cache to prevent DLL mismatches..." -ForegroundColor Yellow
+if (Test-Path build) { Remove-Item -Recurse -Force build }
+
+Write-Host "`n[1/4] Updating Extractor Lists..." -ForegroundColor Yellow
+"" | python ./update_yt-dlp_extractors.py
+"" | python ./update_gallery-dl_extractors.py
+
+Write-Host "`n[2/4] Configuring CMake (Release)..." -ForegroundColor Yellow
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+Write-Host "`n[3/4] Building C++ Application..." -ForegroundColor Yellow
+# This will compile the executable. 
+# Note: Your CMakeLists.txt automatically runs windeployqt and copies the 
+# extractor JSONs as a POST_BUILD step, so we don't need to do it manually here.
+cmake --build build --config Release
+
+Write-Host "`n[4/4] Building NSIS Installer..." -ForegroundColor Yellow
+$nsisPath = "C:\Program Files (x86)\NSIS\makensis.exe"
+if (Test-Path $nsisPath) {
+    & $nsisPath LzyDownloader.nsi
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "NSIS compilation failed with exit code $LASTEXITCODE"
+    }
+} else {
+    Write-Error "makensis.exe not found at $nsisPath. Please ensure NSIS is installed."
+}
+
+Write-Host "`n=== Build Complete! ===" -ForegroundColor Green
+Write-Host "Your LzyDownloader-Setup installer should be ready in the current directory." -ForegroundColor Green

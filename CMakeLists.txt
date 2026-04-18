@@ -1,10 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-<<<<<<< HEAD
-project(LzyDownloader VERSION 1.0.20 LANGUAGES CXX)
-=======
-project(LzyDownloader VERSION 1.0.19 LANGUAGES CXX)
->>>>>>> 1f7823d4c932568a9d3627a8c0f4aee303250983
+project(LzyDownloader VERSION 1.1.2 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -108,7 +104,7 @@ configure_file(
 # --- Executable Target ---
 add_executable(LzyDownloader
     # Use WIN32 for GUI applications on Windows to avoid a console window
-    # WIN32 # Temporarily disabled to allow console output for debugging
+    WIN32
 
     # Application entry point
     main.cpp
@@ -173,6 +169,37 @@ if(WIN32)
             --no-opengl-sw
             "$<TARGET_FILE:LzyDownloader>"
             COMMENT "Running windeployqt to copy Qt dependencies..."
+        )
+
+        # Some environments end up with mixed Qt runtimes in the build output
+        # even though CMake resolved the official Qt installation above.
+        # Re-copy the primary Qt DLLs from the configured Qt bin directory so
+        # the release folder cannot retain an incompatible alternate build
+        # that introduces unexpected dependencies like zlib1.dll.
+        foreach(_qt_runtime IN ITEMS
+            Qt6Core.dll
+            Qt6Gui.dll
+            Qt6Network.dll
+            Qt6Sql.dll
+            Qt6Svg.dll
+            Qt6Widgets.dll
+        )
+            add_custom_command(TARGET LzyDownloader POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${_qt_bin_dir}/${_qt_runtime}"
+                "$<TARGET_FILE_DIR:LzyDownloader>/${_qt_runtime}"
+                COMMENT "Re-copying ${_qt_runtime} from configured Qt runtime"
+            )
+        endforeach()
+
+        # Keep the deployed app directory free of stray ad-hoc zlib DLLs.
+        add_custom_command(TARGET LzyDownloader POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E rm -f
+            "$<TARGET_FILE_DIR:LzyDownloader>/zlib1.dll"
+            "$<TARGET_FILE_DIR:LzyDownloader>/zlib.dll"
+            "$<TARGET_FILE_DIR:LzyDownloader>/libz.dll"
+            "$<TARGET_FILE_DIR:LzyDownloader>/libzlib.dll"
+            COMMENT "Removing incompatible ad-hoc zlib DLLs from output directory"
         )
     else()
         message(WARNING "windeployqt not found, Qt dependencies will not be copied automatically.")

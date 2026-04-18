@@ -8,6 +8,7 @@
 #include <QMessageBox>
 #include <QClipboard>
 #include <QPushButton>
+#include "core/ProcessUtils.h"
 
 StartTabUrlHandler::StartTabUrlHandler(ConfigManager *configManager, ExtractorJsonParser *extractorJsonParser, StartTabUiBuilder *uiBuilder, QObject *parent)
     : QObject(parent),
@@ -113,9 +114,9 @@ void StartTabUrlHandler::onTypeSelectionDialogFinished(int /*result*/)
     if (clickedButton) {
         QString btnText = clickedButton->text();
         QString dataValue;
-        if (btnText == "Video") dataValue = "video";
-        else if (btnText == "Audio Only") dataValue = "audio";
-        else if (btnText == "View Formats") dataValue = "formats";
+        if (btnText.startsWith("Video")) dataValue = "video";
+        else if (btnText.startsWith("Audio Only")) dataValue = "audio";
+        else if (btnText.startsWith("View Video/Audio Formats")) dataValue = "formats";
 
         if (!dataValue.isEmpty() && m_uiBuilder->downloadTypeCombo()) {
             int index = m_uiBuilder->downloadTypeCombo()->findData(dataValue);
@@ -162,7 +163,13 @@ bool StartTabUrlHandler::checkClipboardForUrl()
     ExtractorSupport support = checkUrlExtractorSupport(text);
 
     if (support != ExtractorSupport::None) {
-        m_uiBuilder->urlInput()->setText(text);
+        // Safely append the new URL instead of destructively overwriting user input
+        QString currentText = m_uiBuilder->urlInput()->toPlainText().trimmed();
+        if (currentText.isEmpty()) {
+            m_uiBuilder->urlInput()->setText(text);
+        } else if (!currentText.contains(text)) {
+            m_uiBuilder->urlInput()->setText(currentText + "\n" + text);
+        }
 
         if (support == ExtractorSupport::GalleryDlOnly) {
             if (m_uiBuilder->downloadTypeCombo()) {
@@ -181,9 +188,22 @@ bool StartTabUrlHandler::checkClipboardForUrl()
                 m_typeSelectionDialog->setText("The pasted URL is likely for video/audio.\nPlease select a download type:");
                 m_typeSelectionDialog->setIcon(QMessageBox::Question);
 
-                m_typeSelectionDialog->addButton("Video", QMessageBox::ActionRole);
-                m_typeSelectionDialog->addButton("Audio Only", QMessageBox::ActionRole);
-                m_typeSelectionDialog->addButton("View Formats", QMessageBox::ActionRole);
+                QStringList requiredYt = {"yt-dlp", "ffmpeg", "ffprobe", "deno"};
+                bool hasMissingYt = false;
+                for (const QString &bin : requiredYt) {
+                    QString source = ProcessUtils::findBinary(bin, m_configManager).source;
+                    if (source == "Not Found" || source == "Invalid Custom") {
+                        hasMissingYt = true;
+                        break;
+                    }
+                }
+                
+                QString ytSource = ProcessUtils::findBinary("yt-dlp", m_configManager).source;
+                bool ytDlpOnlyMissing = (ytSource == "Not Found" || ytSource == "Invalid Custom");
+
+                m_typeSelectionDialog->addButton(hasMissingYt ? "Video (missing binaries)" : "Video", QMessageBox::ActionRole);
+                m_typeSelectionDialog->addButton(hasMissingYt ? "Audio Only (missing binaries)" : "Audio Only", QMessageBox::ActionRole);
+                m_typeSelectionDialog->addButton(ytDlpOnlyMissing ? "View Video/Audio Formats (missing binaries)" : "View Video/Audio Formats", QMessageBox::ActionRole);
                 m_typeSelectionDialog->addButton(QMessageBox::Cancel);
 
                 connect(m_typeSelectionDialog, &QDialog::finished, this, &StartTabUrlHandler::onTypeSelectionDialogFinished);

@@ -98,11 +98,18 @@ QString SortingManager::getSortedDirectory(const QVariantMap &videoMetadata, con
             QVariant metadataValue;
             if (field == "Duration (seconds)") {
                 metadataValue = videoMetadata.value("duration");
+            } else if (field == "Playlist Title") {
+                metadataValue = videoMetadata.value("playlist_title");
             } else {
                 metadataValue = videoMetadata.value(field.toLower());
             }
 
-            qDebug() << "    Condition" << c << "- field:" << field << "(looking for key:" << field.toLower() << ")" << "op:" << op;
+            // Fallback to playlist_title if album is missing (useful for playlist sorting)
+            if (field == "Album" && metadataValue.toString().isEmpty() && videoMetadata.contains("playlist_title")) {
+                metadataValue = videoMetadata.value("playlist_title");
+            }
+
+            qDebug() << "    Condition" << c << "- field:" << field << "op:" << op;
             qDebug() << "      metadataValue:" << metadataValue.toString() << "(isEmpty:" << metadataValue.toString().isEmpty() << ")";
             qDebug() << "      condition value:" << value.left(100);
 
@@ -200,6 +207,8 @@ QString SortingManager::parseAndReplaceTokens(const QString &pattern, const QVar
 
         if (metadata.contains(key)) {
             result.replace(token, sanitize(metadata[key].toString()), Qt::CaseInsensitive);
+        } else if (key.compare("album", Qt::CaseInsensitive) == 0 && metadata.contains("playlist_title")) {
+            result.replace(token, sanitize(metadata["playlist_title"].toString()), Qt::CaseInsensitive);
         }
     }
 

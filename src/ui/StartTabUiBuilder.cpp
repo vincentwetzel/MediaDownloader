@@ -83,21 +83,11 @@ void StartTabUiBuilder::build(QWidget *parentWidget, QVBoxLayout *mainLayout)
     m_downloadTypeCombo->addItem("Video", "video");
     m_downloadTypeCombo->addItem("Audio Only", "audio");
     m_downloadTypeCombo->addItem("Gallery", "gallery");
-    m_downloadTypeCombo->addItem("View Formats", "formats");
+    m_downloadTypeCombo->addItem("View Video/Audio Formats", "formats");
+    m_downloadTypeCombo->setItemData(3, "Uses yt-dlp to list available video and audio formats. Not supported for galleries.", Qt::ToolTipRole);
     m_downloadTypeCombo->setToolTip("Select the type of download.");
     actionColumnLayout->addWidget(m_downloadTypeCombo);
 
-    connect(m_downloadTypeCombo, &QComboBox::currentTextChanged, this, [this](const QString &text) {
-        if (text == "Video") {
-            m_downloadButton->setText("Download Video");
-        } else if (text == "Audio Only") {
-            m_downloadButton->setText("Download Audio");
-        } else if (text == "Gallery") {
-            m_downloadButton->setText("Download Gallery");
-        } else if (text == "View Formats") {
-            m_downloadButton->setText("View Formats");
-        }
-    });
 
     actionColumnLayout->addSpacing(20);
 

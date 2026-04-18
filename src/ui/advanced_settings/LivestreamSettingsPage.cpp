@@ -26,7 +26,9 @@ void LivestreamSettingsPage::setupUI() {
 
     m_liveFromStartCheck = new ToggleSwitch(this);
     m_liveFromStartCheck->setToolTip("If enabled, downloads the livestream from the start instead of the current live edge (where supported).");
-    formLayout->addRow("Record from beginning of broadcast", m_liveFromStartCheck);
+    QLabel *liveFromStartLabel = new QLabel("Record from beginning of broadcast", this);
+    liveFromStartLabel->setWordWrap(true);
+    formLayout->addRow(liveFromStartLabel, m_liveFromStartCheck);
 
     QHBoxLayout *waitLayout = new QHBoxLayout();
     waitLayout->setContentsMargins(0, 0, 0, 0);
@@ -43,7 +45,9 @@ void LivestreamSettingsPage::setupUI() {
     m_waitMaxSpin->setSuffix(" s");
     m_waitMaxSpin->setToolTip("Maximum seconds to wait between retries.");
     
-    waitLayout->addWidget(new QLabel("Wait for video to start", this));
+    QLabel *waitLabel = new QLabel("Wait for video to start", this);
+    waitLabel->setWordWrap(true);
+    waitLayout->addWidget(waitLabel);
     waitLayout->addWidget(m_waitForVideoCheck);
     waitLayout->addSpacing(15);
     waitLayout->addWidget(new QLabel("Min:", this));

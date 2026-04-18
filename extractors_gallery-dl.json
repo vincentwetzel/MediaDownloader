@@ -298,6 +298,11 @@
             "fikfap.com"
         ]
     },
+    "filester": {
+        "domains": [
+            "filester.me"
+        ]
+    },
     "fitnakedgirls": {
         "domains": [
             "fitnakedgirls.com"
@@ -306,6 +311,11 @@
     "flickr": {
         "domains": [
             "flickr.com"
+        ]
+    },
+    "foriio": {
+        "domains": [
+            "foriio.com"
         ]
     },
     "furaffinity": {
@@ -648,6 +658,11 @@
             "mangoxo.com"
         ]
     },
+    "mixdrop": {
+        "domains": [
+            "mixdrop.ag"
+        ]
+    },
     "motherless": {
         "domains": [
             "motherless.com"
@@ -732,6 +747,11 @@
     "pexels": {
         "domains": [
             "pexels.com"
+        ]
+    },
+    "pholder": {
+        "domains": [
+            "pholder.com"
         ]
     },
     "photovogue": {
@@ -927,8 +947,7 @@
     },
     "simplyhentai": {
         "domains": [
-            "simply-hentai.com",
-            "videos.simply-hentai.com"
+            "simply-hentai.com"
         ]
     },
     "sizebooru": {

@@ -36,6 +36,8 @@ Application-wide settings that control theme, cookie handling, clipboard behavio
 | `auto_paste_mode` | Integer | `0` | Clipboard auto-paste behavior. See [Auto-Paste Modes](#auto-paste-modes) below. |
 | `single_line_preview` | Boolean | `false` | Display the command preview in single-line mode on the Start tab. |
 | `restrict_filenames` | Boolean | `false` | Restrict downloaded filenames to ASCII characters only for maximum compatibility. |
+| `show_debug_console` | Boolean | `true` (Debug) / `false` (Release) | Show or hide the command prompt / debug console window while the application is running. |
+| `warn_stable_yt_dlp` | Boolean | `true` | Controls whether the runtime popup warns when the detected `yt-dlp` build looks like a stable release instead of a nightly build. This preference is currently changed from the popup itself, not a dedicated settings page. |
 
 ### Auto-Paste Modes
 
@@ -46,6 +48,8 @@ Application-wide settings that control theme, cookie handling, clipboard behavio
 | `2` | Auto-paste on new URL in clipboard | Pastes when a new URL is detected in the clipboard. |
 | `3` | Auto-paste & enqueue on app focus | Pastes and immediately adds to the download queue when the app gains focus. |
 | `4` | Auto-paste & enqueue on new URL in clipboard | Pastes and enqueues when a new URL is detected in the clipboard. |
+
+Internally, clipboard-triggered auto-paste uses a short debounce window of roughly 500 ms plus queue-level duplicate detection, so rapid clipboard notifications do not enqueue the same URL multiple times while still allowing quick successive copies.
 
 ---
 
@@ -265,14 +269,23 @@ The `settings.ini` file is stored in the system's standard user configuration di
 
 This ensures user settings are preserved across application updates and installations via the NSIS installer.
 
+## Queue Backup Location
+
+Active, paused, and stopped downloads are automatically serialized to a JSON file so they can be resumed across application restarts:
+- **Windows:** `%LOCALAPPDATA%\LzyDownloader\downloads_backup.json`
+- **Linux:** `~/.config/LzyDownloader/downloads_backup.json`
+- **macOS:** `~/Library/Application Support/LzyDownloader/downloads_backup.json`
+
+Stopped and failed entries also retain the latest known temporary file paths needed for resume and cleanup workflows. This allows the Active Downloads tab's `Clear Temp Files` action to remove tracked partial media, sidecar metadata, thumbnails, and downloader state files even after an app restart.
+
 ## Log File Location
 
 Application logs are stored in the same user configuration directory:
-- **Windows:** `%LOCALAPPDATA%\LzyDownloader\LzyDownloader.log`
-- **Linux:** `~/.config/LzyDownloader/LzyDownloader.log`
-- **macOS:** `~/Library/Application Support/LzyDownloader/LzyDownloader.log`
+- **Windows:** `%LOCALAPPDATA%\LzyDownloader\LzyDownloader_YYYY-MM-dd_HH-mm-ss.log`
+- **Linux:** `~/.config/LzyDownloader/LzyDownloader_YYYY-MM-dd_HH-mm-ss.log`
+- **macOS:** `~/Library/Application Support/LzyDownloader/LzyDownloader_YYYY-MM-dd_HH-mm-ss.log`
 
-**Log Rotation:** The application maintains a maximum of 5 log files. When the current log exceeds 2 MB, it is automatically rotated (`.log` → `.log.1` → `.log.2`, etc.), and the oldest log is deleted. This prevents unbounded disk growth while preserving recent diagnostic history.
+**Log Retention:** Each app launch creates a fresh timestamped log file, and startup cleanup keeps only the 5 most recent logs. Legacy size-rotated `LzyDownloader.log.*` files are also deleted if they are still present from older builds.
 
 ### Canonical Format
 
@@ -303,14 +316,15 @@ All other settings are reset to their default values.
 | **Advanced Settings → Configuration** | `Paths` | `completed_downloads_directory`, `temporary_downloads_directory` |
 | **Advanced Settings → Configuration** | `General` | `theme` |
 | **Advanced Settings → Authentication Access** | `General` | `cookies_from_browser`, `gallery_cookies_from_browser` |
-| **Advanced Settings → Output Templates** | `General` | `output_template`, `output_template_video`, `output_template_audio`, `gallery_output_template` |
+| **Advanced Settings → Output Template** | `General` | `output_template`, `output_template_video`, `output_template_audio`, `gallery_output_template` |
 | **Advanced Settings → Download Options** | `Metadata` | `use_aria2c` |
 | **Advanced Settings → Download Options** | `General` | `sponsorblock`, `auto_paste_mode`, `single_line_preview`, `restrict_filenames`, `embed_chapters` |
 | **Advanced Settings → Download Options** | `DownloadOptions` | `split_chapters`, `download_sections_enabled`, `auto_clear_completed`, `geo_verification_proxy` |
-| **Advanced Settings → Metadata/Thumbnails** | `Metadata` | `embed_metadata`, `embed_thumbnail`, `high_quality_thumbnail`, `convert_thumbnail_to`, `crop_artwork_to_square`, `generate_folder_jpg` |
+| **Advanced Settings → Configuration** | `General` | `show_debug_console` |
+| **Advanced Settings → Metadata** | `Metadata` | `embed_metadata`, `embed_thumbnail`, `high_quality_thumbnail`, `convert_thumbnail_to`, `crop_artwork_to_square`, `generate_folder_jpg` |
 | **Advanced Settings → Subtitles** | `Subtitles` | `languages`, `embed_subtitles`, `write_subtitles`, `write_auto_subtitles`, `format` |
-| **Advanced Settings → Updates** | *(N/A - runtime only)* | yt-dlp/gallery-dl version display and update buttons |
-| **Advanced Settings → Binaries** | `Binaries` | `yt-dlp_path`, `ffmpeg_path`, `ffprobe_path`, `gallery-dl_path`, `aria2c_path`, `deno_path` |
+| **Advanced Settings → External Binaries** | *(N/A - runtime only)* | yt-dlp/gallery-dl version display and update buttons |
+| **Advanced Settings → External Binaries** | `Binaries` | `yt-dlp_path`, `ffmpeg_path`, `ffprobe_path`, `gallery-dl_path`, `aria2c_path`, `deno_path` |
 | **Start Tab** | `Video` | `video_quality`, `video_codec`, `video_extension`, `video_audio_codec`, `video_multistreams` |
 | **Start Tab** | `Audio` | `audio_quality`, `audio_codec`, `audio_extension`, `audio_multistreams` |
 | **Sorting Tab** | `SortingRules` | `count`, `1`, `2`, ... |

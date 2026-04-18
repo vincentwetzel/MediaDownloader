@@ -5,6 +5,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QProcess>
+#include <QRegularExpression>
 #include <QProcessEnvironment>
 #ifdef Q_OS_WIN
 #ifndef NOMINMAX
@@ -12,6 +13,7 @@
 #endif
 #include <windows.h>
 #endif
+#include <QMutex>
 
 namespace ProcessUtils {
 
@@ -93,6 +95,7 @@ void assignProcessToTerminationJob(QProcess *process)
 
 // Static cache for resolved binary paths
 static QHash<QString, FoundBinary> s_binaryCache;
+static QMutex s_binaryCacheMutex;
 
 // Helper: check common per-user tool install locations that may not be PATH
 static QString findCommonUserTool(const QString& exeName)
@@ -154,15 +157,21 @@ static QString findCommonUserTool(const QString& exeName)
 
 FoundBinary findBinary(const QString& name, ConfigManager* configManager)
 {
-    // Check cache first
-    if (s_binaryCache.contains(name)) {
-        return s_binaryCache.value(name);
+    {
+        QMutexLocker locker(&s_binaryCacheMutex);
+        // Check cache first
+        if (s_binaryCache.contains(name)) {
+            return s_binaryCache.value(name);
+        }
     }
 
     FoundBinary result = resolveBinary(name, configManager);
 
-    // Cache the result
-    s_binaryCache.insert(name, result);
+    {
+        QMutexLocker locker(&s_binaryCacheMutex);
+        // Cache the result
+        s_binaryCache.insert(name, result);
+    }
 
     return result;
 }
@@ -231,18 +240,22 @@ FoundBinary resolveBinary(const QString& name, ConfigManager* configManager)
 }
 
 void clearCache() {
+    QMutexLocker locker(&s_binaryCacheMutex);
     s_binaryCache.clear();
 }
 
 void cacheBinary(const QString& name, const FoundBinary& found) {
+    QMutexLocker locker(&s_binaryCacheMutex);
     s_binaryCache.insert(name, found);
 }
 
 FoundBinary getCachedBinary(const QString& name) {
+    QMutexLocker locker(&s_binaryCacheMutex);
     return s_binaryCache.value(name);
 }
 
 bool hasCachedBinary(const QString& name) {
+    QMutexLocker locker(&s_binaryCacheMutex);
     return s_binaryCache.contains(name);
 }
 
@@ -255,8 +268,9 @@ void setProcessEnvironment(QProcess &process) {
 #ifdef Q_OS_WIN
     if (!process.property("_lzy_shutdown_job_connected").toBool()) {
         process.setProperty("_lzy_shutdown_job_connected", true);
-        QObject::connect(&process, &QProcess::started, &process, [&process]() {
-            assignProcessToTerminationJob(&process);
+        QProcess *p = &process;
+        QObject::connect(p, &QProcess::started, p, [p]() {
+            assignProcessToTerminationJob(p);
         });
     }
 
@@ -278,14 +292,16 @@ void terminateProcessTree(QProcess *process, int gracefulTimeoutMs) {
     if (pid > 0) {
         QProcess taskkill;
         taskkill.setProcessChannelMode(QProcess::MergedChannels);
-        taskkill.start("taskkill", {"/PID", QString::number(pid), "/T", "/F"});
+        taskkill.start("taskkill.exe", {"/PID", QString::number(pid), "/T", "/F"});
         if (!taskkill.waitForFinished(5000)) {
             qWarning() << "[ProcessUtils] taskkill timed out for PID" << pid;
         } else if (taskkill.exitCode() != 0) {
             qWarning() << "[ProcessUtils] taskkill failed for PID" << pid << taskkill.readAllStandardOutput();
         }
     }
-    process->waitForFinished(gracefulTimeoutMs);
+    
+    // Force immediate kill without waiting if we are aborting
+    process->kill();
 #else
     process->terminate();
     if (!process->waitForFinished(gracefulTimeoutMs)) {
@@ -293,6 +309,33 @@ void terminateProcessTree(QProcess *process, int gracefulTimeoutMs) {
         process->waitForFinished(5000);
     }
 #endif
+}
+
+QString fetchFfmpegVersion(const QString& execPath) {
+    if (execPath.isEmpty() || !QFileInfo::exists(execPath)) {
+        return "Not Found";
+    }
+
+    QProcess process;
+    process.start(execPath, {"-version"});
+    if (process.waitForFinished(3000)) {
+        QString output = process.readAllStandardOutput();
+        
+        // Match specific clean patterns: YYYY-MM-DD, semantic version (e.g., 6.0, 4.4.1), or N-builds
+        QRegularExpression re("(?:ffmpeg|ffprobe) version ([0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]+\\.[0-9]+(?:\\.[0-9]+)?|[Nn]-[0-9]+)");
+        QRegularExpressionMatch match = re.match(output);
+        if (match.hasMatch()) {
+            return match.captured(1);
+        }
+        
+        // Fallback: take the first sequence of characters before a hyphen or space
+        QRegularExpression fallbackRe("(?:ffmpeg|ffprobe) version ([^- ]+)");
+        QRegularExpressionMatch fallbackMatch = fallbackRe.match(output);
+        if (fallbackMatch.hasMatch()) {
+            return fallbackMatch.captured(1);
+        }
+    }
+    return "Unknown";
 }
 
 } // namespace ProcessUtils

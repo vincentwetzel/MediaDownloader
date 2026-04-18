@@ -11,15 +11,26 @@
 #include <QCoreApplication>
 #include <QDir>
 
-AppUpdater::AppUpdater(const QString &repoUrl, const QString &currentVersion, QObject *parent)
-    : QObject(parent), m_repoUrl(repoUrl), m_currentVersion(currentVersion) {
+AppUpdater::AppUpdater(const QStringList &repoUrls, const QString &currentVersion, QObject *parent)
+    : QObject(parent), m_repoUrls(repoUrls), m_currentVersion(currentVersion), m_currentUrlIndex(0) {
 
     m_networkManager = new QNetworkAccessManager(this);
 }
 
 void AppUpdater::checkForUpdates() {
-    QUrl url(m_repoUrl + "/releases/latest");
+    m_currentUrlIndex = 0;
+    fetchNextUrl();
+}
+
+void AppUpdater::fetchNextUrl() {
+    if (m_currentUrlIndex >= m_repoUrls.size()) {
+        emit updateCheckFailed("Could not find updates at any repository URL.");
+        return;
+    }
+
+    QUrl url(m_repoUrls[m_currentUrlIndex] + "/releases/latest");
     QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::UserAgentHeader, "LzyDownloader");
     QNetworkReply *reply = m_networkManager->get(request);
     connect(reply, &QNetworkReply::finished, this, [this, reply](){
         onCheckFinished(reply);
@@ -28,8 +39,13 @@ void AppUpdater::checkForUpdates() {
 
 void AppUpdater::onCheckFinished(QNetworkReply *reply) {
     if (reply->error() != QNetworkReply::NoError) {
-        emit updateCheckFailed(reply->errorString());
+        qWarning() << "Update check failed for URL:" << reply->request().url() 
+                   << "Error:" << reply->errorString();
         reply->deleteLater();
+        
+        // Try the next fallback URL
+        m_currentUrlIndex++;
+        fetchNextUrl();
         return;
     }
 
