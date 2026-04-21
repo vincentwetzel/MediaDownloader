@@ -69,12 +69,14 @@ signals:
     void ytDlpErrorPopupRequested(const QString &id, const QString &errorType, const QString &userMessage, const QString &rawError, const QVariantMap &itemData);
     void duplicateDownloadDetected(const QString &url, const QString &reason);
     void downloadFinished(const QString &id, bool success, const QString &message);
+    void downloadRemovedFromQueue(const QString &id);
 
 private slots:
     void onPlaylistDetected(const QString &url, int itemCount, const QVariantMap &options, const QList<QVariantMap> &expandedItems);
     void onPlaylistExpanded(const QString &originalUrl, const QList<QVariantMap> &expandedItems, const QString &error);
     void onPlaylistExpansionPlaceholderRemoved(const QString &id);
     void onPlaylistExpansionPlaceholderUpdated(const QString &id, const QVariantMap &itemData);
+    void onConfigSettingChanged(const QString &section, const QString &key, const QVariant &value);
     void startNextDownload();
     void onSleepTimerTimeout();
     void onWorkerProgress(const QString &id, const QVariantMap &progressData);
@@ -87,7 +89,9 @@ private slots:
     void onRequestStartNextDownload();
 
 private:
+    void applyMaxConcurrentSetting(const QString &maxThreadsStr);
     void proceedWithDownload();
+    void startDownloadsToCapacity();
     void checkQueueFinished();
     void updateTotalSpeed();
     void emitDownloadStats();

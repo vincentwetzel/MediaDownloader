@@ -14,6 +14,9 @@ public:
     QString getSortedDirectory(const QVariantMap &videoMetadata, const QVariantMap &downloadOptions);
 
 private:
+    QVariant metadataValueForField(const QString &field, const QVariantMap &metadata) const;
+    QVariant metadataValueForKey(const QString &key, const QVariantMap &metadata) const;
+    QString normalizedMetadataKey(const QString &key) const;
     QString sanitize(const QString &name);
     QString parseAndReplaceTokens(const QString &pattern, const QVariantMap &metadata);
 

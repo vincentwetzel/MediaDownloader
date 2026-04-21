@@ -166,6 +166,10 @@ void DownloadQueueManager::enqueueDownload(const DownloadItem &item, bool isNew)
     uiData["progress"] = -1;
     uiData["options"] = item.options;
     uiData["playlistIndex"] = item.playlistIndex;
+    const QString initialTitle = item.options.value("initial_title").toString().trimmed();
+    if (!initialTitle.isEmpty()) {
+        uiData["title"] = initialTitle;
+    }
     
     if (isNew) {
         emit downloadAddedToQueue(uiData);
@@ -177,6 +181,23 @@ void DownloadQueueManager::enqueueDownload(const DownloadItem &item, bool isNew)
     emitQueueCountsChanged();
     QMetaObject::invokeMethod(this, [this]() { saveQueueState(QMap<QString, DownloadItem>()); }, Qt::QueuedConnection);
     emit requestStartNextDownload();
+}
+
+bool DownloadQueueManager::removePendingExpansionPlaceholder(const QString &id) {
+    for (int i = 0; i < m_downloadQueue.size(); ++i) {
+        if (m_downloadQueue.at(i).id == id) {
+            m_downloadQueue.takeAt(i);
+            m_pendingExpansions.remove(id);
+            emit playlistExpansionPlaceholderRemoved(id);
+            emitQueueCountsChanged();
+            QMetaObject::invokeMethod(this, [this]() { saveQueueState(QMap<QString, DownloadItem>()); }, Qt::QueuedConnection);
+            emit requestStartNextDownload();
+            return true;
+        }
+    }
+
+    m_pendingExpansions.remove(id);
+    return false;
 }
 
 bool DownloadQueueManager::cancelQueuedOrPausedDownload(const QString &id) {
@@ -340,6 +361,7 @@ void DownloadQueueManager::processResumeDownloadsSelection(const QJsonArray &arr
         item.id = obj["id"].toString();
         item.url = obj["url"].toString();
         item.options = obj["options"].toObject().toVariantMap();
+        item.metadata = obj["metadata"].toObject().toVariantMap();
         item.playlistIndex = obj["playlistIndex"].toInt(-1);
         item.tempFilePath = obj["tempFilePath"].toString();
         item.originalDownloadedFilePath = obj["originalDownloadedFilePath"].toString();

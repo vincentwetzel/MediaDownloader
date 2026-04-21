@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(LzyDownloader VERSION 1.1.3 LANGUAGES CXX)
+project(LzyDownloader VERSION 1.1.5 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -14,33 +14,40 @@ set(CMAKE_AUTOUIC ON)
 # Help CMake find Qt in common Windows SDK layouts when the IDE environment
 # does not already provide Qt6_DIR/CMAKE_PREFIX_PATH (for example in CLion).
 set(_qt_search_prefixes "")
+set(_lzydownloader_using_vcpkg_toolchain OFF)
 
-foreach(_qt_env_var Qt6_DIR QT_DIR QTDIR)
-    if(DEFINED ENV{${_qt_env_var}} AND NOT "$ENV{${_qt_env_var}}" STREQUAL "")
-        if(EXISTS "$ENV{${_qt_env_var}}/Qt6Config.cmake")
-            get_filename_component(_qt_prefix "$ENV{${_qt_env_var}}/../../.." ABSOLUTE)
-            list(APPEND _qt_search_prefixes "${_qt_prefix}")
-        elseif(EXISTS "$ENV{${_qt_env_var}}/lib/cmake/Qt6/Qt6Config.cmake")
-            list(APPEND _qt_search_prefixes "$ENV{${_qt_env_var}}")
-        endif()
-    endif()
-endforeach()
+if(CMAKE_TOOLCHAIN_FILE MATCHES "vcpkg[\\/]+scripts[\\/]+buildsystems[\\/]+vcpkg\\.cmake$")
+    set(_lzydownloader_using_vcpkg_toolchain ON)
+endif()
 
-if(WIN32)
-    # Check C:, D: (common for Dev Drives), and the drive the project is currently on
-    string(SUBSTRING "${CMAKE_SOURCE_DIR}" 0 3 _project_drive)
-    file(GLOB _qt_version_dirs LIST_DIRECTORIES true 
-        "C:/Qt/6.*" 
-        "D:/Qt/6.*"
-        "${_project_drive}Qt/6.*"
-    )
-    foreach(_qt_version_dir IN LISTS _qt_version_dirs)
-        foreach(_qt_arch_dir msvc2022_64 msvc2019_64 mingw_64)
-            if(EXISTS "${_qt_version_dir}/${_qt_arch_dir}/lib/cmake/Qt6/Qt6Config.cmake")
-                list(APPEND _qt_search_prefixes "${_qt_version_dir}/${_qt_arch_dir}")
+if(NOT _lzydownloader_using_vcpkg_toolchain)
+    foreach(_qt_env_var Qt6_DIR QT_DIR QTDIR)
+        if(DEFINED ENV{${_qt_env_var}} AND NOT "$ENV{${_qt_env_var}}" STREQUAL "")
+            if(EXISTS "$ENV{${_qt_env_var}}/Qt6Config.cmake")
+                get_filename_component(_qt_prefix "$ENV{${_qt_env_var}}/../../.." ABSOLUTE)
+                list(APPEND _qt_search_prefixes "${_qt_prefix}")
+            elseif(EXISTS "$ENV{${_qt_env_var}}/lib/cmake/Qt6/Qt6Config.cmake")
+                list(APPEND _qt_search_prefixes "$ENV{${_qt_env_var}}")
             endif()
-        endforeach()
+        endif()
     endforeach()
+
+    if(WIN32)
+        # Check C:, D: (common for Dev Drives), and the drive the project is currently on
+        string(SUBSTRING "${CMAKE_SOURCE_DIR}" 0 3 _project_drive)
+        file(GLOB _qt_version_dirs LIST_DIRECTORIES true
+            "C:/Qt/6.*"
+            "D:/Qt/6.*"
+            "${_project_drive}Qt/6.*"
+        )
+        foreach(_qt_version_dir IN LISTS _qt_version_dirs)
+            foreach(_qt_arch_dir msvc2022_64 msvc2019_64 mingw_64)
+                if(EXISTS "${_qt_version_dir}/${_qt_arch_dir}/lib/cmake/Qt6/Qt6Config.cmake")
+                    list(APPEND _qt_search_prefixes "${_qt_version_dir}/${_qt_arch_dir}")
+                endif()
+            endforeach()
+        endforeach()
+    endif()
 endif()
 
 if(_qt_search_prefixes)
@@ -155,53 +162,76 @@ add_custom_command(TARGET LzyDownloader POST_BUILD
 # are available in the build directory, which is critical for both
 # Debug and Release builds to function correctly.
 if(WIN32)
-    # Find windeployqt from Qt6::qmake location
-    get_target_property(_qmake_executable Qt6::qmake IMPORTED_LOCATION)
-    get_filename_component(_qt_bin_dir "${_qmake_executable}" DIRECTORY)
-    find_program(WINDEPLOYQT_EXECUTABLE windeployqt HINTS "${_qt_bin_dir}")
+    set(_lzydownloader_can_copy_vcpkg_qt_plugins OFF)
+    if(_lzydownloader_using_vcpkg_toolchain AND DEFINED VCPKG_INSTALLED_DIR AND DEFINED VCPKG_TARGET_TRIPLET)
+        set(_lzydownloader_can_copy_vcpkg_qt_plugins ON)
+    endif()
 
-    if(WINDEPLOYQT_EXECUTABLE)
-        add_custom_command(TARGET LzyDownloader POST_BUILD
-            COMMAND "${WINDEPLOYQT_EXECUTABLE}"
-            --dir "$<TARGET_FILE_DIR:LzyDownloader>"
-            --no-translations
-            --no-compiler-runtime
-            --no-opengl-sw
-            "$<TARGET_FILE:LzyDownloader>"
-            COMMENT "Running windeployqt to copy Qt dependencies..."
-        )
-
-        # Some environments end up with mixed Qt runtimes in the build output
-        # even though CMake resolved the official Qt installation above.
-        # Re-copy the primary Qt DLLs from the configured Qt bin directory so
-        # the release folder cannot retain an incompatible alternate build
-        # that introduces unexpected dependencies like zlib1.dll.
-        foreach(_qt_runtime IN ITEMS
-            Qt6Core.dll
-            Qt6Gui.dll
-            Qt6Network.dll
-            Qt6Sql.dll
-            Qt6Svg.dll
-            Qt6Widgets.dll
-        )
+    if(_lzydownloader_can_copy_vcpkg_qt_plugins)
+        # Vcpkg handles the core Qt DLLs via applocal, but the app still needs the
+        # runtime plugins beside the executable. Copy them directly from the active
+        # vcpkg tree rather than relying on windeployqt's standalone-Qt assumptions.
+        foreach(_plugin_dir IN ITEMS platforms sqldrivers tls imageformats styles)
             add_custom_command(TARGET LzyDownloader POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${_qt_bin_dir}/${_qt_runtime}"
-                "$<TARGET_FILE_DIR:LzyDownloader>/${_qt_runtime}"
-                COMMENT "Re-copying ${_qt_runtime} from configured Qt runtime"
+                COMMAND ${CMAKE_COMMAND} -E make_directory
+                "$<TARGET_FILE_DIR:LzyDownloader>/${_plugin_dir}"
+                COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "$<$<CONFIG:Debug>:${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/debug/Qt6/plugins/${_plugin_dir}>$<$<NOT:$<CONFIG:Debug>>:${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/Qt6/plugins/${_plugin_dir}>"
+                "$<TARGET_FILE_DIR:LzyDownloader>/${_plugin_dir}"
+                COMMENT "Copying Qt plugin directory: ${_plugin_dir}"
             )
         endforeach()
-
-        # Keep the deployed app directory free of stray ad-hoc zlib DLLs.
-        add_custom_command(TARGET LzyDownloader POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E rm -f
-            "$<TARGET_FILE_DIR:LzyDownloader>/zlib1.dll"
-            "$<TARGET_FILE_DIR:LzyDownloader>/zlib.dll"
-            "$<TARGET_FILE_DIR:LzyDownloader>/libz.dll"
-            "$<TARGET_FILE_DIR:LzyDownloader>/libzlib.dll"
-            COMMENT "Removing incompatible ad-hoc zlib DLLs from output directory"
-        )
     else()
-        message(WARNING "windeployqt not found, Qt dependencies will not be copied automatically.")
+        # Find windeployqt from Qt6::qmake location
+        get_target_property(_qmake_executable Qt6::qmake IMPORTED_LOCATION)
+        get_filename_component(_qt_bin_dir "${_qmake_executable}" DIRECTORY)
+        find_program(WINDEPLOYQT_EXECUTABLE windeployqt HINTS "${_qt_bin_dir}")
+
+        if(WINDEPLOYQT_EXECUTABLE)
+            add_custom_command(TARGET LzyDownloader POST_BUILD
+                COMMAND "${WINDEPLOYQT_EXECUTABLE}"
+                $<$<CONFIG:Debug>:--debug>
+                $<$<NOT:$<CONFIG:Debug>>:--release>
+                --dir "$<TARGET_FILE_DIR:LzyDownloader>"
+                --no-translations
+                --no-compiler-runtime
+                --no-opengl-sw
+                "$<TARGET_FILE:LzyDownloader>"
+                COMMENT "Running windeployqt to copy Qt dependencies..."
+            )
+
+            # Some environments end up with mixed Qt runtimes in the build output
+            # even though CMake resolved the official Qt installation above.
+            # Re-copy the primary Qt DLLs from the configured Qt bin directory so
+            # the release folder cannot retain an incompatible alternate build
+            # that introduces unexpected dependencies like zlib1.dll.
+            foreach(_qt_runtime IN ITEMS
+                Qt6Core.dll
+                Qt6Gui.dll
+                Qt6Network.dll
+                Qt6Sql.dll
+                Qt6Svg.dll
+                Qt6Widgets.dll
+            )
+                add_custom_command(TARGET LzyDownloader POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${_qt_bin_dir}/${_qt_runtime}"
+                    "$<TARGET_FILE_DIR:LzyDownloader>/${_qt_runtime}"
+                    COMMENT "Re-copying ${_qt_runtime} from configured Qt runtime"
+                )
+            endforeach()
+
+            # Keep the deployed app directory free of stray ad-hoc zlib DLLs.
+            add_custom_command(TARGET LzyDownloader POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E rm -f
+                "$<TARGET_FILE_DIR:LzyDownloader>/zlib1.dll"
+                "$<TARGET_FILE_DIR:LzyDownloader>/zlib.dll"
+                "$<TARGET_FILE_DIR:LzyDownloader>/libz.dll"
+                "$<TARGET_FILE_DIR:LzyDownloader>/libzlib.dll"
+                COMMENT "Removing incompatible ad-hoc zlib DLLs from output directory"
+            )
+        else()
+            message(WARNING "windeployqt not found, Qt dependencies will not be copied automatically.")
+        endif()
     endif()
 endif()

@@ -29,6 +29,7 @@ public slots:
     void removeExpandingPlaylist(const QString &url, int count);
     void onDownloadPaused(const QString &id);
     void onDownloadResumed(const QString &id);
+    void removeDownloadItem(const QString &id);
 
 signals:
     void cancelDownloadRequested(const QString &id);

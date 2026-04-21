@@ -163,12 +163,11 @@ bool StartTabUrlHandler::checkClipboardForUrl()
     ExtractorSupport support = checkUrlExtractorSupport(text);
 
     if (support != ExtractorSupport::None) {
-        // Safely append the new URL instead of destructively overwriting user input
-        QString currentText = m_uiBuilder->urlInput()->toPlainText().trimmed();
-        if (currentText.isEmpty()) {
-            m_uiBuilder->urlInput()->setText(text);
-        } else if (!currentText.contains(text)) {
-            m_uiBuilder->urlInput()->setText(currentText + "\n" + text);
+        // Clipboard-driven auto-paste should mirror the clipboard contents exactly.
+        // Replacing the field here prevents stale URLs from being concatenated when
+        // the user copies a second link while auto-paste is enabled.
+        if (m_uiBuilder->urlInput()->toPlainText().trimmed() != text) {
+            m_uiBuilder->urlInput()->setPlainText(text);
         }
 
         if (support == ExtractorSupport::GalleryDlOnly) {

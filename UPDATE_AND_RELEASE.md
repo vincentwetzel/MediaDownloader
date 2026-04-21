@@ -34,9 +34,9 @@ This will update `extractors_yt-dlp.json` and `extractors_gallery-dl.json`.
 
 ### Step 2: Update Version Number
 
-Update the version in `CMakeLists.txt` (`project(VERSION x.y.z)`). The app version is generated from there into `version.h` and used by the Windows resources.
+Update the version in `CMakeLists.txt` (`project(VERSION x.y.z)`). This is the single source of truth for the release version. The app version is generated from there into `version.h`, used by the Windows resources, and passed into the NSIS installer build by `build_release.ps1`.
 
-Keep the installer filename in `LzyDownloader.nsi` aligned with the release version before packaging.
+**Release rule:** Do not manually rename the installer `.exe` to fix a version mismatch. If the setup filename version is wrong, fix the release inputs/scripts and rebuild so the installer filename, Windows app version, and uninstall `DisplayVersion` all match the same `CMakeLists.txt` version.
 
 ### Step 3: Run the Release Builder
 
@@ -50,7 +50,7 @@ This script:
 - Refreshes both extractor JSON files
 - Configures a Release build with CMake
 - Builds `LzyDownloader.exe`
-- Runs `makensis` against `LzyDownloader.nsi`
+- Runs `makensis` against `LzyDownloader.nsi` with `/DAPP_VERSION=<version from CMakeLists.txt>`
 
 ### Step 4: Manual Build Steps
 
@@ -58,8 +58,10 @@ If you are not using `build_release.ps1`, run the equivalent commands manually:
 ```powershell
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
-& 'C:\Program Files (x86)\NSIS\makensis.exe' LzyDownloader.nsi
+& 'C:\Program Files (x86)\NSIS\makensis.exe' "/DAPP_VERSION=X.X.X" LzyDownloader.nsi
 ```
+
+Replace `X.X.X` with the exact version from `CMakeLists.txt`.
 
 `CMakeLists.txt` already runs `windeployqt`, re-copies the resolved Qt runtime DLLs from the configured Qt installation, and removes stray `zlib*.dll` variants from the output directory to avoid incompatible dependency mixes.
 
@@ -87,7 +89,7 @@ Navigate to https://github.com/vincentwetzel/lzy-downloader/releases and:
 
 - [ ] Extractor lists updated (`extractors_yt-dlp.json`, `extractors_gallery-dl.json`)
 - [ ] Version number updated in `CMakeLists.txt`
-- [ ] `LzyDownloader.nsi` output filename matches the intended release version
+- [ ] Installer was rebuilt from the current `CMakeLists.txt` version (`build_release.ps1` or `makensis /DAPP_VERSION=...`), not manually renamed afterward
 - [ ] Release build completed (`build_release.ps1` or equivalent manual steps)
 - [ ] NSIS installer tested (install/uninstall preserves `%LOCALAPPDATA%\LzyDownloader\settings.ini`, `download_archive.db`, `downloads_backup.json`, and log files)
 - [ ] Timestamped logging verified (`%LOCALAPPDATA%\LzyDownloader\LzyDownloader_YYYY-MM-dd_HH-mm-ss.log`)

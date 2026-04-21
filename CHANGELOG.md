@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - YYYY-MM-DD
 
+### Changed
+- **External Binaries Python-free GUI policy**: The in-app installer no longer offers `pip` for `yt-dlp` or `gallery-dl`. Windows users are now steered toward standalone executable downloads first, while pre-existing advanced-user installs can still be detected and used.
+
+### Fixed
+- **Auto-paste URL replacement**: Clipboard-driven auto-paste now replaces the Start tab URL box contents instead of appending a new copied URL onto an existing one, preventing accidental multi-line mashups when auto-paste is enabled.
+- **Sorting-rule metadata consistency**: Sorting rules and subfolder tokens now resolve metadata keys more defensively across fresh, playlist, audio, and resumed downloads. Queue backups persist per-item metadata, the finalizer no longer aborts just because a fallback `.info.json` is unavailable, and album/playlist/uploader-style fields now use alias-aware lookup so matching is more consistent after resumes and across extractor metadata variations.
+- **Dynamic Max Concurrent rescheduling**: Changing `Max Concurrent` while downloads are already queued now immediately starts enough waiting items to fill any newly opened slots, while lowering the limit leaves current downloads running and simply delays future starts until capacity is available again.
+- **Playlist placeholder replacement flow**: Video/audio playlist URLs now replace the initial "Checking for playlist..." placeholder correctly. Single-video URLs update that existing row in place, true playlists remove the placeholder and enqueue one progress bar per expanded entry, and the default "Ask" playlist prompt is wired back through `MainWindow` so it follows the same replacement behavior.
+- **Playlist child target resolution**: Expanded playlist items now prefer canonical entry page URLs over flat-playlist `url` values when available, and yt-dlp command lines now place playlist-control flags before the final media URL so per-entry jobs do not accidentally keep playlist semantics.
+- **Playlist placeholder start race**: Video/audio placeholder rows are now marked as pending playlist expansion before they enter the queue, preventing the first placeholder item from starting a real playlist download before expansion finishes and causing the first GUI item to consume the whole playlist.
+- **Playlist item title hydration**: Expanded playlist rows now carry the flat-playlist title into the queue UI immediately, so progress bars no longer have to wait for later `info.json` parsing before showing the correct video title.
+
+## [1.1.4] - 04-18-2026
+
 ### Added
 - **External Binaries version/update controls**: The External Binaries page now shows live per-binary version strings and hosts the inline `Update` actions for `yt-dlp` and `gallery-dl`, alongside install methods that include official-download options and direct standalone `curl` downloads where available.
 - **Windows debug console toggle**: A new `Show Debug Console` option in Advanced Settings can show or hide the app-owned console window at runtime on Windows builds.

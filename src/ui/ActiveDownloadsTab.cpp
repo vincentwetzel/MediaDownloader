@@ -160,6 +160,10 @@ void ActiveDownloadsTab::onDownloadResumed(const QString &id) {
     }
 }
 
+void ActiveDownloadsTab::removeDownloadItem(const QString &id) {
+    onItemClearRequested(id);
+}
+
 void ActiveDownloadsTab::onDownloadFinalPathReady(const QString &id, const QString &path) {
     if (m_downloadItems.contains(id)) {
         m_downloadItems[id]->setFinalPath(path);

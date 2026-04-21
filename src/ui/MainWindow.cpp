@@ -207,6 +207,8 @@ MainWindow::MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent
             m_activeDownloadsTab, &ActiveDownloadsTab::onDownloadResumed);
     connect(m_downloadManager, &DownloadManager::downloadFinalPathReady,
             m_activeDownloadsTab, &ActiveDownloadsTab::onDownloadFinalPathReady);
+    connect(m_downloadManager, &DownloadManager::downloadRemovedFromQueue,
+            m_activeDownloadsTab, &ActiveDownloadsTab::removeDownloadItem);
     connect(m_downloadManager, &DownloadManager::playlistExpansionStarted,
             m_activeDownloadsTab, &ActiveDownloadsTab::addExpandingPlaylist);
     connect(m_downloadManager, &DownloadManager::playlistExpansionFinished,
@@ -224,6 +226,32 @@ MainWindow::MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent
 
     // Connect download sections signal
     connect(m_downloadManager, &DownloadManager::downloadSectionsRequested, this, &MainWindow::onDownloadSectionsRequested);
+    connect(m_downloadManager, &DownloadManager::playlistActionRequested, this,
+            [this](const QString &url, int itemCount, const QVariantMap &options, const QList<QVariantMap> &expandedItems) {
+                QMessageBox msgBox(this);
+                msgBox.setIcon(QMessageBox::Question);
+                msgBox.setWindowTitle("Playlist Detected");
+                msgBox.setText(QString("This URL contains a playlist with %1 item(s).").arg(itemCount));
+                msgBox.setInformativeText("Do you want to queue every item or just the first one?");
+
+                QPushButton *downloadAllButton = msgBox.addButton("Download All", QMessageBox::AcceptRole);
+                QPushButton *downloadSingleButton = msgBox.addButton("Download Single Item", QMessageBox::ActionRole);
+                QPushButton *cancelButton = msgBox.addButton(QMessageBox::Cancel);
+
+                msgBox.exec();
+
+                QString action;
+                if (msgBox.clickedButton() == downloadAllButton) {
+                    action = "Download All";
+                } else if (msgBox.clickedButton() == downloadSingleButton) {
+                    action = "Download Single Item";
+                } else if (msgBox.clickedButton() == cancelButton) {
+                    action = "Cancel";
+                }
+
+                m_downloadManager->processPlaylistSelection(url, action, options, expandedItems);
+                m_uiBuilder->tabWidget()->setCurrentWidget(m_activeDownloadsTab);
+            });
 
     // Handle requests for runtime format selection
     connect(m_downloadManager, &DownloadManager::formatSelectionRequested, this, 

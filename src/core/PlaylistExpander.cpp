@@ -7,6 +7,34 @@
 #include <QJsonArray>
 #include <QProcess>
 
+namespace {
+QString resolveExpandedItemUrl(const QJsonObject &entry)
+{
+    const QString webpageUrl = entry.value("webpage_url").toString().trimmed();
+    if (!webpageUrl.isEmpty()) {
+        return webpageUrl;
+    }
+
+    const QString urlValue = entry.value("url").toString().trimmed();
+    if (urlValue.startsWith("http://", Qt::CaseInsensitive) || urlValue.startsWith("https://", Qt::CaseInsensitive)) {
+        return urlValue;
+    }
+
+    const QString entryId = entry.value("id").toString().trimmed();
+    const QString extractorKey = entry.value("ie_key").toString().trimmed();
+    const QString normalizedExtractor = extractorKey.isEmpty()
+        ? entry.value("extractor_key").toString().trimmed()
+        : extractorKey;
+
+    const QString videoId = !entryId.isEmpty() ? entryId : urlValue;
+    if (normalizedExtractor.compare("Youtube", Qt::CaseInsensitive) == 0 && !videoId.isEmpty()) {
+        return "https://www.youtube.com/watch?v=" + videoId;
+    }
+
+    return urlValue;
+}
+}
+
 PlaylistExpander::PlaylistExpander(const QString &url, ConfigManager *configManager, QObject *parent)
     : QObject(parent), m_url(url), m_configManager(configManager) {
 
@@ -129,10 +157,14 @@ void PlaylistExpander::onProcessFinished(int exitCode, QProcess::ExitStatus exit
         QJsonArray entries = root["entries"].toArray();
         for (const QJsonValue &value : entries) {
             QJsonObject entry = value.toObject();
-            if (entry.contains("url")) {
+            const QString resolvedUrl = resolveExpandedItemUrl(entry);
+            if (!resolvedUrl.isEmpty()) {
                 QVariantMap item;
-                item["url"] = entry["url"].toString();
+                item["url"] = resolvedUrl;
                 item["playlist_index"] = entry.value("playlist_index").toInt(-1);
+                if (entry.contains("title") && entry["title"].isString()) {
+                    item["title"] = entry["title"].toString();
+                }
                 expandedItems.append(item);
             }
         }
@@ -145,6 +177,9 @@ void PlaylistExpander::onProcessFinished(int exitCode, QProcess::ExitStatus exit
             item["playlist_index"] = root.value("playlist_index").toInt();
         } else {
             item["playlist_index"] = -1;
+        }
+        if (root.contains("title") && root["title"].isString()) {
+            item["title"] = root["title"].toString();
         }
         expandedItems.append(item);
     }

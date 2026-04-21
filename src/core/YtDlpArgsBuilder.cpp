@@ -94,7 +94,6 @@ QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString 
     QStringList rawArgs;
 
     // --- Basic arguments ---
-    rawArgs << url;
     rawArgs << "--verbose";
     rawArgs << "--write-info-json";
     rawArgs << "--encoding" << "utf-8";
@@ -401,6 +400,7 @@ QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString 
 
     // --- Print final filepath ---
     rawArgs << "--print" << "after_move:LZY_FINAL_PATH:%(filepath)s";
+    rawArgs << url;
 
     return rawArgs;
 }

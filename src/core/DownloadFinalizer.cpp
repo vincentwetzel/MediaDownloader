@@ -115,26 +115,36 @@ void DownloadFinalizer::finalize(const QString &id, DownloadItem item) {
         QString jsonPath = fi.absoluteDir().filePath(fi.completeBaseName() + ".info.json");
 
         QFile jsonFile(jsonPath);
-        if (!jsonFile.open(QIODevice::ReadOnly)) {
+        if (jsonFile.open(QIODevice::ReadOnly)) {
+            QByteArray jsonData = jsonFile.readAll();
+            jsonFile.close();
+            QJsonDocument doc = QJsonDocument::fromJson(jsonData);
+            if (doc.isObject()) {
+                item.metadata = doc.object().toVariantMap();
+                qDebug() << "Successfully loaded metadata from fallback for id:" << id;
+            } else {
+                qWarning() << "Invalid info.json in fallback:" << jsonPath;
+            }
+        } else {
             qWarning() << "Could not open info.json for fallback:" << jsonPath;
-            emit finalizationComplete(id, false, "Downloaded file not found.");
-            return;
         }
 
-        QByteArray jsonData = jsonFile.readAll();
-        jsonFile.close();
-        QJsonDocument doc = QJsonDocument::fromJson(jsonData);
-        if (doc.isObject()) {
-            item.metadata = doc.object().toVariantMap();
-            qDebug() << "Successfully loaded metadata from fallback for id:" << id;
-        } else {
-            qWarning() << "Invalid info.json in fallback:" << jsonPath;
-            emit finalizationComplete(id, false, "Downloaded file not found.");
-            return;
+        if (item.metadata.isEmpty()) {
+            qWarning() << "Continuing finalization without metadata for id:" << id
+                       << "- sorting rules may fall back to the default directory.";
         }
     }
 
     QFileInfo fileInfo(item.tempFilePath);
+    if (!fileInfo.exists()) {
+        emit finalizationComplete(id, false, "Downloaded file not found.");
+        return;
+    }
+
+    if (item.playlistIndex != -1 && !item.metadata.contains("playlist_index")) {
+        item.metadata["playlist_index"] = item.playlistIndex;
+    }
+
     qint64 lastSize = -1;
     int stableCount = 0;
     int maxRetries = 20;

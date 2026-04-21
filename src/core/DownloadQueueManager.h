@@ -28,6 +28,7 @@ public:
     bool isUrlInQueue(const QString &url, const QMap<QString, DownloadItem> &activeItems) const;
 
     void enqueueDownload(const DownloadItem &item, bool isNew = true);
+    bool removePendingExpansionPlaceholder(const QString &id);
     bool cancelQueuedOrPausedDownload(const QString &id);
     bool pauseQueuedDownload(const QString &id, DownloadItem &pausedItem);
     bool unpauseDownload(const QString &id);

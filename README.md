@@ -36,13 +36,22 @@ Download the latest installer from [Releases](https://github.com/vincentwetzel/L
 
 Requires CMake, a C++20 compatible compiler (MSVC recommended on Windows), and Qt 6.
 
+The repository now includes a `vcpkg.json` manifest for source builds. On Windows, the checked-in `CMakePresets.json` expects the vcpkg toolchain at `E:/vcpkg/scripts/buildsystems/vcpkg.cmake`. If your local vcpkg checkout lives somewhere else, either adjust the preset or pass your own `-DCMAKE_TOOLCHAIN_FILE=...` path when configuring.
+
 ```bash
 # Clone the repo
 git clone https://github.com/vincentwetzel/LzyDownloader.git
 cd LzyDownloader
 
-# Configure and build
-cmake -B build
+# Configure and build with the checked-in preset
+cmake --preset release
+cmake --build build --config Release
+```
+
+Example manual configure command:
+
+```bash
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=E:/vcpkg/scripts/buildsystems/vcpkg.cmake
 cmake --build build --config Release
 ```
 
@@ -57,7 +66,7 @@ cmake --build build --config Release
 
 ## Configuration
 
-All settings are saved to `settings.ini` and persist between sessions. The format is identical to the Python version, ensuring seamless migration.
+All settings are saved to `settings.ini` and persist between sessions. The C++ port now uses a Qt-native `QSettings` INI layout rather than matching Python `configparser` quirks, so existing users may regenerate settings as needed. Download history remains shared through `download_archive.db`.
 
 - **Output folder** — Where completed downloads are saved
 - **Temporary folder** — Where downloads are cached during progress

@@ -12,6 +12,76 @@ SortingManager::SortingManager(ConfigManager *configManager, QObject *parent)
     : QObject(parent), m_configManager(configManager) {
 }
 
+QString SortingManager::normalizedMetadataKey(const QString &key) const {
+    QString normalized = key.trimmed().toLower();
+    normalized.replace(QRegularExpression("[^a-z0-9]+"), "_");
+    normalized.remove(QRegularExpression("^_+|_+$"));
+    return normalized;
+}
+
+QVariant SortingManager::metadataValueForKey(const QString &key, const QVariantMap &metadata) const {
+    if (key.isEmpty()) {
+        return QVariant();
+    }
+
+    if (metadata.contains(key)) {
+        return metadata.value(key);
+    }
+
+    const QString normalizedNeedle = normalizedMetadataKey(key);
+    for (auto it = metadata.constBegin(); it != metadata.constEnd(); ++it) {
+        if (normalizedMetadataKey(it.key()) == normalizedNeedle) {
+            return it.value();
+        }
+    }
+
+    return QVariant();
+}
+
+QVariant SortingManager::metadataValueForField(const QString &field, const QVariantMap &metadata) const {
+    const QString normalizedField = normalizedMetadataKey(field);
+
+    if (normalizedField == "duration_seconds") {
+        return metadataValueForKey("duration", metadata);
+    }
+
+    if (normalizedField == "playlist_title") {
+        const QVariant playlistTitle = metadataValueForKey("playlist_title", metadata);
+        if (playlistTitle.isValid() && !playlistTitle.toString().isEmpty()) {
+            return playlistTitle;
+        }
+        return metadataValueForKey("playlist", metadata);
+    }
+
+    if (normalizedField == "album") {
+        const QVariant album = metadataValueForKey("album", metadata);
+        if (album.isValid() && !album.toString().isEmpty()) {
+            return album;
+        }
+
+        const QVariant playlistTitle = metadataValueForField("playlist_title", metadata);
+        if (playlistTitle.isValid() && !playlistTitle.toString().isEmpty()) {
+            return playlistTitle;
+        }
+    }
+
+    static const QHash<QString, QStringList> aliases = {
+        {"uploader", {"uploader", "channel", "artist", "album_artist", "creator"}},
+        {"title", {"title", "track", "alt_title"}},
+        {"id", {"id", "display_id"}}
+    };
+
+    const QStringList aliasCandidates = aliases.value(normalizedField, {normalizedField});
+    for (const QString &candidate : aliasCandidates) {
+        const QVariant value = metadataValueForKey(candidate, metadata);
+        if (value.isValid() && !value.toString().isEmpty()) {
+            return value;
+        }
+    }
+
+    return QVariant();
+}
+
 QString SortingManager::getSortedDirectory(const QVariantMap &videoMetadata, const QVariantMap &downloadOptions) {
     qDebug() << "SortingManager::getSortedDirectory called.";
     qDebug() << "  videoMetadata keys:" << videoMetadata.keys();
@@ -95,19 +165,7 @@ QString SortingManager::getSortedDirectory(const QVariantMap &videoMetadata, con
             QString op = condition["operator"].toString();
             QString value = condition["value"].toString();
 
-            QVariant metadataValue;
-            if (field == "Duration (seconds)") {
-                metadataValue = videoMetadata.value("duration");
-            } else if (field == "Playlist Title") {
-                metadataValue = videoMetadata.value("playlist_title");
-            } else {
-                metadataValue = videoMetadata.value(field.toLower());
-            }
-
-            // Fallback to playlist_title if album is missing (useful for playlist sorting)
-            if (field == "Album" && metadataValue.toString().isEmpty() && videoMetadata.contains("playlist_title")) {
-                metadataValue = videoMetadata.value("playlist_title");
-            }
+            QVariant metadataValue = metadataValueForField(field, videoMetadata);
 
             qDebug() << "    Condition" << c << "- field:" << field << "op:" << op;
             qDebug() << "      metadataValue:" << metadataValue.toString() << "(isEmpty:" << metadataValue.toString().isEmpty() << ")";
@@ -188,8 +246,9 @@ QString SortingManager::parseAndReplaceTokens(const QString &pattern, const QVar
     QString result = pattern;
 
     // Handle special date tokens first
-    if (metadata.contains("upload_date")) {
-        QString dateStr = metadata["upload_date"].toString(); // YYYYMMDD
+    const QVariant uploadDate = metadataValueForKey("upload_date", metadata);
+    if (uploadDate.isValid()) {
+        QString dateStr = uploadDate.toString(); // YYYYMMDD
         if (dateStr.length() == 8) {
             result.replace("{upload_year}", dateStr.left(4), Qt::CaseInsensitive);
             result.replace("{upload_month}", dateStr.mid(4, 2), Qt::CaseInsensitive);
@@ -205,10 +264,13 @@ QString SortingManager::parseAndReplaceTokens(const QString &pattern, const QVar
         QString token = match.captured(0); // e.g., "{title}"
         QString key = match.captured(1);   // e.g., "title"
 
-        if (metadata.contains(key)) {
-            result.replace(token, sanitize(metadata[key].toString()), Qt::CaseInsensitive);
-        } else if (key.compare("album", Qt::CaseInsensitive) == 0 && metadata.contains("playlist_title")) {
-            result.replace(token, sanitize(metadata["playlist_title"].toString()), Qt::CaseInsensitive);
+        QVariant value = metadataValueForField(key, metadata);
+        if (!value.isValid()) {
+            value = metadataValueForKey(key, metadata);
+        }
+
+        if (value.isValid()) {
+            result.replace(token, sanitize(value.toString()), Qt::CaseInsensitive);
         }
     }
 

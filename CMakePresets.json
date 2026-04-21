@@ -4,25 +4,29 @@
         {
             "name": "release",
             "displayName": "Release",
-            "description": "Release build with MSVC",
+            "description": "Release build with MSVC and vcpkg manifest dependencies",
             "binaryDir": "${sourceDir}/build",
             "generator": "Visual Studio 17 2022",
             "architecture": "x64",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release",
-                "CMAKE_PREFIX_PATH": "C:/Qt/6.10.3/msvc2022_64"
+                "CMAKE_TOOLCHAIN_FILE": "E:/vcpkg/scripts/buildsystems/vcpkg.cmake",
+                "VCPKG_MANIFEST_MODE": "ON",
+                "VCPKG_TARGET_TRIPLET": "x64-windows"
             }
         },
         {
             "name": "debug",
             "displayName": "Debug",
-            "description": "Debug build with MSVC",
+            "description": "Debug build with MSVC and vcpkg manifest dependencies",
             "binaryDir": "${sourceDir}/build-debug",
             "generator": "Visual Studio 17 2022",
             "architecture": "x64",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
-                "CMAKE_PREFIX_PATH": "C:/Qt/6.10.3/msvc2022_64"
+                "CMAKE_TOOLCHAIN_FILE": "E:/vcpkg/scripts/buildsystems/vcpkg.cmake",
+                "VCPKG_MANIFEST_MODE": "ON",
+                "VCPKG_TARGET_TRIPLET": "x64-windows"
             }
         }
     ],

@@ -1,10 +1,14 @@
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
 
+!ifndef APP_VERSION
+  !error "APP_VERSION must be supplied to makensis (for example /DAPP_VERSION=1.1.4)"
+!endif
+
 ;--------------------------------
 ; General Configuration
 Name "LzyDownloader"
-OutFile "LzyDownloader-Setup-1.1.0.exe"
+OutFile "LzyDownloader-Setup-${APP_VERSION}.exe"
 InstallDir "$PROGRAMFILES64\LzyDownloader"
 InstallDirRegKey HKLM "Software\LzyDownloader" "InstallLocation"
 RequestExecutionLevel admin
@@ -69,6 +73,7 @@ Section "Install"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\LzyDownloader" "QuietUninstallString" "$\"$INSTDIR\Uninstall.exe$\" /S"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\LzyDownloader" "InstallLocation" "$INSTDIR"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\LzyDownloader" "DisplayIcon" "$INSTDIR\LzyDownloader.exe"
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\LzyDownloader" "DisplayVersion" "${APP_VERSION}"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\LzyDownloader" "Publisher" "Vincent Wetzel"
 SectionEnd
 

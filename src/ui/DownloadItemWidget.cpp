@@ -33,7 +33,8 @@ void DownloadItemWidget::setupUi() {
     m_thumbnailLabel->setToolTip("Thumbnail preview of the media being downloaded.");
     m_thumbnailLabel->setScaledContents(false);
 
-    m_titleLabel = new QLabel(m_itemData["url"].toString(), this);
+    const QString initialTitle = m_itemData.value("title").toString().trimmed();
+    m_titleLabel = new QLabel(initialTitle.isEmpty() ? m_itemData["url"].toString() : initialTitle, this);
     m_titleLabel->setWordWrap(true);
     m_titleLabel->setToolTip("The URL or title of the media being downloaded.");
 
@@ -142,7 +143,11 @@ void DownloadItemWidget::updateProgress(const QVariantMap &progressData) {
     }
 
     if (progressData.contains("title")) {
-        m_titleLabel->setText(progressData["title"].toString());
+        const QString title = progressData["title"].toString().trimmed();
+        if (!title.isEmpty()) {
+            m_titleLabel->setText(title);
+            m_itemData["title"] = title;
+        }
     }
 
     if (progressData.contains("status")) {

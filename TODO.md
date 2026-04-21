@@ -27,6 +27,7 @@
   - [x] **Worker Resilience**: Parse livestream indeterminate progress output and handle "Waiting for video" lines.
 
 ### Bug Fixes
+- [x] **No pip installs in External Binaries GUI**: Removed `pip` as an in-app install method for `yt-dlp` and `gallery-dl`, keeping Python-managed installs as an advanced user path the app can detect but no longer provisions. Windows install choices now lead with standalone executable downloads to reduce Python runtime issues for standard users.
 - [x] **Source-tree naming/layout cleanup**: Moved misplaced Start tab helper files into `src/ui/start_tab/`, moved the aria2 download pipeline into `src/core/download_pipeline/`, removed dead top-level/duplicate naming artifacts, and updated docs/build references so the codebase layout is clearer.
 - [x] **FFmpeg version string display**: Cleaned up the version string extraction for FFmpeg and ffprobe so the UI displays a concise version number or build date instead of the verbose build configuration string.
 - [x] **External Binaries version/update consolidation**: Moved yt-dlp/gallery-dl version display and update actions into the External Binaries page, added per-binary version probing, and stopped the in-app updater from overwriting package-managed installs.

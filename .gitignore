@@ -1,52 +1,52 @@
-# General
-*.user
-*.local
-*.log
-/bin/
-/build/
-/dist/
-/.VSCodeCounter/*
-
-# CMake
-/cmake-build-*/
+# CMake and Build Directories
+build/
+build-*/
+out/
+out-*/
 CMakeCache.txt
 CMakeFiles/
+CMakeScripts/
 cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+Makefile
 
-# Qt
-*.pro.user
-*.qbs.user
-*.moc
-*.o
-*.obj
-moc_*.cpp
-qrc_*.cpp
-ui_*.h
+# Qt specific
+*.user
+*.user.*
+.qt/
+.qmake.stash
 
-# Executables
+# IDEs and Workspaces
+.vs/
+.idea/
+.vscode/
+.qwen/
+.VSCodeCounter/
+*.sln
+*.suo
+*.vcxproj
+*.vcxproj.user
+*.vcxproj.filters
+
+# vcpkg
+vcpkg_installed/
+.vcpkg/
+vcpkg/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Compiled Binaries and Libraries
 *.exe
 *.dll
 *.so
 *.dylib
 *.a
+*.lib
+*.obj
+*.o
 
-# User-specific files
-settings.ini
-download_archive.db
-*.sqlite
-*.db
-*.db-journal
-
-# IDE specific
-.idea/
-.vscode/
-*.suo
-*.ntvs*
-*.njsproj
-*.sln.docstates
-*.nupkg
-*.bak
-*~
-
-# AI assistant context
-.qwen/
+# App-specific local cache and downloaded binaries
+*.version

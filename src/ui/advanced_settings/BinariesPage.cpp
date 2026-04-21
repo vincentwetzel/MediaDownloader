@@ -51,7 +51,7 @@ BinariesPage::BinariesPage(ConfigManager *configManager, QWidget *parent)
         "<b>OPTIONAL:</b> gallery-dl, aria2c<br><br>"
         "<b>Browse</b> sets a manual path override. <b>Clear Path</b> reverts to auto-detection.<br>"
         "<b>Install</b> opens package-manager or official website download options.<br><br>"
-        "<span style='color: #d97706;'><b>Note:</b> If you install tools via package managers (winget, scoop, pip, etc.), "
+        "<span style='color: #d97706;'><b>Note:</b> If you install tools via package managers (winget, scoop, chocolatey, etc.), "
         "you must <b>restart LzyDownloader</b> for it to detect the updated system PATH. "
         "(The built-in installer will do this automatically.)</span>",
         scrollWidget);
@@ -377,7 +377,7 @@ void BinariesPage::installBinaryFor(const QString &binaryName) {
         QProcess *process = new QProcess(&progressDialog);
         process->setProcessChannelMode(QProcess::MergedChannels);
 
-        // For WindowsApps execution-alias stubs (winget, pip from MS Store) we
+        // For WindowsApps execution-alias stubs (for example winget from the MS Store) we
         // must NOT invoke the full path directly — the 0-byte stubs crash when
         // executed that way. Instead we prepend the WindowsApps directory to
         // PATH and launch with the bare program name so the shell resolves the
@@ -713,41 +713,40 @@ QList<BinariesPage::InstallOption> BinariesPage::buildInstallOptions(const QStri
     };
 
     if (binaryName == "yt-dlp") {
-        addOptionIfPresent("pip", {"install", "-U", "--pre", "yt-dlp"}, "Install or upgrade yt-dlp (nightly) with pip.");
-        if (isWindows()) addOptionIfPresent("scoop", {"install", "yt-dlp-nightly"}, "Install yt-dlp (nightly) with Scoop. Requires the 'extras' bucket (`scoop bucket add extras`).");
-        if (isMacOS() || isLinux()) addOptionIfPresent("brew", {"install", "yt-dlp", "--HEAD"}, "Install yt-dlp (latest from master) with Homebrew.");
-            
-            // Direct GitHub nightly download via curl
-            QString curlPath = QStandardPaths::findExecutable("curl");
-            if (!curlPath.isEmpty()) {
-                InstallOption opt;
-                opt.label = "curl (yt-dlp nightly)";
-                opt.extraData["is_windows_apps_alias"] = false;
-                
-                if (isWindows()) {
-                    const QString localAppData = QProcessEnvironment::systemEnvironment().value("LOCALAPPDATA");
-                    if (!localAppData.isEmpty()) {
-                        QString targetPath = localAppData + "\\LzyDownloader\\bin\\yt-dlp.exe";
-                        opt.description = "Download the latest nightly yt-dlp executable directly from GitHub to your user directory.";
-                        opt.program = curlPath;
-                        opt.arguments = {"-L", "--create-dirs", "-o", targetPath, "https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp.exe"};
-                        opt.extraData["set_custom_path"] = targetPath;
-                        options.append(opt);
-                    }
-                } else {
-                    QString targetDir = QDir::homePath() + "/.local/bin";
-                    QString targetPath = targetDir + "/yt-dlp";
-                    QString downloadUrl = "https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp";
-                    if (isMacOS()) downloadUrl = "https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp_macos";
-                    else if (isLinux()) downloadUrl = "https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp_linux";
-                    
-                    opt.description = "Download the latest nightly yt-dlp executable directly from GitHub to ~/.local/bin.";
+        // Direct GitHub nightly download via curl
+        QString curlPath = QStandardPaths::findExecutable("curl");
+        if (!curlPath.isEmpty()) {
+            InstallOption opt;
+            opt.label = "curl (yt-dlp nightly)";
+            opt.extraData["is_windows_apps_alias"] = false;
+
+            if (isWindows()) {
+                const QString localAppData = QProcessEnvironment::systemEnvironment().value("LOCALAPPDATA");
+                if (!localAppData.isEmpty()) {
+                    QString targetPath = localAppData + "\\LzyDownloader\\bin\\yt-dlp.exe";
+                    opt.description = "Recommended on Windows. Download the latest nightly yt-dlp standalone executable directly from GitHub to your user directory.";
                     opt.program = curlPath;
-                    opt.arguments = {"-L", "--create-dirs", "-o", targetPath, downloadUrl};
+                    opt.arguments = {"-L", "--create-dirs", "-o", targetPath, "https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp.exe"};
                     opt.extraData["set_custom_path"] = targetPath;
                     options.append(opt);
                 }
+            } else {
+                QString targetDir = QDir::homePath() + "/.local/bin";
+                QString targetPath = targetDir + "/yt-dlp";
+                QString downloadUrl = "https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp";
+                if (isMacOS()) downloadUrl = "https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp_macos";
+                else if (isLinux()) downloadUrl = "https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp_linux";
+
+                opt.description = "Download the latest nightly yt-dlp executable directly from GitHub to ~/.local/bin.";
+                opt.program = curlPath;
+                opt.arguments = {"-L", "--create-dirs", "-o", targetPath, downloadUrl};
+                opt.extraData["set_custom_path"] = targetPath;
+                options.append(opt);
             }
+        }
+
+        if (isWindows()) addOptionIfPresent("scoop", {"install", "yt-dlp-nightly"}, "Install yt-dlp (nightly) with Scoop. Requires the 'extras' bucket (`scoop bucket add extras`).");
+        if (isMacOS() || isLinux()) addOptionIfPresent("brew", {"install", "yt-dlp", "--HEAD"}, "Install yt-dlp (latest from master) with Homebrew.");
     } else if (binaryName == "ffmpeg" || binaryName == "ffprobe") {
         if (isWindows()) addOptionIfPresent("winget", {"install", "--id", "Gyan.FFmpeg", "--exact", "--accept-package-agreements", "--accept-source-agreements"}, "Install FFmpeg (includes ffprobe) with WinGet.");
         if (isWindows()) addOptionIfPresent("choco", {"install", "-y", "ffmpeg"}, "Install FFmpeg (includes ffprobe) with Chocolatey.");
@@ -757,31 +756,30 @@ QList<BinariesPage::InstallOption> BinariesPage::buildInstallOptions(const QStri
         if (isLinux()) addOptionIfPresent("pacman", {"-S", "--noconfirm", "ffmpeg"}, "Install FFmpeg (includes ffprobe) with pacman.");
         if (isMacOS() || isLinux()) addOptionIfPresent("brew", {"install", "ffmpeg"}, "Install FFmpeg (includes ffprobe) with Homebrew.");
     } else if (binaryName == "gallery-dl") {
-        addOptionIfPresent("pip", {"install", "-U", "gallery-dl"}, "Install or upgrade gallery-dl with pip.");
+        // Direct GitHub standalone download via curl (Windows only)
+        if (isWindows()) {
+            QString curlPath = QStandardPaths::findExecutable("curl");
+            if (!curlPath.isEmpty()) {
+                const QString localAppData = QProcessEnvironment::systemEnvironment().value("LOCALAPPDATA");
+                if (!localAppData.isEmpty()) {
+                    QString targetPath = localAppData + "\\LzyDownloader\\bin\\gallery-dl.exe";
+                    InstallOption opt;
+                    opt.label = "curl (gallery-dl standalone)";
+                    opt.description = "Recommended on Windows. Download the latest gallery-dl standalone executable directly from GitHub to your user directory.";
+                    opt.program = curlPath;
+                    opt.arguments = {"-L", "--create-dirs", "-o", targetPath, "https://github.com/mikf/gallery-dl/releases/latest/download/gallery-dl.exe"};
+                    opt.extraData["is_windows_apps_alias"] = false;
+                    opt.extraData["set_custom_path"] = targetPath;
+                    options.append(opt);
+                }
+            }
+        }
+
         if (isWindows()) addOptionIfPresent("winget", {"install", "--id", "mikf.gallery-dl", "--exact", "--accept-package-agreements", "--accept-source-agreements"}, "Install gallery-dl (stable) with WinGet.");
         if (isWindows()) addOptionIfPresent("winget", {"install", "--id", "mikf.gallery-dl.Nightly", "--exact", "--accept-package-agreements", "--accept-source-agreements"}, "Install gallery-dl (nightly) with WinGet.");
         if (isWindows()) addOptionIfPresent("choco", {"install", "-y", "gallery-dl"}, "Install gallery-dl with Chocolatey.");
         if (isWindows()) addOptionIfPresent("scoop", {"install", "gallery-dl"}, "Install gallery-dl with Scoop.");
         if (isMacOS() || isLinux()) addOptionIfPresent("brew", {"install", "gallery-dl"}, "Install gallery-dl with Homebrew.");
-
-            // Direct GitHub standalone download via curl (Windows only)
-            if (isWindows()) {
-                QString curlPath = QStandardPaths::findExecutable("curl");
-                if (!curlPath.isEmpty()) {
-                    const QString localAppData = QProcessEnvironment::systemEnvironment().value("LOCALAPPDATA");
-                    if (!localAppData.isEmpty()) {
-                        QString targetPath = localAppData + "\\LzyDownloader\\bin\\gallery-dl.exe";
-                        InstallOption opt;
-                        opt.label = "curl (gallery-dl standalone)";
-                        opt.description = "Download the latest gallery-dl executable directly from GitHub to your user directory.";
-                        opt.program = curlPath;
-                        opt.arguments = {"-L", "--create-dirs", "-o", targetPath, "https://github.com/mikf/gallery-dl/releases/latest/download/gallery-dl.exe"};
-                        opt.extraData["is_windows_apps_alias"] = false;
-                        opt.extraData["set_custom_path"] = targetPath;
-                        options.append(opt);
-                    }
-                }
-            }
     } else if (binaryName == "aria2c") {
         if (isWindows()) addOptionIfPresent("winget", {"install", "--id", "aria2.aria2", "--exact", "--accept-package-agreements", "--accept-source-agreements"}, "Install aria2 with WinGet.");
         if (isWindows()) addOptionIfPresent("choco", {"install", "-y", "aria2"}, "Install aria2 with Chocolatey.");
