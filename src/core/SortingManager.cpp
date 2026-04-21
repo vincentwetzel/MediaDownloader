@@ -135,20 +135,24 @@ QString SortingManager::getSortedDirectory(const QVariantMap &videoMetadata, con
 
         // 1. Check if the rule applies to this download type
         QString downloadType = downloadOptions.value("type", "video").toString();
-        bool isPlaylist = videoMetadata.contains("playlist_index") && videoMetadata["playlist_index"].toInt() != -1;
+        bool isPlaylist = (videoMetadata.contains("playlist_index") && videoMetadata.value("playlist_index").toInt() != -1) ||
+                          (downloadOptions.contains("playlist_index") && downloadOptions.value("playlist_index").toInt() != -1) ||
+                          videoMetadata.value("is_playlist", false).toBool() ||
+                          downloadOptions.value("is_playlist", false).toBool() ||
+                          !downloadOptions.value("original_playlist_url").toString().isEmpty();
 
         bool typeMatch = false;
-        if (appliesTo == "All Downloads") {
+        if (appliesTo == "any" || appliesTo == "all" || appliesTo == "All Downloads") {
             typeMatch = true;
-        } else if (appliesTo == "Video Downloads" && downloadType == "video" && !isPlaylist) {
+        } else if ((appliesTo == "video" || appliesTo == "Video Downloads") && downloadType == "video" && !isPlaylist) {
             typeMatch = true;
-        } else if (appliesTo == "Audio Downloads" && downloadType == "audio" && !isPlaylist) {
+        } else if ((appliesTo == "audio" || appliesTo == "Audio Downloads") && downloadType == "audio" && !isPlaylist) {
             typeMatch = true;
-        } else if (appliesTo == "Gallery Downloads" && downloadType == "gallery") {
+        } else if ((appliesTo == "gallery" || appliesTo == "Gallery Downloads") && downloadType == "gallery") {
             typeMatch = true;
-        } else if (appliesTo == "Video Playlist Downloads" && downloadType == "video" && isPlaylist) {
+        } else if ((appliesTo == "video_playlist" || appliesTo == "Video Playlist Downloads") && downloadType == "video" && isPlaylist) {
             typeMatch = true;
-        } else if (appliesTo == "Audio Playlist Downloads" && downloadType == "audio" && isPlaylist) {
+        } else if ((appliesTo == "audio_playlist" || appliesTo == "Audio Playlist Downloads") && downloadType == "audio" && isPlaylist) {
             typeMatch = true;
         }
 
@@ -246,14 +250,19 @@ QString SortingManager::parseAndReplaceTokens(const QString &pattern, const QVar
     QString result = pattern;
 
     // Handle special date tokens first
-    const QVariant uploadDate = metadataValueForKey("upload_date", metadata);
-    if (uploadDate.isValid()) {
-        QString dateStr = uploadDate.toString(); // YYYYMMDD
-        if (dateStr.length() == 8) {
-            result.replace("{upload_year}", dateStr.left(4), Qt::CaseInsensitive);
-            result.replace("{upload_month}", dateStr.mid(4, 2), Qt::CaseInsensitive);
-            result.replace("{upload_day}", dateStr.right(2), Qt::CaseInsensitive);
-        }
+    QString dateStr = metadataValueForKey("release_date", metadata).toString();
+    if (dateStr.isEmpty() || dateStr.length() != 8) {
+        dateStr = metadataValueForKey("upload_date", metadata).toString();
+    }
+    
+    if (dateStr.length() == 8) {
+        result.replace("{upload_year}", dateStr.left(4), Qt::CaseInsensitive);
+        result.replace("{upload_month}", dateStr.mid(4, 2), Qt::CaseInsensitive);
+        result.replace("{upload_day}", dateStr.right(2), Qt::CaseInsensitive);
+    } else {
+        result.replace("{upload_year}", "Unknown Year", Qt::CaseInsensitive);
+        result.replace("{upload_month}", "Unknown Month", Qt::CaseInsensitive);
+        result.replace("{upload_day}", "Unknown Day", Qt::CaseInsensitive);
     }
 
     // Use regex to find all {token} patterns
@@ -264,13 +273,21 @@ QString SortingManager::parseAndReplaceTokens(const QString &pattern, const QVar
         QString token = match.captured(0); // e.g., "{title}"
         QString key = match.captured(1);   // e.g., "title"
 
+        if (key.compare("upload_year", Qt::CaseInsensitive) == 0 ||
+            key.compare("upload_month", Qt::CaseInsensitive) == 0 ||
+            key.compare("upload_day", Qt::CaseInsensitive) == 0) {
+            continue;
+        }
+
         QVariant value = metadataValueForField(key, metadata);
-        if (!value.isValid()) {
+        if (!value.isValid() || value.toString().trimmed().isEmpty()) {
             value = metadataValueForKey(key, metadata);
         }
 
-        if (value.isValid()) {
+        if (value.isValid() && !value.toString().trimmed().isEmpty()) {
             result.replace(token, sanitize(value.toString()), Qt::CaseInsensitive);
+        } else {
+            result.replace(token, "Unknown", Qt::CaseInsensitive);
         }
     }
 

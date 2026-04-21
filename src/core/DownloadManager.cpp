@@ -85,7 +85,7 @@ DownloadManager::DownloadManager(ConfigManager *configManager, QObject *parent) 
     connect(m_queueManager, &DownloadQueueManager::downloadPaused, this, &DownloadManager::downloadPaused);
     connect(m_queueManager, &DownloadQueueManager::downloadResumed, this, &DownloadManager::downloadResumed);
     connect(m_queueManager, &DownloadQueueManager::duplicateDownloadDetected, this, &DownloadManager::duplicateDownloadDetected);
-    connect(m_queueManager, &DownloadQueueManager::requestStartNextDownload, this, &DownloadManager::onRequestStartNextDownload);
+    connect(m_queueManager, &DownloadQueueManager::requestStartNextDownload, this, &DownloadManager::onRequestStartNextDownload, Qt::QueuedConnection);
     connect(m_queueManager, &DownloadQueueManager::queueCountsChanged, this, &DownloadManager::onQueueCountsChanged);
     connect(m_queueManager, &DownloadQueueManager::playlistExpansionPlaceholderRemoved, this, &DownloadManager::onPlaylistExpansionPlaceholderRemoved);
     connect(m_queueManager, &DownloadQueueManager::playlistExpansionPlaceholderUpdated, this, &DownloadManager::onPlaylistExpansionPlaceholderUpdated);
@@ -153,7 +153,13 @@ void DownloadManager::onConfigSettingChanged(const QString &section, const QStri
     }
 
     applyMaxConcurrentSetting(value.toString());
-    startDownloadsToCapacity();
+    
+    // Only attempt to start downloads if there are actually items in the queue.
+    // This prevents a spurious queueFinished signal when the user clicks Download 
+    // and the UI saves the max_threads setting before the new item is enqueued.
+    if (m_queueManager && m_queueManager->hasQueuedDownloads()) {
+        startDownloadsToCapacity();
+    }
 }
 
 void DownloadManager::onRequestStartNextDownload() {
@@ -468,8 +474,10 @@ void DownloadManager::cancelDownload(const QString &id) {
 
     if (cancelled) {
         emitDownloadStats();
-        m_queueManager->saveQueueState(m_activeItems);
-        startNextDownload();
+        QMetaObject::invokeMethod(this, [this]() {
+            m_queueManager->saveQueueState(m_activeItems);
+            startNextDownload();
+        }, Qt::QueuedConnection);
     }
 }
 
@@ -587,8 +595,10 @@ void DownloadManager::pauseDownload(const QString &id) {
 
     if (paused) {
         emitDownloadStats();
-        m_queueManager->saveQueueState(m_activeItems);
-        startNextDownload();
+        QMetaObject::invokeMethod(this, [this]() {
+            m_queueManager->saveQueueState(m_activeItems);
+            startNextDownload();
+        }, Qt::QueuedConnection);
     }
 }
 
@@ -631,8 +641,10 @@ void DownloadManager::processPlaylistSelection(const QString &url, const QString
 
     if (action == "Download All") {
         finalItems = expandedItems;
+        queueOptions["is_playlist"] = true;
     } else if (action == "Download Single Item" && !expandedItems.isEmpty()) {
         finalItems.append(expandedItems.first());
+        queueOptions["is_playlist"] = true;
     } else {
         if (!queueId.isEmpty()) {
             m_queueManager->removePendingExpansionPlaceholder(queueId);
@@ -674,6 +686,8 @@ void DownloadManager::processPlaylistSelection(const QString &url, const QString
             }
             emit downloadProgress(queueId, progressData);
             QMetaObject::invokeMethod(m_queueManager, [this]() { m_queueManager->saveQueueState(m_activeItems); }, Qt::QueuedConnection);
+            
+            startNextDownload();
             return;
         }
     }
@@ -739,6 +753,12 @@ void DownloadManager::onPlaylistExpanded(const QString &originalUrl, const QList
                 item.options = options;
                 item.options["original_playlist_url"] = originalUrl;
                 item.options["playlist_logic"] = "Download Single (ignore playlist)";
+                    if (item.playlistIndex != -1) {
+                        item.options["is_playlist"] = true;
+                    }
+                    if (itemData.contains("playlist_title")) {
+                        item.options["playlist_title"] = itemData.value("playlist_title");
+                    }
                 const QString title = itemData.value("title").toString().trimmed();
                 if (!title.isEmpty()) {
                     item.options["initial_title"] = title;
@@ -763,6 +783,8 @@ void DownloadManager::onPlaylistExpanded(const QString &originalUrl, const QList
             emit downloadProgress(queueId, progressData);
             // Manually save the queue state since we modified an item in-place
             QMetaObject::invokeMethod(m_queueManager, [this]() { m_queueManager->saveQueueState(m_activeItems); }, Qt::QueuedConnection);
+            
+            startNextDownload();
         }
     } else if (expandedItems.size() > 1) {
         // This is an actual playlist - remove the placeholder from queue
@@ -777,11 +799,18 @@ void DownloadManager::onPlaylistExpanded(const QString &originalUrl, const QList
             item.options = options; // Use the options from the original enqueue
             item.options["original_playlist_url"] = originalUrl;
             item.options["playlist_logic"] = "Download Single (ignore playlist)";
+                item.options["is_playlist"] = true;
+                if (itemData.contains("playlist_title")) {
+                    item.options["playlist_title"] = itemData.value("playlist_title");
+                }
             const QString title = itemData.value("title").toString().trimmed();
             if (!title.isEmpty()) {
                 item.options["initial_title"] = title;
             }
             if (itemData.contains("is_live")) item.options["is_live"] = itemData.value("is_live").toBool();
+            if (itemData.contains("playlist_title")) {
+                item.options["playlist_title"] = itemData.value("playlist_title");
+            }
             item.playlistIndex = itemData.value("playlist_index", -1).toInt();
             m_queueManager->enqueueDownload(item);
         }
@@ -910,6 +939,12 @@ void DownloadManager::onWorkerProgress(const QString &id, const QVariantMap &pro
     emit downloadProgress(id, progressData);
 }
 
+void DownloadManager::onWorkerOutputReceived(const QString &id, const QString &output) {
+    Q_UNUSED(id);
+    Q_UNUSED(output);
+    // Raw console output from workers can be processed or logged here if needed
+}
+
 void DownloadManager::onWorkerFinished(const QString &id, bool success, const QString &message, const QString &finalFilename, const QString &originalDownloadedFilename, const QVariantMap &metadata) {
     if (!m_activeWorkers.contains(id)) return;
 
@@ -928,9 +963,11 @@ void DownloadManager::onWorkerFinished(const QString &id, bool success, const QS
         
         m_errorDownloadsCount++;
         emit downloadFinished(id, false, message); // This will trigger emitDownloadStats()
-        m_queueManager->saveQueueState(m_activeItems);
         emitDownloadStats();
-        startNextDownload();
+        QMetaObject::invokeMethod(this, [this]() {
+            m_queueManager->saveQueueState(m_activeItems);
+            startNextDownload();
+        }, Qt::QueuedConnection);
         return;
     }
 
@@ -952,6 +989,12 @@ void DownloadManager::onWorkerFinished(const QString &id, bool success, const QS
     if (item.playlistIndex != -1) {
         item.metadata["playlist_index"] = item.playlistIndex;
         qDebug() << "Injected playlist_index" << item.playlistIndex << "into metadata for sorting.";
+    }
+    if (item.options.value("is_playlist").toBool()) {
+        item.metadata["is_playlist"] = true;
+    }
+    if (item.options.contains("playlist_title") && !item.metadata.contains("playlist_title")) {
+        item.metadata["playlist_title"] = item.options.value("playlist_title");
     }
 
     const bool needsTrackEmbedding = (item.options.value("type").toString() == "audio" && item.playlistIndex > 0);
@@ -994,9 +1037,11 @@ void DownloadManager::onGalleryDlWorkerFinished(const QString &id, bool success,
         
         m_errorDownloadsCount++;
         emit downloadFinished(id, false, message); // This will trigger emitDownloadStats()
-        m_queueManager->saveQueueState(m_activeItems);
         emitDownloadStats();
-        startNextDownload();
+        QMetaObject::invokeMethod(this, [this]() {
+            m_queueManager->saveQueueState(m_activeItems);
+            startNextDownload();
+        }, Qt::QueuedConnection);
         return;
     }
 
@@ -1045,9 +1090,11 @@ void DownloadManager::onMetadataEmbedded(const QString &id, bool success, const 
         
         m_errorDownloadsCount++;
         emit downloadFinished(id, false, "Metadata embedding failed: " + error); // This will trigger emitDownloadStats()
-        m_queueManager->saveQueueState(m_activeItems);
         emitDownloadStats();
-        startNextDownload();
+        QMetaObject::invokeMethod(this, [this]() {
+            m_queueManager->saveQueueState(m_activeItems);
+            startNextDownload();
+        }, Qt::QueuedConnection);
     }
 }
 
@@ -1061,9 +1108,11 @@ void DownloadManager::onFinalizationComplete(const QString &id, bool success, co
     emit downloadFinished(id, success, message);
     m_activeItems.remove(id);
 
-    m_queueManager->saveQueueState(m_activeItems);
     emitDownloadStats();
-    startNextDownload();
+    QMetaObject::invokeMethod(this, [this]() {
+        m_queueManager->saveQueueState(m_activeItems);
+        startNextDownload();
+    }, Qt::QueuedConnection);
 }
 
 /*
@@ -1075,8 +1124,31 @@ Then, uncomment the function body below and the corresponding connect() call in 
 */
 
 void DownloadManager::checkQueueFinished() {
-    if (m_activeWorkers.isEmpty() && !m_queueManager->hasQueuedDownloads() && m_activeItems.isEmpty()) {
-        emit queueFinished();
+    const bool hasPendingPlaylistExpansions = m_queueManager && !m_queueManager->m_pendingExpansions.isEmpty();
+
+    bool hasActivelyPausedItems = false;
+    if (m_queueManager) {
+        for (const DownloadItem &item : m_queueManager->m_pausedItems) {
+            if (!item.options.value("is_stopped").toBool() && !item.options.value("is_failed").toBool()) {
+                hasActivelyPausedItems = true;
+                break;
+            }
+        }
+    }
+
+    bool isQueueEmptyAndIdle = m_activeWorkers.isEmpty()
+        && !m_queueManager->hasQueuedDownloads()
+        && m_activeItems.isEmpty()
+        && !hasPendingPlaylistExpansions
+        && !hasActivelyPausedItems;
+
+    if (isQueueEmptyAndIdle) {
+        if (property("queueWasActive").toBool()) {
+            setProperty("queueWasActive", false);
+            emit queueFinished();
+        }
+    } else {
+        setProperty("queueWasActive", true);
     }
 }
 
@@ -1090,9 +1162,4 @@ void DownloadManager::updateTotalSpeed() {
 
 void DownloadManager::emitDownloadStats() {
     emit downloadStatsUpdated(m_queuedDownloadsCount, m_activeDownloadsCount, m_completedDownloadsCount, m_errorDownloadsCount);
-}
-
-void DownloadManager::onWorkerOutputReceived(const QString &id, const QString &output)
-{
-    qDebug().noquote() << output;
 }

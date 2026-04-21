@@ -36,6 +36,11 @@ void StartTabUiBuilder::build(QWidget *parentWidget, QVBoxLayout *mainLayout)
 
     topLayout->addStretch();
 
+    QPushButton *supportedSitesBtn = new QPushButton("Supported Sites", parentWidget);
+    supportedSitesBtn->setObjectName("supportedSitesBtn");
+    supportedSitesBtn->setToolTip("View a searchable list of all supported websites and their capabilities.");
+    topLayout->addWidget(supportedSitesBtn);
+
     QPushButton *openTempFolderButton = new QPushButton("Open Temporary Folder", parentWidget);
     openTempFolderButton->setToolTip("Click here to open the folder where active downloads are temporarily stored.");
     connect(openTempFolderButton, &QPushButton::clicked, this, [this, parentWidget]() {

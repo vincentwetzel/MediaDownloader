@@ -75,7 +75,14 @@ public:
 
     QVariantMap getCondition() const {
         QVariantMap condition;
-        condition["field"] = m_fieldCombo->currentText();
+        QString uiField = m_fieldCombo->currentText();
+        QString internalField = uiField.toLower();
+        if (uiField == "Playlist Title") internalField = "playlist_title";
+        else if (uiField == "Duration (seconds)") internalField = "duration";
+        else if (uiField == "Album") internalField = "album";
+        else if (uiField == "ID") internalField = "id";
+        
+        condition["field"] = internalField;
         condition["operator"] = m_operatorCombo->currentText();
         if (m_operatorCombo->currentText() == "Is One Of") {
             condition["value"] = m_valueInputMulti->toPlainText();
@@ -86,21 +93,52 @@ public:
     }
 
     void setCondition(const QVariantMap &condition) {
-        m_fieldCombo->setCurrentText(condition["field"].toString());
-        onFieldChanged(condition["field"].toString()); // Set up operators
+        QString field = condition["field"].toString();
+        
+        // Map internal fields back to UI fields
+        if (field.compare("playlist_title", Qt::CaseInsensitive) == 0 || field.compare("playlist", Qt::CaseInsensitive) == 0) field = "Playlist Title";
+        else if (field.compare("duration", Qt::CaseInsensitive) == 0) field = "Duration (seconds)";
+        else if (field.compare("album", Qt::CaseInsensitive) == 0) field = "Album";
+        else if (field.compare("id", Qt::CaseInsensitive) == 0) field = "ID";
+        else if (field.compare("uploader", Qt::CaseInsensitive) == 0) field = "Uploader";
+        else if (field.compare("title", Qt::CaseInsensitive) == 0) field = "Title";
+        
+        // Fallback case-insensitive match
+        for (int i = 0; i < m_fieldCombo->count(); ++i) {
+            if (m_fieldCombo->itemText(i).compare(field, Qt::CaseInsensitive) == 0) {
+                field = m_fieldCombo->itemText(i);
+                break;
+            }
+        }
+        
+        m_fieldCombo->setCurrentText(field);
+        onFieldChanged(field); // Set up operators
 
         QString op = condition["operator"].toString();
-        if (op == "Equals") {
+        if (op.compare("Equals", Qt::CaseInsensitive) == 0) {
             op = "Is";
         }
+        for (int i = 0; i < m_operatorCombo->count(); ++i) {
+            if (m_operatorCombo->itemText(i).compare(op, Qt::CaseInsensitive) == 0) {
+                op = m_operatorCombo->itemText(i);
+                break;
+            }
+        }
+        
+        // Temporarily unhook onOperatorChanged so we don't mess up text copying
+        QSignalBlocker opBlock(m_operatorCombo);
         m_operatorCombo->setCurrentText(op);
-        onOperatorChanged(op); // Set up correct widget
+        opBlock.unblock();
 
-        if (op == "Is One Of") {
+        // Set value directly without triggering operator change effects yet
+        if (m_operatorCombo->currentText() == "Is One Of") {
             m_valueInputMulti->setPlainText(condition["value"].toString());
         } else {
             m_valueInputSingle->setText(condition["value"].toString());
         }
+        
+        // Now invoke to update UI state (placeholders, stacked widget)
+        onOperatorChanged(m_operatorCombo->currentText());
     }
 
     QString getValueText() const {
@@ -146,6 +184,12 @@ private slots:
         if (op == "Is One Of") {
             m_valueInputMulti->setPlaceholderText("Enter one value per line.");
             m_valueInputMulti->setToolTip("Enter one value per line. The condition will match if the field is an exact match to any of the lines.");
+            
+            // When switching from single-line, copy text
+            if (m_valueStackedWidget->currentWidget() == m_valueInputSingle && !m_valueInputSingle->text().isEmpty()) {
+                m_valueInputMulti->setPlainText(m_valueInputSingle->text());
+            }
+            
             m_valueStackedWidget->setCurrentWidget(m_valueInputMulti);
         } else {
             QString placeholder = "Enter value.";
@@ -269,7 +313,22 @@ void SortingRuleDialog::setRule(const QVariantMap &rule) {
     m_subfolderPatternInput->setText(rule["subfolder_pattern"].toString());
 
     if (rule.contains("applies_to")) {
-        m_appliesToDropdown->setCurrentText(rule["applies_to"].toString());
+        QString appliesTo = rule["applies_to"].toString();
+        
+        if (appliesTo.compare("video", Qt::CaseInsensitive) == 0) appliesTo = "Video Downloads";
+        else if (appliesTo.compare("audio", Qt::CaseInsensitive) == 0) appliesTo = "Audio Downloads";
+        else if (appliesTo.compare("gallery", Qt::CaseInsensitive) == 0) appliesTo = "Gallery Downloads";
+        else if (appliesTo.compare("video_playlist", Qt::CaseInsensitive) == 0) appliesTo = "Video Playlist Downloads";
+        else if (appliesTo.compare("audio_playlist", Qt::CaseInsensitive) == 0) appliesTo = "Audio Playlist Downloads";
+        else if (appliesTo.compare("any", Qt::CaseInsensitive) == 0 || appliesTo.compare("all", Qt::CaseInsensitive) == 0) appliesTo = "All Downloads";
+        
+        for (int i = 0; i < m_appliesToDropdown->count(); ++i) {
+            if (m_appliesToDropdown->itemText(i).compare(appliesTo, Qt::CaseInsensitive) == 0) {
+                appliesTo = m_appliesToDropdown->itemText(i);
+                break;
+            }
+        }
+        m_appliesToDropdown->setCurrentText(appliesTo);
     }
 
     // Clear existing conditions (remove all but the stretch)
@@ -290,7 +349,15 @@ QVariantMap SortingRuleDialog::getRule() const {
     rule["name"] = m_ruleNameInput->text();
     rule["target_folder"] = QDir::cleanPath(m_targetFolderInput->text());
     rule["subfolder_pattern"] = m_subfolderPatternInput->text();
-    rule["applies_to"] = m_appliesToDropdown->currentText();
+
+    QString uiAppliesTo = m_appliesToDropdown->currentText();
+    QString internalAppliesTo = "any";
+    if (uiAppliesTo == "Video Downloads") internalAppliesTo = "video";
+    else if (uiAppliesTo == "Audio Downloads") internalAppliesTo = "audio";
+    else if (uiAppliesTo == "Gallery Downloads") internalAppliesTo = "gallery";
+    else if (uiAppliesTo == "Video Playlist Downloads") internalAppliesTo = "video_playlist";
+    else if (uiAppliesTo == "Audio Playlist Downloads") internalAppliesTo = "audio_playlist";
+    rule["applies_to"] = internalAppliesTo;
 
     QVariantList conditions;
     // Iterate through layout containers (skip the stretch at the end)

@@ -43,7 +43,6 @@ signals:
 private:
     void setupUi();
     void updatePlaceholderVisibility();
-    void clearCompletedDownloads();
     void cancelAllDownloads();
     void togglePauseAllDownloads();
     void onItemClearRequested(const QString &id);
@@ -57,7 +56,7 @@ private:
     QWidget *m_placeholderWidget;
     QPushButton *m_pauseResumeAllButton;
     QPushButton *m_cancelAllButton;
-    QPushButton *m_clearCompletedButton;
+    QPushButton *m_clearInactiveButton;
     bool m_isAllPaused = false;
 
     QMap<QString, DownloadItemWidget*> m_downloadItems;

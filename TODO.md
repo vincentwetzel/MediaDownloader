@@ -13,6 +13,7 @@
 - [x] **Unavailable Videos**: Display an error popup window explaining to the user that the video is unavailable (e.g., `https://www.youtube.com/watch?v=ZFVk4kK6fKs`). **IMPLEMENTED**: Same infrastructure as private videos, also detects "unavailable", "no longer available", and "does not exist" error patterns. Extended to also detect geo-restricted, members-only, and age-restricted videos.
 
 ### User Prompts & Validation
+- [x] **Supported Sites UI**: Create a dialog that lists all supported domains, combining `extractors_yt-dlp.json` and `extractors_gallery-dl.json` into a searchable list indicating support for Video/Audio and/or Image Galleries. *(Implemented as a dedicated button on the Start tab to comply with the no-application-menu rule).*
 - [x] **Livestream Implementation**: 
   - [x] **Detection**: Check `info.json` metadata to determine if `is_live` is true before queuing.
   - [x] **Livestream Settings UI**: Add a "Livestream Settings" section beneath "Audio Settings" in the Advanced Settings tab.
@@ -27,14 +28,20 @@
   - [x] **Worker Resilience**: Parse livestream indeterminate progress output and handle "Waiting for video" lines.
 
 ### Bug Fixes
+- [x] **Mass-stop GUI freeze**: Fixed severe GUI locking when stopping multiple downloads at once (like "Stop All"). Process-tree cleanup (`taskkill`) is now offloaded to a detached background process, and queue evaluation is safely deferred to the end of the event loop.
+- [x] **SponsorBlock A/V desync**: SponsorBlock video cuts now use `--force-keyframes-at-cuts` so the remaining video and audio streams do not drift out of sync when a cut falls between keyframes.
+- [x] **Premature completion notification**: Fixed a bug where a "Downloads Complete" desktop notification fired prematurely when enqueueing the first item due to config-save triggers racing with the queue.
+- [x] **Pause-triggered completion**: Fixed a bug where pausing the last active download incorrectly triggered the queue completion and auto-exit sequence.
 - [x] **No pip installs in External Binaries GUI**: Removed `pip` as an in-app install method for `yt-dlp` and `gallery-dl`, keeping Python-managed installs as an advanced user path the app can detect but no longer provisions. Windows install choices now lead with standalone executable downloads to reduce Python runtime issues for standard users.
 - [x] **Source-tree naming/layout cleanup**: Moved misplaced Start tab helper files into `src/ui/start_tab/`, moved the aria2 download pipeline into `src/core/download_pipeline/`, removed dead top-level/duplicate naming artifacts, and updated docs/build references so the codebase layout is clearer.
 - [x] **FFmpeg version string display**: Cleaned up the version string extraction for FFmpeg and ffprobe so the UI displays a concise version number or build date instead of the verbose build configuration string.
 - [x] **External Binaries version/update consolidation**: Moved yt-dlp/gallery-dl version display and update actions into the External Binaries page, added per-binary version probing, and stopped the in-app updater from overwriting package-managed installs.
+- [x] **External Binaries inline descriptions**: Added brief explanations next to each binary in the Advanced Settings page so users understand what tools like `deno`, `ffprobe`, or `aria2c` actually do.
 - [x] **Windows debug-console toggle**: Added a runtime `Show Debug Console` setting that only appears when the app owns its console window, letting release builds stay `WIN32` while still supporting opt-in debugging.
 - [x] **App update repo fallback**: Hardened release checks to try the lowercase `lzy-downloader` GitHub repo first and then fall back to legacy repository API URLs so repo renames do not silently break update discovery.
 - [x] **Single-Item Playlist Double Download**: The URL `https://music.youtube.com/watch?v=Bkh2BJ49DmQ&list=OLAK5uy_n3IQt8nfMSp3Xlma2hMsvKAyHBmBwk5Is` (a playlist with 1 item) downloads the audio file twice and sorts it to two different places. It should only download once and correctly trigger the "Audio Playlist Downloads" rule instead of the single "Audio Downloads" rule.
 - [x] **1-Item Playlist JSON Cleanup**: Fixed an issue where 1-item playlists left behind orphaned `info.json` files in the temporary directory by ensuring cleanup runs regardless of whether `playlist_index` is valid.
+- [x] **Single-item queue stalling**: Fixed single videos and 1-item playlists getting stuck permanently in the "Queued" state after UI placeholder replacement by ensuring the download queue is properly signaled to start.
 - [x] **Section clip remux regression**: Fixed section downloads forcing an intermediate MKV remux plus extra FFmpeg merger args, which could leave MP4 clips with the original full-length duration metadata and glitchy playback near the real clip end.
 - [x] **Section filename labeling**: Added filename-safe section/chapter labels to clipped downloads so the saved file name reflects which part of the source video it contains.
 - [x] **Section clip container normalization**: Fixed section clips in VLC by adding an asynchronous ffprobe+ffmpeg normalization pass that probes the clipped duration and hard-limits embedded subtitle streams to the clip timeline before finalization. Confirmed with ffprobe/VLC after the hard `-t <clip_duration>` remux step.
@@ -45,6 +52,8 @@
 - [x] **Small overall job progress bar**: Added a slim secondary overall-progress indicator for multi-stream downloads while preserving the main bar as the active-stream progress display.
 - [x] **Progress parser regression hardening**: Fixed the follow-up regression where the UI could remain visually stuck at 0% by making extraction stages indeterminate again, broadening aria2 progress matching, and consuming aria2 `FILE:` lines to keep stream-target tracking in sync with active transfers.
 - [x] **App-exit process cleanup**: Closing the app now runs an explicit shutdown path that terminates active descendant process trees so `yt-dlp`-spawned `aria2c`, metadata-normalization `ffmpeg`, and other helper processes do not survive after exit. This includes a catch-all sweep for transient utility processes like auto-updaters, cookie checkers, and URL validators.
+- [x] **Dynamic Max Concurrent and Start Tab persistence**: Wired operational controls on the Start Tab (Max Concurrent, Playlist Logic, Rate Limit) to save instantly, properly registered them in defaults so they persist across application restarts, and enforced a startup concurrency cap of 4 to prevent aggressive spam.
+- [x] **Deferred first-run directory setup**: Moved the initial completed-downloads directory prompt onto a post-show timer so the main window paints first and startup no longer blocks on an early modal dialog.
 - [x] **Audio-only WebM label detection**: Fixed stream-stage labeling for temp files like `.f251.webm.part` by matching yt-dlp `format_id` values from `requested_downloads` before falling back to ambiguous container extensions.
 - [x] **Audio-stage size fallback**: Added a second-stage matcher that uses the active stream's emitted total size when yt-dlp delays or omits a fresh target filename during the video-to-audio handoff.
 - [x] **Empty `requested_downloads` stage fallback**: Fixed runs where `info.json` omits `requested_downloads` by seeding stream order from yt-dlp's announced format list and aria2 command-line `itag`/`mime` values, so audio-only transfers like `f251-13.webm.part` no longer stay labeled as video.
@@ -55,6 +64,10 @@
 - [x] **Rich yt-dlp error popups**: Error dialogs now preserve the active download URL and render it as a clickable link in the popup so users can open the failing source page directly from the warning.
 - [x] **Immediate action feedback**: Added immediate UI feedback ("Cancelling...", "Pausing...") to download items when clicking Cancel or Pause so the UI doesn't feel unresponsive while waiting for the background process to acknowledge the state change.
 - [x] **View Formats clarity**: Renamed the "View Formats" download type to "View Video/Audio Formats" and added tooltips to clarify it does not work for gallery-dl URLs.
+- [x] **Sorting UI to Backend translation**: Fixed mismatch between human-readable sorting rule labels and internal lowercase keys.
+- [x] **Playlist sorting tags**: Fixed playlist downloads falling back to standard video/audio rules.
+- [x] **Resumed download info.json deletion**: Fixed an issue where resumed downloads wiped out `info.json`, causing sorting metadata to fall back to `Unknown`.
+- [x] **Exit-after startup bug**: Fixed application instantly closing on launch if the queue was empty and "Exit after" was enabled.
 
 ## Completed
 
@@ -75,7 +88,7 @@
 
 ### Future Enhancements (Phase 13)
 - Cancel/retry buttons, interface languages, runtime format selection
-- Backup download queue, clear completed downloads, cancel all downloads
+- Backup download queue, clear inactive downloads, cancel all downloads
 - Pause/resume downloads, download queue ordering
 - Subtitle selection improvements
 - Settings storage location, split output templates
@@ -94,5 +107,7 @@
 - Toggle switch visual fix, smart URL download type detection
 - gallery-dl output template fixes, progress bar updates, move logic fixes
 - **Metadata Options**: Added options to crop audio thumbnails to a square and to generate `folder.jpg` for audio playlists.
+- **Clear Inactive Downloads**: Consolidated the redundant "Clear Completed" button into a single "Clear Inactive" button that clears all finished, stopped, and failed downloads.
+- **Resume All toolbar action**: Added a bulk resume control on the Active Downloads tab for stopped and failed items.
 - **Open folder buttons on Active Downloads tab**: **IMPLEMENTED**: Added "Open Temporary Folder" and "Open Downloads Folder" buttons to the Active Downloads tab toolbar, duplicating the functionality from the Start tab for easier access during downloads.
 - **External Downloader dropdown in Advanced Settings**: **IMPLEMENTED**: Changed "Download Options -> External Downloader (aria2)" from a ToggleSwitch to a QComboBox with two options: "yt-dlp (default)" and "aria2c". The setting is automatically hidden if aria2c is not installed/discovered. Default changed to yt-dlp for consistency with unbundled binary model.

@@ -63,7 +63,7 @@ cmake --build build --config Release
 
 Replace `X.X.X` with the exact version from `CMakeLists.txt`.
 
-`CMakeLists.txt` already runs `windeployqt`, re-copies the resolved Qt runtime DLLs from the configured Qt installation, and removes stray `zlib*.dll` variants from the output directory to avoid incompatible dependency mixes.
+`CMakeLists.txt` already runs `windeployqt` and re-copies the resolved Qt runtime DLLs from the configured Qt installation. Keep the deployed compression/runtime dependencies that Qt ships with, including `zlib1.dll`, because `Qt6Network.dll` depends on them on Windows.
 
 ## Release to GitHub
 

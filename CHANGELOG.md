@@ -8,16 +8,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased] - YYYY-MM-DD
 
 ### Changed
+- **Active Downloads UI Cleanup**: Merged the redundant "Clear Completed" button into a single unified "Clear Inactive" button on the Active Downloads tab, simplifying the toolbar.
+- **Active Downloads toolbar controls**: The tab now uses compact icon-first actions and adds a `Resume All` control for stopped or failed rows alongside the unified clear action.
 - **External Binaries Python-free GUI policy**: The in-app installer no longer offers `pip` for `yt-dlp` or `gallery-dl`. Windows users are now steered toward standalone executable downloads first, while pre-existing advanced-user installs can still be detected and used.
+- **Supported Sites Dialog Access**: Removed the top application menu bar ("Help") and moved the "Supported Sites" access to a dedicated button on the Start tab.
+- **Initial setup prompt timing**: The first-run completed-downloads directory prompt is now deferred until after the main window is shown, avoiding awkward startup-time modal behavior before the shell finishes initializing.
+
+### Added
+- **External Binaries inline descriptions**: Added brief, user-friendly descriptions next to each binary on the External Binaries page explaining what tools like `ffmpeg`, `deno`, and `aria2c` do.
+- **Supported Sites Dialog**: Added a searchable dialog that lists all supported websites and indicates whether they support Video/Audio (yt-dlp) or Image Galleries (gallery-dl), populated dynamically from the application's extractor lists.
 
 ### Fixed
+- **Mass-stop GUI freeze**: Fixed severe GUI locking when stopping multiple downloads at once (like "Stop All"). Process-tree cleanup (`taskkill`) is now offloaded to a detached background process, and queue evaluation is safely deferred to the end of the event loop, eliminating synchronous cascades that used to freeze the main thread.
+- **SponsorBlock A/V desync**: Added `--force-keyframes-at-cuts` to yt-dlp arguments when SponsorBlock removal is enabled for video and livestream downloads, ensuring the audio and video streams remain perfectly in sync after ad segments are cut out.
+- **Premature queue completion notification**: Fixed an issue where enqueueing the first download would instantly trigger a "Downloads Complete" desktop notification because saving the concurrency setting temporarily evaluated an empty queue.
+- **Pause-triggered completion**: Pausing the last active download no longer incorrectly triggers the "Downloads Complete" notification or the "Exit after all downloads complete" action.
+- **Exit-after queue completeness**: Automatic exit now waits for pending playlist-expansion placeholders as well as active and runnable queued downloads, so "Exit after all downloads complete" will not shut down while items are still stuck in the "Checking for playlist..." stage.
+- **Exit-after delayed shutdown guard**: The 2-second post-queue cleanup delay now re-checks the live queued/active counts before calling `quit()`, preventing stale queue-finished signals from closing the app after new downloads have appeared or resumed.
+- **Windows installer startup fix (`zlib1.dll`)**: Fixed the NSIS packaging path so the installer no longer deletes `zlib1.dll` from the deployed app directory. `Qt6Network.dll` depends on that runtime on Windows, so removing it caused fresh installs to fail at launch with "`zlib1.dll` was not found".
 - **Auto-paste URL replacement**: Clipboard-driven auto-paste now replaces the Start tab URL box contents instead of appending a new copied URL onto an existing one, preventing accidental multi-line mashups when auto-paste is enabled.
 - **Sorting-rule metadata consistency**: Sorting rules and subfolder tokens now resolve metadata keys more defensively across fresh, playlist, audio, and resumed downloads. Queue backups persist per-item metadata, the finalizer no longer aborts just because a fallback `.info.json` is unavailable, and album/playlist/uploader-style fields now use alias-aware lookup so matching is more consistent after resumes and across extractor metadata variations.
 - **Dynamic Max Concurrent rescheduling**: Changing `Max Concurrent` while downloads are already queued now immediately starts enough waiting items to fill any newly opened slots, while lowering the limit leaves current downloads running and simply delays future starts until capacity is available again.
+- **Start tab settings persistence**: Fixed an issue where changing operational controls like Max Concurrent, Playlist Logic, and Rate Limit on the Start tab only updated the UI visually but did not save to disk. These settings now save instantly, trigger immediate backend reactions, and persist across app restarts.
+- **Concurrency startup cap**: Enforced the session restart cap for Max Concurrent downloads. Users can temporarily set up to 8 concurrent threads during a session, but the application will automatically cap this back down to 4 upon restart to prevent accidental aggressive spam.
 - **Playlist placeholder replacement flow**: Video/audio playlist URLs now replace the initial "Checking for playlist..." placeholder correctly. Single-video URLs update that existing row in place, true playlists remove the placeholder and enqueue one progress bar per expanded entry, and the default "Ask" playlist prompt is wired back through `MainWindow` so it follows the same replacement behavior.
 - **Playlist child target resolution**: Expanded playlist items now prefer canonical entry page URLs over flat-playlist `url` values when available, and yt-dlp command lines now place playlist-control flags before the final media URL so per-entry jobs do not accidentally keep playlist semantics.
 - **Playlist placeholder start race**: Video/audio placeholder rows are now marked as pending playlist expansion before they enter the queue, preventing the first placeholder item from starting a real playlist download before expansion finishes and causing the first GUI item to consume the whole playlist.
 - **Playlist item title hydration**: Expanded playlist rows now carry the flat-playlist title into the queue UI immediately, so progress bars no longer have to wait for later `info.json` parsing before showing the correct video title.
+- **Single-item queue stalling**: Fixed an issue where single videos or 1-item playlists would remain permanently stuck in the "Queued" state after expansion because the download queue was not signaled to wake up after the in-place UI update.
+- **Sorting rule evaluation**: Fixed a mismatch between human-readable UI labels (e.g., "Audio Playlist Downloads") and internal backend keys, ensuring sorting conditions apply correctly.
+- **Playlist sorting recognition**: Fixed playlist rules falling back to single-item rules by ensuring `is_playlist` and `playlist_title` flags are consistently injected into metadata.
+- **Resumed download metadata**: Fixed an issue where `yt-dlp` skipping an already-downloaded file caused the app to prematurely delete the `info.json` file, which broke sorting tokens like `{album}` and caused fallbacks to `Unknown Year - Unknown`.
+- **Premature exit-after completion**: Fixed a bug where the application would immediately close on launch if "Exit after all downloads complete" was enabled and the queue was empty.
+- **Playlist metadata carry-through**: Single-item playlists, expanded playlist entries, resumed items, and fallback finalization now preserve `playlist_title`, `is_playlist`, and other core metadata so sorting rules and cleanup stay consistent.
 
 ## [1.1.4] - 04-18-2026
 
@@ -463,16 +486,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Optional JavaScript runtime support (Deno/Node.js) for anti-bot challenges
 - GitHub-based auto-update system:
   - Automatic release checking on app startup
-  - Silent installer-based updates via NSIS
-  - Manual update check button in Advanced Settings
-  - Configurable auto-check toggle (persisted to settings)
-  - Changelog display before updating
-- Responsive UI with comprehensive tooltips
-- File lifecycle management:
-  - Download to temporary directory
-  - File stability verification
-  - Move to completed downloads directory
-- Download archive tracking (prevent re-downloads)
-- Robust error handling with user-friendly messages
-- Comprehensive logging to file and console
-- Enforced output directory selection
+  - Silent installer-based updates via NS

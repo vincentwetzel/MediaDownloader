@@ -290,24 +290,13 @@ void terminateProcessTree(QProcess *process, int gracefulTimeoutMs) {
 
 #ifdef Q_OS_WIN
     if (pid > 0) {
-        QProcess taskkill;
-        taskkill.setProcessChannelMode(QProcess::MergedChannels);
-        taskkill.start("taskkill.exe", {"/PID", QString::number(pid), "/T", "/F"});
-        if (!taskkill.waitForFinished(5000)) {
-            qWarning() << "[ProcessUtils] taskkill timed out for PID" << pid;
-        } else if (taskkill.exitCode() != 0) {
-            qWarning() << "[ProcessUtils] taskkill failed for PID" << pid << taskkill.readAllStandardOutput();
-        }
+        QProcess::startDetached("taskkill.exe", {"/PID", QString::number(pid), "/T", "/F"});
     }
     
     // Force immediate kill without waiting if we are aborting
     process->kill();
 #else
-    process->terminate();
-    if (!process->waitForFinished(gracefulTimeoutMs)) {
-        process->kill();
-        process->waitForFinished(5000);
-    }
+    process->kill();
 #endif
 }
 

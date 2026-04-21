@@ -154,6 +154,11 @@ void PlaylistExpander::onProcessFinished(int exitCode, QProcess::ExitStatus exit
     if (root.contains("entries") && root["entries"].isArray()) {
         // It's a playlist
         isPlaylist = true;
+        
+        QString playlistTitle = root.value("title").toString();
+        if (playlistTitle.isEmpty() && root.contains("playlist_title")) {
+            playlistTitle = root.value("playlist_title").toString();
+        }
         QJsonArray entries = root["entries"].toArray();
         for (const QJsonValue &value : entries) {
             QJsonObject entry = value.toObject();
@@ -164,6 +169,9 @@ void PlaylistExpander::onProcessFinished(int exitCode, QProcess::ExitStatus exit
                 item["playlist_index"] = entry.value("playlist_index").toInt(-1);
                 if (entry.contains("title") && entry["title"].isString()) {
                     item["title"] = entry["title"].toString();
+                }
+                if (!playlistTitle.isEmpty()) {
+                    item["playlist_title"] = playlistTitle;
                 }
                 expandedItems.append(item);
             }

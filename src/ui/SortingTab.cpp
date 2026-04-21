@@ -76,7 +76,15 @@ void SortingTab::populateRow(int row, const QVariantMap &ruleMap) {
     m_rulesTable->setItem(row, 0, priorityItem);
 
     m_rulesTable->setItem(row, 1, new QTableWidgetItem(ruleMap["name"].toString()));
-    m_rulesTable->setItem(row, 2, new QTableWidgetItem(ruleMap["applies_to"].toString()));
+
+    QString appliesToUI = ruleMap["applies_to"].toString();
+    if (appliesToUI == "video") appliesToUI = "Video Downloads";
+    else if (appliesToUI == "audio") appliesToUI = "Audio Downloads";
+    else if (appliesToUI == "gallery") appliesToUI = "Gallery Downloads";
+    else if (appliesToUI == "video_playlist") appliesToUI = "Video Playlist Downloads";
+    else if (appliesToUI == "audio_playlist") appliesToUI = "Audio Playlist Downloads";
+    else if (appliesToUI == "any" || appliesToUI == "all") appliesToUI = "All Downloads";
+    m_rulesTable->setItem(row, 2, new QTableWidgetItem(appliesToUI));
 
     QString conditionText = "No conditions";
     QVariantList conditions = ruleMap["conditions"].toList();
@@ -113,7 +121,22 @@ void SortingTab::loadRules() {
         QVariantMap ruleMap;
         
         ruleMap["name"] = m_configManager->get("SortingRules", key + "_name").toString();
-        ruleMap["applies_to"] = m_configManager->get("SortingRules", key + "_applies_to").toString();
+        
+        QString rawAppliesTo = m_configManager->get("SortingRules", key + "_applies_to").toString();
+        QString appliesTo = rawAppliesTo;
+        if (appliesTo.compare("Video Downloads", Qt::CaseInsensitive) == 0) appliesTo = "video";
+        else if (appliesTo.compare("Audio Downloads", Qt::CaseInsensitive) == 0) appliesTo = "audio";
+        else if (appliesTo.compare("Gallery Downloads", Qt::CaseInsensitive) == 0) appliesTo = "gallery";
+        else if (appliesTo.compare("Video Playlist Downloads", Qt::CaseInsensitive) == 0) appliesTo = "video_playlist";
+        else if (appliesTo.compare("Audio Playlist Downloads", Qt::CaseInsensitive) == 0) appliesTo = "audio_playlist";
+        else if (appliesTo.compare("All Downloads", Qt::CaseInsensitive) == 0) appliesTo = "any";
+        else if (appliesTo == "all") appliesTo = "any";
+        
+        if (rawAppliesTo != appliesTo) {
+            rulesPurged = true; // Force save to upgrade legacy config rules
+        }
+        ruleMap["applies_to"] = appliesTo;
+        
         ruleMap["target_folder"] = m_configManager->get("SortingRules", key + "_target_folder").toString();
         ruleMap["subfolder_pattern"] = m_configManager->get("SortingRules", key + "_subfolder_pattern").toString();
 

@@ -22,6 +22,7 @@
 #include "ui/DownloadSectionsDialog.h"
 #include "ToggleSwitch.h"
 #include "utils/BinaryFinder.h"
+#include "SupportedSitesDialog.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -157,40 +158,52 @@ MainWindow::MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent
     });
 #endif
 
+    // Dynamically reschedule queue if the user increases Max Concurrent
+    connect(m_configManager, &ConfigManager::settingChanged, this, [this](const QString &section, const QString &key, const QVariant &/*value*/) {
+        if (section == "General" && key == "max_threads") {
+            if (m_downloadManager) {
+                QMetaObject::invokeMethod(m_downloadManager, "startNextDownload", Qt::QueuedConnection);
+            }
+        }
+    });
+
     setupUI();
     setupTrayIcon();
 
-    // Ensure completed downloads directory is set
-    QString completedDownloadsDir = m_configManager->get("Paths", "completed_downloads_directory").toString();
-    if (completedDownloadsDir.isEmpty()) {
-        QMessageBox::information(this, "Setup Required",
-                                 "Please select a directory for completed downloads. This will also set up a temporary downloads directory.");
-        QString selectedDir = QFileDialog::getExistingDirectory(this, "Select Completed Downloads Directory",
-                                                                QDir::homePath(), QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
-        if (!selectedDir.isEmpty()) {
-            if (m_configManager->set("Paths", "completed_downloads_directory", selectedDir)) {
-                m_configManager->save();
+    // Defer the setup dialogs until after the main window is shown
+    QTimer::singleShot(0, this, [this]() {
+        // Ensure completed downloads directory is set
+        QString completedDownloadsDir = m_configManager->get("Paths", "completed_downloads_directory").toString();
+        if (completedDownloadsDir.isEmpty()) {
+            QMessageBox::information(this, "Setup Required",
+                                     "Please select a directory for completed downloads. This will also set up a temporary downloads directory.");
+            QString selectedDir = QFileDialog::getExistingDirectory(this, "Select Completed Downloads Directory",
+                                                                    QDir::homePath(), QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
+            if (!selectedDir.isEmpty()) {
+                if (m_configManager->set("Paths", "completed_downloads_directory", selectedDir)) {
+                    m_configManager->save();
+                }
+                completedDownloadsDir = selectedDir;
+                QMessageBox::information(this, "Directory Set",
+                                         QString("Completed downloads directory set to:\n%1\n\nTemporary downloads directory set to:\n%2")
+                                             .arg(completedDownloadsDir)
+                                             .arg(QDir(completedDownloadsDir).filePath("temp_downloads")));
+            } else {
+                QMessageBox::warning(this, "Directory Not Set",
+                                     "No completed downloads directory was selected. Please set it in Advanced Settings to enable downloads.");
             }
-            completedDownloadsDir = selectedDir;
-            QMessageBox::information(this, "Directory Set",
-                                     QString("Completed downloads directory set to:\n%1\n\nTemporary downloads directory set to:\n%2")
-                                         .arg(completedDownloadsDir)
-                                         .arg(QDir(completedDownloadsDir).filePath("temp_downloads")));
-        } else {
-            QMessageBox::warning(this, "Directory Not Set",
-                                 "No completed downloads directory was selected. Please set it in Advanced Settings to enable downloads.");
         }
-    }
 
-    // Ensure temporary downloads directory is set if completed is available but temp is not
-    QString temporaryDownloadsDir = m_configManager->get("Paths", "temporary_downloads_directory").toString();
-    if (!completedDownloadsDir.isEmpty() && temporaryDownloadsDir.isEmpty()) {
-        QString defaultTempDir = QDir(completedDownloadsDir).filePath("temp_downloads");
-        if (m_configManager->set("Paths", "temporary_downloads_directory", defaultTempDir)) {
-            m_configManager->save();
-            qInfo() << "Automatically set missing temporary_downloads_directory to" << defaultTempDir;
+        // Ensure temporary downloads directory is set if completed is available but temp is not
+        QString temporaryDownloadsDir = m_configManager->get("Paths", "temporary_downloads_directory").toString();
+        if (!completedDownloadsDir.isEmpty() && temporaryDownloadsDir.isEmpty()) {
+            QString defaultTempDir = QDir(completedDownloadsDir).filePath("temp_downloads");
+            if (m_configManager->set("Paths", "temporary_downloads_directory", defaultTempDir)) {
+                m_configManager->save();
+                qInfo() << "Automatically set missing temporary_downloads_directory to" << defaultTempDir;
+            }
         }
-    }
+    });
 
     // Connect signals
     connect(m_downloadManager, &DownloadManager::downloadAddedToQueue,
@@ -287,6 +300,9 @@ MainWindow::MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent
             m_downloadManager, &DownloadManager::moveDownloadUp);
     connect(m_activeDownloadsTab, &ActiveDownloadsTab::moveDownloadDownRequested,
             m_downloadManager, &DownloadManager::moveDownloadDown);
+    // FIXME: Re-enable this connection once the corresponding signal and slot are declared in their headers.
+    // connect(m_activeDownloadsTab, &ActiveDownloadsTab::clearInactiveRequested,
+    //         m_downloadManager, &DownloadManager::clearInactiveDownloads);
     // FIXME: Re-enable this connection once the corresponding signal and slot are declared in their headers.
     // See comments in ActiveDownloadsTab.cpp and DownloadManager.cpp for details.
     // connect(m_activeDownloadsTab, &ActiveDownloadsTab::itemCleared,
@@ -436,6 +452,7 @@ void MainWindow::closeEvent(QCloseEvent *event) {
         m_trayIcon->hide();
     }
     event->accept();
+    QApplication::quit();
 }
 
 bool MainWindow::event(QEvent *event)
@@ -703,7 +720,38 @@ void MainWindow::onQueueFinished() {
     bool exitAfter = m_configManager->get("General", "exit_after", false).toBool();
     if (exitAfter) {
         qInfo() << "Queue finished and 'exit after' is enabled. Waiting 2 seconds before quitting to allow for final file cleanup.";
-        QTimer::singleShot(2000, this, &QCoreApplication::quit);
+        QTimer::singleShot(2000, this, [this]() {
+            if (!m_configManager || !m_uiBuilder) {
+                return;
+            }
+
+            const bool exitStillEnabled = m_configManager->get("General", "exit_after", false).toBool();
+            if (!exitStillEnabled) {
+                qInfo() << "Exit-after timer cancelled because the setting was turned off before shutdown.";
+                return;
+            }
+
+            int activeCount = 0;
+            int queuedCount = 0;
+
+            const QString activeText = m_uiBuilder->activeDownloadsLabel()->text();
+            if (activeText.startsWith("Active: ")) {
+                activeCount = activeText.mid(8).toInt();
+            }
+
+            const QString queuedText = m_uiBuilder->queuedDownloadsLabel()->text();
+            if (queuedText.startsWith("Queued: ")) {
+                queuedCount = queuedText.mid(8).toInt();
+            }
+
+            if (activeCount == 0 && queuedCount == 0) {
+                QCoreApplication::quit();
+                return;
+            }
+
+            qInfo() << "Exit-after timer cancelled because downloads resumed before shutdown."
+                    << "Active:" << activeCount << "Queued:" << queuedCount;
+        });
     }
 }
 
@@ -880,29 +928,22 @@ void MainWindow::setYtDlpVersion(const QString &version) {
             "<li><b>Homebrew:</b> Run <code>brew install yt-dlp --HEAD</code></li></ul>"
             "<b>Note:</b> Package managers like <b>winget</b> and <b>Chocolatey</b> only provide stable builds and should not be used for yt-dlp.<br><br>"
             "Would you like to go to the External Binaries settings to view your installation options now?";
-
+ 
         msgBox.setInformativeText(informativeText);
 
-        QPushButton *goToSettingsButton = msgBox.addButton("Go to Settings", QMessageBox::AcceptRole);
-        QPushButton *goToUpdatesButton = msgBox.addButton("Go to Updates", QMessageBox::ActionRole);
-        QPushButton *ignoreButton = msgBox.addButton("Ignore", QMessageBox::RejectRole);
-        
-        QCheckBox *dontShowAgain = new QCheckBox("Don't show this warning again", &msgBox);
-        msgBox.setCheckBox(dontShowAgain);
-        
+        QPushButton *settingsButton = msgBox.addButton("Go to Settings", QMessageBox::ActionRole);
+        QPushButton *dontWarnButton = msgBox.addButton("Don't Warn Me Again", QMessageBox::DestructiveRole);
+        msgBox.addButton(QMessageBox::Ok);
+
         msgBox.exec();
-        
-        if (dontShowAgain->isChecked()) {
+
+        if (msgBox.clickedButton() == settingsButton) {
+            m_uiBuilder->tabWidget()->setCurrentWidget(m_advancedSettingsTab);
+            m_advancedSettingsTab->navigateToCategory("External Binaries");
+        } else if (msgBox.clickedButton() == dontWarnButton) {
             m_configManager->set("General", "warn_stable_yt_dlp", false);
             m_configManager->save();
         }
-
-        if (msgBox.clickedButton() == goToSettingsButton) {
-            m_uiBuilder->tabWidget()->setCurrentWidget(m_advancedSettingsTab);
-            m_advancedSettingsTab->navigateToCategory("External Binaries");
-        } else if (msgBox.clickedButton() == goToUpdatesButton) {
-            m_uiBuilder->tabWidget()->setCurrentWidget(m_advancedSettingsTab);
-            m_advancedSettingsTab->navigateToCategory("Updates");
-        }
     }
 }
+ 

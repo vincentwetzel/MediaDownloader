@@ -811,19 +811,12 @@ void YtDlpWorker::handleOutputLine(const QString &line) {
     }
 
     // 1. Capture the info.json file path and store it, then initiate retry mechanism
-    static QRegularExpression infoJsonRegex(R"(\[info\] Writing video metadata as JSON to:\s*(.*\.info\.json))");
+    static QRegularExpression infoJsonRegex(R"(\[info\] (?:Writing video metadata as JSON to|Video metadata is already present in|Video description metadata is already present in):\s*(.*\.info\.json))");
     QRegularExpressionMatch infoJsonMatch = infoJsonRegex.match(normalizedLine);
     if (infoJsonMatch.hasMatch()) {
         m_infoJsonPath = infoJsonMatch.captured(1).trimmed();
         // Normalize path separators if necessary, although QFile should handle it
         m_infoJsonPath = QDir::toNativeSeparators(m_infoJsonPath);
-        
-        // Delete any pre-existing info.json from previously stopped runs.
-        // This prevents yt-dlp from crashing on Windows with FileExistsError during os.rename.
-        if (QFile::exists(m_infoJsonPath)) {
-            QFile::remove(m_infoJsonPath);
-            qDebug() << "[YtDlpWorker] Deleted pre-existing info.json to prevent FileExistsError on resume:" << m_infoJsonPath;
-        }
 
         qDebug() << "Detected info.json path and initiating retry mechanism:" << m_infoJsonPath;
         m_infoJsonRetryCount = 0; // Reset retry count for a new file

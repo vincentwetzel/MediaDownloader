@@ -109,8 +109,8 @@ bool DownloadFinalizer::copyDirectoryRecursively(const QString &sourceDir, const
 void DownloadFinalizer::finalize(const QString &id, DownloadItem item) {
     qDebug() << "Starting finalize for id:" << id;
 
-    if (item.options.value("type").toString() != "gallery" && item.metadata.isEmpty()) {
-        qWarning() << "Metadata is empty in finalize for id:" << id << ", attempting to read from disk.";
+    if (item.options.value("type").toString() != "gallery" && !item.metadata.contains("id")) {
+        qWarning() << "Metadata is missing core fields in finalize for id:" << id << ", attempting to read from disk.";
         QFileInfo fi(item.tempFilePath);
         QString jsonPath = fi.absoluteDir().filePath(fi.completeBaseName() + ".info.json");
 
@@ -120,7 +120,10 @@ void DownloadFinalizer::finalize(const QString &id, DownloadItem item) {
             jsonFile.close();
             QJsonDocument doc = QJsonDocument::fromJson(jsonData);
             if (doc.isObject()) {
-                item.metadata = doc.object().toVariantMap();
+                QVariantMap diskMetadata = doc.object().toVariantMap();
+                for (auto it = diskMetadata.constBegin(); it != diskMetadata.constEnd(); ++it) {
+                    item.metadata.insert(it.key(), it.value());
+                }
                 qDebug() << "Successfully loaded metadata from fallback for id:" << id;
             } else {
                 qWarning() << "Invalid info.json in fallback:" << jsonPath;

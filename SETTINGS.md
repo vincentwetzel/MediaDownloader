@@ -1,8 +1,8 @@
 # Settings Reference Guide
 
-This document provides a complete reference for all configuration settings used by LzyDownloader (C++ Port). Settings are stored in `settings.ini` using the standard INI format compatible with Python's `configparser`.
+This document provides a complete reference for all configuration settings used by LzyDownloader (C++ Port). Settings are stored in `settings.ini` using Qt's native `QSettings` INI format.
 
-> **Portability Note:** The C++ port reads and writes `settings.ini` in a format identical to the original Python application, ensuring full compatibility with your existing settings and download history.
+> **Portability Note:** The C++ port uses a pure Qt-native INI format. Backwards compatibility with the Python application's `configparser` quirks is no longer required, and invalid/legacy keys are pruned or reset to defaults as needed.
 
 ---
 
@@ -32,10 +32,16 @@ Application-wide settings that control theme, cookie handling, clipboard behavio
 | `theme` | String | `System` | Application visual theme. Options: `System`, `Light`, `Dark`. |
 | `cookies_from_browser` | String | `None` | Browser to extract cookies from for video/audio downloads. Options: installed browser names (e.g., `Firefox`, `Chrome`) or `None`. |
 | `gallery_cookies_from_browser` | String | `None` | Browser to extract cookies from for gallery downloads. Options: same as above or `None`. |
-| `sponsorblock` | Boolean | `false` | Enable SponsorBlock integration to skip sponsored segments in downloaded videos. |
+| `sponsorblock` | Boolean | `false` | Enable SponsorBlock integration to skip sponsored segments in downloaded videos. Uses forced keyframes to preserve A/V sync. |
 | `auto_paste_mode` | Integer | `0` | Clipboard auto-paste behavior. See [Auto-Paste Modes](#auto-paste-modes) below. |
 | `single_line_preview` | Boolean | `false` | Display the command preview in single-line mode on the Start tab. |
 | `restrict_filenames` | Boolean | `false` | Restrict downloaded filenames to ASCII characters only for maximum compatibility. |
+| `max_threads` | String | `4` | Maximum number of concurrent downloads to start automatically. Users may raise this during a session, but startup clamps persisted values back to `4` to avoid aggressive resume storms. |
+| `playlist_logic` | String | `Ask` | Default playlist handling mode. Options: `Ask`, `Download All (no prompt)`, `Download Single (ignore playlist)`. |
+| `rate_limit` | String | `Unlimited` | Global yt-dlp rate limit preset shown on the Start tab. |
+| `override_archive` | Boolean | `false` | Allow downloads that would otherwise be blocked by archive/duplicate detection. |
+| `exit_after` | Boolean | `false` | Exit the app automatically after the queue fully finishes. The delayed shutdown re-checks queued and active counts before quitting. |
+| `language` | String | `🇺🇸 English` | UI language selector value stored by the main window. |
 | `show_debug_console` | Boolean | `true` (Debug) / `false` (Release) | Show or hide the command prompt / debug console window while the application is running. |
 | `warn_stable_yt_dlp` | Boolean | `true` | Controls whether the runtime popup warns when the detected `yt-dlp` build looks like a stable release instead of a nightly build. This preference is currently changed from the popup itself, not a dedicated settings page. |
 
@@ -73,7 +79,7 @@ Default settings for video downloads. These options are bypassed when "Select at
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `video_quality` | String | `best` | Default video quality. Options: `Select at Runtime`, `best`, `2160p`, `1440p`, `1080p`, `720p`, `480p`, `360p`, `240p`, `144p`, `worst`. |
-| `video_codec` | String | `H.264` | Default video codec. Options: `Default`, `H.264 (AVC)`, `H.265 (HEVC)`, `VP9`, `AV1`, `ProRes (Archive)`, `Theora`. |
+| `video_codec` | String | `H.264 (AVC)` | Default video codec. Options: `Default`, `H.264 (AVC)`, `H.265 (HEVC)`, `VP9`, `AV1`, `ProRes (Archive)`, `Theora`. |
 | `video_extension` | String | `mp4` | Default video file extension. Options change dynamically based on selected codec. |
 | `video_audio_codec` | String | `AAC` | Default audio codec embedded in video files. Options: `Default`, `AAC`, `Opus`, `Vorbis`, `MP3`, `FLAC`, `PCM`. |
 | `video_multistreams` | String | `Default Stream` | Controls multi-stream selection behavior for video downloads. |
@@ -127,8 +133,8 @@ Settings specific to downloading live broadcasts.
 |-----|------|---------|-------------|
 | `live_from_start` | Boolean | `false` | Record the livestream from the beginning instead of the current live edge. |
 | `wait_for_video` | Boolean | `true` | Wait for an upcoming livestream to start instead of failing immediately. |
-| `wait_for_video_min` | Integer | `5` | Minimum seconds to wait between retries. |
-| `wait_for_video_max` | Integer | `30` | Maximum seconds to wait between retries. |
+| `wait_for_video_min` | Integer | `60` | Minimum seconds to wait between retries. |
+| `wait_for_video_max` | Integer | `300` | Maximum seconds to wait between retries. |
 | `download_as` | String | `MPEG-TS` | Format to download the livestream. Options: `MPEG-TS`, `MKV`. |
 | `use_part` | Boolean | `true` | Use `.part` files during download. |
 | `quality` | String | `best` | Quality of the livestream. Options: `best`, `1080p`, `720p`, etc. |

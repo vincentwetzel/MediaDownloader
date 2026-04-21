@@ -44,28 +44,31 @@ This document outlines the specifications for the C++ port of the LzyDownloader 
 
 ### 2.4. User Interface (Qt Widgets)
 - **Main Window**: Tabbed interface with a footer containing links to GitHub and Discord.
+- **Supported Sites Dialog**: A searchable dialog (accessible from the main UI) that lists all domains supported by yt-dlp and gallery-dl, indicating what type of media can be downloaded from each.
 - **Start Tab**:
     - URL Input.
     - Clipboard auto-paste: when the URL field is focused/clicked, the app checks the clipboard against the extractor-domain list stored next to `LzyDownloader.exe` and auto-pastes a matching URL.
-    - If `auto_paste_on_focus` is enabled, focusing or hovering the app window will switch to Start Download and auto-paste when a valid clipboard URL is detected. This logic is now handled by `src/ui/start_tab/StartTabUrlHandler.h/.cpp`.
+    - Auto-paste is controlled by the integer `General/auto_paste_mode` setting. Depending on the selected mode, focusing/hovering the app or detecting a new clipboard URL can auto-paste and optionally auto-enqueue. This logic is handled by `src/ui/start_tab/StartTabUrlHandler.h/.cpp` plus `MainWindow`.
     - Download Type dropdown, including "View Formats".
+    - A dedicated **Supported Sites** button must open the searchable supported-domains dialog without relying on a native OS menu bar.
     - No per-download runtime quality/codec override dropdowns may appear on the Start tab; runtime format selection must be driven by Advanced Settings and download-time dialogs.
     - Video Settings group with quality, codec, extension, and audio codec defaults. Choosing `Quality = Select at Runtime` must hide the other video-format defaults on that page and defer the whole format decision to the runtime picker. Includes a "Lock Video Settings" checkbox.
     - Audio Settings group with quality, codec, and extension defaults. Choosing `Quality = Select at Runtime` must hide the other audio-format defaults on that page and defer the whole format decision to the runtime picker. Includes a "Lock Audio Settings" checkbox.
-    - Operational Controls including Playlist logic, Max Concurrent downloads, a global Rate Limit (app-wide, not per-download), and "Override duplicate download check". "Exit after all downloads complete" is controlled from the main window footer.
+    - Operational Controls including Playlist logic, Max Concurrent downloads (capped at 4 on application startup), a global Rate Limit (app-wide, not per-download), and "Override duplicate download check". Changing these controls must instantly save to configuration and immediately react in the backend. "Exit after all downloads complete" is controlled from the main window footer.
 - **Active Downloads Tab**:
     - Displays a list of queued, actively downloading, and completed items.
     - Each download GUI element must play/display a thumbnail preview for audio/video downloads on the left side of the widget.
+    - The toolbar provides Stop All, Resume All, Clear Inactive, Open Temporary Folder, and Open Downloads Folder actions.
 - **Advanced Settings Tab**:
     - **Organization**: Settings are grouped into logical sections:
         - **Configuration**: Output folder, Temporary folder, Theme.
         - **Authentication Access**: Cookies from browser (Video/Audio), Cookies from browser (Galleries). The cookie access check is handled directly within `AdvancedSettingsTab` using `QProcess`, with a 30-second timeout and improved logging. The check uses a specific YouTube Shorts URL for more reliable validation.
         - **Output Template**: Filename Pattern (with "Insert token...", "Save", and "Reset" buttons). The "Save" button validates the pattern using `yt-dlp`.
-        - **Download Options**: External Downloader (aria2c), Enable SponsorBlock, Restrict filenames, Embed video chapters, Enable Download Sections, Auto-paste URL when app is focused.
+        - **Download Options**: External Downloader (aria2c), Enable SponsorBlock, Restrict filenames, Embed video chapters, Enable Download Sections, and the multi-mode auto-paste setting.
         - **Metadata / Thumbnails**: Embed metadata, Embed thumbnail, Use high-quality thumbnail converter, Convert thumbnails to.
         - **Livestream Settings**: Record from beginning, Wait for video (with min/max intervals). The app dynamically scales these wait intervals for streams hours away vs seconds away. Download As (MPEG-TS or MKV), Use .part files, Quality, Convert To.
         - **Subtitles**: Subtitle language (using full words in a combo box), Embed subtitles in video, Write subtitles (separate file), Include automatically-generated subtitles, Subtitle file format (greyed out if "Embed subtitles in video" is selected).
-        - **External Binaries**: Per-binary status rows for `yt-dlp`, `ffmpeg`, `ffprobe`, `gallery-dl`, `aria2c`, and `deno`, with auto-detection status, manual `Browse` overrides, and `Install` actions that offer detected package-manager commands plus manual-download links. yt-dlp install suggestions should prefer nightly-capable commands where the platform supports them and clearly label stable-only package-manager options.
+        - **External Binaries**: Per-binary status rows for `yt-dlp`, `ffmpeg`, `ffprobe`, `gallery-dl`, `aria2c`, and `deno`, with brief explanations of what each tool does, auto-detection status, manual `Browse` overrides, and `Install` actions that offer detected package-manager commands plus manual-download links. yt-dlp install suggestions should prefer nightly-capable commands where the platform supports them and clearly label stable-only package-manager options.
         - **Updates**: `yt-dlp` version (display only), Update `yt-dlp` (always to nightly), `gallery-dl` version (display only), Update `gallery-dl`.
         - **Restore defaults** button.
     - **Navigation Styling**: The left column uses a palette-aware `QListWidget` whose stylesheet is rebuilt on palette changes so the category list stays compact and theme-consistent without reverting to a plain scrollbar-heavy layout.
@@ -83,7 +86,7 @@ This document outlines the specifications for the C++ port of the LzyDownloader 
     - Filename restriction (`--restrict-filenames`).
     - External downloader (`--external-downloader aria2c`).
     - Thumbnail conversion (`--convert-thumbnails`).
-    - SponsorBlock (`--sponsorblock`).
+    - SponsorBlock (`--sponsorblock-remove all` plus `--force-keyframes-at-cuts` for videos to preserve A/V sync).
     - Cookies from browser (`--cookies-from-browser`).
     - Download sections (`--download-sections`).
     - Output template (`-o`).
@@ -96,7 +99,7 @@ This document outlines the specifications for the C++ port of the LzyDownloader 
     - **Codec Preference Fidelity**: Advanced Settings video/audio codec choices must map to yt-dlp selectors that recognize common codec aliases reported by sites and containers (for example H.264 matching `avc1` streams, H.265 matching `hev1`/`hvc1`, and AAC matching `mp4a`), rather than only matching one literal codec token.
     - **Runtime Format Overrides**: When the runtime picker supplies a concrete `format` ID, the downloader must treat it as an explicit `-f` override instead of re-opening the picker or falling back to the saved quality/codec defaults. If video and audio runtime format IDs are selected separately, both IDs must be merged into the final video `-f` expression.
 - **Output Parsing**: Must parse `yt-dlp` stdout/stderr for progress, final filename, and metadata JSON.
-- **Process Lifetime on Exit**: Closing the application must explicitly terminate active downloader/post-processor process trees (including child tools such as `aria2c` and `ffmpeg`) as well as any transient utility processes (updaters, validators, template checkers, cookie testers) so no background tasks survive after the UI exits.
+- **Process Lifetime on Exit**: Closing the application must explicitly terminate active downloader/post-processor process trees (including child tools such as `aria2c` and `ffmpeg`) as well as any transient utility processes (updaters, validators, template checkers, cookie testers) so no background tasks survive after the UI exits. **This termination must be non-blocking to the GUI thread (e.g., using detached OS commands for process tree cleanup) to prevent UI freezes when mass-stopping downloads or exiting.**
 - **Progress Compatibility**: The worker MUST understand and emit progress from **both** native `yt-dlp` progress lines **and** aria2c external downloader output, including:
   - Native yt-dlp format: `[download] XX.X% of YY.YMiB at ZZ.ZMiB/s ETA 0:00`
   - aria2c format: `[#XXXXX AA.AMiB/BB.BMiB(CC.C%)(...)ETA:0:00]`
@@ -144,6 +147,7 @@ This document outlines the specifications for the C++ port of the LzyDownloader 
   - **Single videos**: Status updates from "Checking for playlist..." to "Queued" once expansion completes. `DownloadQueueManager` handles updating the placeholder item.
   - **Playlists**: Placeholder item is removed and replaced with individual items for each track
   - Queue state persistence (handled by `DownloadQueueManager`) MUST be deferred via `Qt::QueuedConnection` to prevent GUI thread blocking
+  - Playlist-derived items must preserve enough metadata (`is_playlist`, `playlist_title`, and playlist index/context) for downstream sorting rules and finalization to treat them as playlist downloads instead of single-item fallbacks.
 - **Runtime Format Selection**: When Advanced Settings `Quality` is set to `Select at Runtime` for video or audio downloads, the app must asynchronously fetch format metadata with `yt-dlp` and present a structured selection dialog. Selecting multiple formats must enqueue one download per selected format.
 - **Encoding Robustness**: Worker process environment must force UTF-8 text output (`PYTHONUTF8=1`, `PYTHONIOENCODING=utf-8`) so Unicode filenames are preserved in stdout/stderr parsing.
 

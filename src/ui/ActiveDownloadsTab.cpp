@@ -11,7 +11,19 @@
 #include <QTimer>
 #include <QDesktopServices>
 #include <QDir>
+#include <QApplication>
+#include <QStyle>
 #include "core/ConfigManager.h"
+#include <QPainter>
+
+static QIcon createColoredIcon(QStyle::StandardPixmap sp, const QColor &color) {
+    QPixmap pixmap = QApplication::style()->standardIcon(sp).pixmap(32, 32);
+    if (pixmap.isNull()) return QIcon();
+    QPainter painter(&pixmap);
+    painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+    painter.fillRect(pixmap.rect(), color);
+    return QIcon(pixmap);
+}
 
 ActiveDownloadsTab::ActiveDownloadsTab(ConfigManager *configManager, QWidget *parent)
     : QWidget(parent), m_configManager(configManager) {
@@ -24,11 +36,88 @@ void ActiveDownloadsTab::setupUi() {
     mainLayout->setContentsMargins(20, 20, 20, 20);
 
     QHBoxLayout *toolbarLayout = new QHBoxLayout();
-    m_cancelAllButton = new QPushButton("Stop All", this);
-    m_clearCompletedButton = new QPushButton("Clear Completed", this);
+    m_cancelAllButton = new QPushButton(this);
+    m_cancelAllButton->setIcon(createColoredIcon(QStyle::SP_MediaStop, QColor("#ef4444")));
+    m_cancelAllButton->setToolTip("Stop All Active Downloads");
+    m_cancelAllButton->setFixedSize(32, 32);
+
+    QPushButton *resumeAllButton = new QPushButton(this);
+    resumeAllButton->setIcon(createColoredIcon(QStyle::SP_MediaPlay, QColor("#22c55e")));
+    resumeAllButton->setObjectName("resumeAllButton");
+    resumeAllButton->setToolTip("Resume all stopped or failed downloads.");
+    resumeAllButton->setFixedSize(32, 32);
+    connect(resumeAllButton, &QPushButton::clicked, this, [this]() {
+        QList<DownloadItemWidget*> widgetsToResume;
+        for (int i = 0; i < m_downloadsLayout->count(); ++i) {
+            if (QWidget *widget = m_downloadsLayout->itemAt(i)->widget()) {
+                if (DownloadItemWidget *itemWidget = qobject_cast<DownloadItemWidget*>(widget)) {
+                    if (itemWidget->isFinished() && !itemWidget->isSuccessful()) {
+                        widgetsToResume.append(itemWidget);
+                    }
+                }
+            }
+        }
+        
+        if (widgetsToResume.isEmpty()) return;
+
+        if (QMessageBox::question(this, "Resume All", "Are you sure you want to resume all stopped or failed downloads?", QMessageBox::Yes | QMessageBox::No) == QMessageBox::No) {
+            return;
+        }
+
+        for (DownloadItemWidget *itemWidget : widgetsToResume) {
+            for (QPushButton *btn : itemWidget->findChildren<QPushButton*>()) {
+                if (btn->toolTip() == "Resume" || btn->toolTip() == "Retry") {
+                    btn->click();
+                    break;
+                }
+            }
+        }
+    });
+
+    m_clearInactiveButton = new QPushButton(this);
+    m_clearInactiveButton->setIcon(createColoredIcon(QStyle::SP_TrashIcon, QColor("#64748b")));
+    m_clearInactiveButton->setToolTip("Clear all inactive (completed, stopped, and failed) downloads.");
+    m_clearInactiveButton->setFixedSize(32, 32);
     
+    connect(m_clearInactiveButton, &QPushButton::clicked, this, [this]() {
+        QStringList completedToRemove;
+        QStringList incompleteToRemove;
+        
+        for (int i = 0; i < m_downloadsLayout->count(); ++i) {
+            if (QWidget *widget = m_downloadsLayout->itemAt(i)->widget()) {
+                if (DownloadItemWidget *itemWidget = qobject_cast<DownloadItemWidget*>(widget)) {
+                    if (itemWidget->isFinished()) {
+                        if (itemWidget->isSuccessful()) {
+                            completedToRemove.append(itemWidget->getId());
+                        } else {
+                            incompleteToRemove.append(itemWidget->getId());
+                        }
+                    }
+                }
+            }
+        }
+        
+        bool deleteTempFiles = false;
+        if (!incompleteToRemove.isEmpty()) {
+            deleteTempFiles = (QMessageBox::question(this, "Clear Inactive Downloads",
+                                                     "Do you also want to delete temporary files for the incomplete downloads being cleared?",
+                                                     QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes);
+        }
+
+        for (const QString &id : completedToRemove) {
+            onItemClearRequested(id);
+        }
+        for (const QString &id : incompleteToRemove) {
+            if (deleteTempFiles) {
+                emit cancelDownloadRequested(id);
+            }
+            onItemClearRequested(id);
+        }
+    });
+
     // Add folder buttons for quick access to download directories
     QPushButton *openTempFolderButton = new QPushButton("Open Temporary Folder", this);
+    openTempFolderButton->setIcon(createColoredIcon(QStyle::SP_DirIcon, QColor("#3b82f6")));
     openTempFolderButton->setToolTip("Click here to open the folder where active downloads are temporarily stored.");
     connect(openTempFolderButton, &QPushButton::clicked, this, [this]() {
         QString tempDir = m_configManager->get("Paths", "temporary_downloads_directory").toString();
@@ -42,6 +131,7 @@ void ActiveDownloadsTab::setupUi() {
     });
     
     QPushButton *openDownloadsFolderButton = new QPushButton("Open Downloads Folder", this);
+    openDownloadsFolderButton->setIcon(createColoredIcon(QStyle::SP_DirOpenIcon, QColor("#3b82f6")));
     openDownloadsFolderButton->setToolTip("Click here to open the folder where all your finished downloads are saved.");
     connect(openDownloadsFolderButton, &QPushButton::clicked, this, [this]() {
         QString downloadsDir = m_configManager->get("Paths", "completed_downloads_directory").toString();
@@ -55,7 +145,8 @@ void ActiveDownloadsTab::setupUi() {
     });
     
     toolbarLayout->addWidget(m_cancelAllButton);
-    toolbarLayout->addWidget(m_clearCompletedButton);
+    toolbarLayout->addWidget(resumeAllButton);
+    toolbarLayout->addWidget(m_clearInactiveButton);
     toolbarLayout->addStretch();
     toolbarLayout->addWidget(openTempFolderButton);
     toolbarLayout->addWidget(openDownloadsFolderButton);
@@ -103,7 +194,6 @@ void ActiveDownloadsTab::setupUi() {
 
     updatePlaceholderVisibility();
 
-    connect(m_clearCompletedButton, &QPushButton::clicked, this, &ActiveDownloadsTab::clearCompletedDownloads);
     connect(m_cancelAllButton, &QPushButton::clicked, this, &ActiveDownloadsTab::cancelAllDownloads);
 }
 
@@ -188,45 +278,38 @@ void ActiveDownloadsTab::updatePlaceholderVisibility() {
     if (m_downloadItems.isEmpty()) {
         m_stackedLayout->setCurrentIndex(0); // Show placeholder
         m_cancelAllButton->setEnabled(false);
-        m_clearCompletedButton->setEnabled(false);
+        m_clearInactiveButton->setEnabled(false);
+        if (QPushButton *btn = findChild<QPushButton*>("resumeAllButton")) btn->setEnabled(false);
     } else {
         m_stackedLayout->setCurrentIndex(1); // Show downloads
         m_cancelAllButton->setEnabled(true);
-        m_clearCompletedButton->setEnabled(true);
-    }
-}
-
-void ActiveDownloadsTab::clearCompletedDownloads() {
-    QStringList toRemove;
-    for (auto it = m_downloadItems.begin(); it != m_downloadItems.end(); ++it) {
-        if (it.value()->isFinished() && it.value()->isSuccessful()) {
-            toRemove.append(it.key());
-        }
-    }
-    for (const QString &id : toRemove) {
-        onItemClearRequested(id);
+        m_clearInactiveButton->setEnabled(true);
+        if (QPushButton *btn = findChild<QPushButton*>("resumeAllButton")) btn->setEnabled(true);
     }
 }
 
 void ActiveDownloadsTab::cancelAllDownloads() {
-    bool hasActive = false;
-    for (auto it = m_downloadItems.begin(); it != m_downloadItems.end(); ++it) {
-        if (!it.value()->isFinished()) {
-            hasActive = true;
-            break;
+    QStringList toCancel;
+    for (int i = 0; i < m_downloadsLayout->count(); ++i) {
+        if (QWidget *widget = m_downloadsLayout->itemAt(i)->widget()) {
+            if (DownloadItemWidget *itemWidget = qobject_cast<DownloadItemWidget*>(widget)) {
+                if (!itemWidget->isFinished()) {
+                    toCancel.append(itemWidget->getId());
+                }
+            }
         }
     }
     
-    if (!hasActive) return;
+    if (toCancel.isEmpty()) return;
 
     if (QMessageBox::question(this, "Stop All", "Are you sure you want to stop all active downloads?", QMessageBox::Yes | QMessageBox::No) == QMessageBox::No) {
         return;
     }
 
-    for (auto it = m_downloadItems.begin(); it != m_downloadItems.end(); ++it) {
-        if (!it.value()->isFinished()) {
-            it.value()->showCancellingFeedback();
-            emit cancelDownloadRequested(it.key());
+    for (const QString &id : toCancel) {
+        if (m_downloadItems.contains(id)) {
+            m_downloadItems[id]->showCancellingFeedback();
+            emit cancelDownloadRequested(id);
         }
     }
 }
@@ -234,13 +317,24 @@ void ActiveDownloadsTab::cancelAllDownloads() {
 void ActiveDownloadsTab::togglePauseAllDownloads() {
     m_isAllPaused = !m_isAllPaused;
     
-    for (auto it = m_downloadItems.begin(); it != m_downloadItems.end(); ++it) {
-        if (!it.value()->isFinished()) {
-            it.value()->showPausingFeedback(m_isAllPaused);
+    QStringList toToggle;
+    for (int i = 0; i < m_downloadsLayout->count(); ++i) {
+        if (QWidget *widget = m_downloadsLayout->itemAt(i)->widget()) {
+            if (DownloadItemWidget *itemWidget = qobject_cast<DownloadItemWidget*>(widget)) {
+                if (!itemWidget->isFinished()) {
+                    toToggle.append(itemWidget->getId());
+                }
+            }
+        }
+    }
+
+    for (const QString &id : toToggle) {
+        if (m_downloadItems.contains(id)) {
+            m_downloadItems[id]->showPausingFeedback(m_isAllPaused);
             if (m_isAllPaused) {
-                emit pauseDownloadRequested(it.key());
+                emit pauseDownloadRequested(id);
             } else {
-                emit unpauseDownloadRequested(it.key());
+                emit unpauseDownloadRequested(id);
             }
         }
     }

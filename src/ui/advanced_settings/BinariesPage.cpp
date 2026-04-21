@@ -146,7 +146,20 @@ void BinariesPage::setupRow(QVBoxLayout *layout,
     versionLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
     versionLabel->setAlignment(Qt::AlignTop | Qt::AlignLeft);
 
+    QString description;
+    if (binaryName == "yt-dlp") description = "Downloads video and audio from online platforms.";
+    else if (binaryName == "ffmpeg") description = "Merges and converts media formats.";
+    else if (binaryName == "ffprobe") description = "Analyzes media files and metadata.";
+    else if (binaryName == "deno") description = "Executes JavaScript for solving anti-bot challenges.";
+    else if (binaryName == "gallery-dl") description = "Downloads image galleries.";
+    else if (binaryName == "aria2c") description = "Accelerates downloads using multiple connections.";
+
+    QLabel *descLabel = new QLabel(QString("<i>%1</i>").arg(description), rowGroup);
+    descLabel->setWordWrap(true);
+    descLabel->setAlignment(Qt::AlignTop | Qt::AlignLeft);
+
     QVBoxLayout *leftCol = new QVBoxLayout();
+    leftCol->addWidget(descLabel);
     leftCol->addWidget(statusLabel);
     leftCol->addWidget(versionLabel);
     leftCol->addStretch();
@@ -173,6 +186,7 @@ void BinariesPage::setupRow(QVBoxLayout *layout,
     updateButton->setFont(childFont);
     statusLabel->setFont(childFont);
     versionLabel->setFont(childFont);
+    descLabel->setFont(childFont);
 
     browseButton->setToolTip(QString("Choose a specific %1 executable from disk to set a manual override.").arg(labelText));
     clearButton->setToolTip("Clear the manual path override and revert to auto-detection.");

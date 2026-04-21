@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(LzyDownloader VERSION 1.1.5 LANGUAGES CXX)
+project(LzyDownloader VERSION 1.1.8 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -126,6 +126,7 @@ add_executable(LzyDownloader
     src/ui/FormatSelectionDialog.cpp
     src/ui/DownloadSectionsDialog.cpp
     src/ui/advanced_settings/BinariesPage.cpp
+    src/ui/SupportedSitesDialog.cpp
 
     # Qt resource file for icons, etc.
     src/ui/resources.qrc
@@ -203,8 +204,7 @@ if(WIN32)
             # Some environments end up with mixed Qt runtimes in the build output
             # even though CMake resolved the official Qt installation above.
             # Re-copy the primary Qt DLLs from the configured Qt bin directory so
-            # the release folder cannot retain an incompatible alternate build
-            # that introduces unexpected dependencies like zlib1.dll.
+            # the release folder cannot retain an incompatible alternate build.
             foreach(_qt_runtime IN ITEMS
                 Qt6Core.dll
                 Qt6Gui.dll
@@ -221,15 +221,6 @@ if(WIN32)
                 )
             endforeach()
 
-            # Keep the deployed app directory free of stray ad-hoc zlib DLLs.
-            add_custom_command(TARGET LzyDownloader POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E rm -f
-                "$<TARGET_FILE_DIR:LzyDownloader>/zlib1.dll"
-                "$<TARGET_FILE_DIR:LzyDownloader>/zlib.dll"
-                "$<TARGET_FILE_DIR:LzyDownloader>/libz.dll"
-                "$<TARGET_FILE_DIR:LzyDownloader>/libzlib.dll"
-                COMMENT "Removing incompatible ad-hoc zlib DLLs from output directory"
-            )
         else()
             message(WARNING "windeployqt not found, Qt dependencies will not be copied automatically.")
         endif()

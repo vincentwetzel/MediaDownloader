@@ -10,13 +10,16 @@ The application ensures that only one instance can run at a time. This is achiev
 
 ### 2.2 Core Components
 - **UI Layer (`src/ui/`):** Handles user interaction, input, and visual feedback using Qt Widgets.
+  - **No Native Menus**: The application strictly avoids native OS menu bars (`QMenuBar`), utilizing in-app UI elements (buttons, tabs, sidebars) for all navigation and actions. For example, the Supported Sites dialog is launched from a dedicated button on the Start Tab.
+  - **Start Tab operational controls**: Playlist logic, Max Concurrent, Rate Limit, and override-duplicate controls live directly on the Start tab and save instantly to `ConfigManager`, allowing the backend to react immediately instead of waiting for a separate Apply action.
   - **AdvancedSettingsTab navigation**: The left-side category list is a compact `QListWidget` whose stylesheet is rebuilt from `QPalette` values whenever the palette changes so it remains consistent with both light and dark themes.
   - **Runtime format selection**: Advanced Settings can defer the entire video/audio format decision until enqueue time by setting `Quality` to `Select at Runtime`; `DownloadManager` fetches format metadata and `MainWindow` presents `FormatSelectionDialog`, which enqueues one item per selected format and marks those selected format IDs as concrete downloader overrides so they do not loop back into the picker.
   - **Windows debug console toggle**: When the app owns its console window, Advanced Settings exposes `General/show_debug_console` and `MainWindow` can allocate, show, or hide that console at runtime without changing the executable type.
   - **UI Builders**: `MainWindowUiBuilder` and `StartTabUiBuilder` classes are introduced to encapsulate the creation and layout of UI elements for `MainWindow` and `StartTab` respectively, improving modularity.
   - **Sorting Rule Dialog**: The dialog for creating/editing sorting rules uses a `QScrollArea` with `QVBoxLayout` instead of `QListWidget` for smooth pixel-level scrolling without item-snapping. The scroll area is capped at 150-400px height with 4px spacing between conditions. Condition widgets use a `CONDITION_VALUE_INPUT_HEIGHT` constant (100px) for consistent text entry sizing via `setFixedHeight()`. Dialog minimum size is 650x500px.
+  - **Active Downloads toolbar**: The monitoring tab now favors compact icon-driven controls, including Resume All plus a unified Clear Inactive action for finished, stopped, and failed rows.
 - **Core Logic (`src/core/`):** Manages download queues, file operations, configuration, and external process execution.
-- **Exit Cleanup:** `MainWindow::closeEvent` warns if downloads are queued or active, explains that state will be resumed on next launch, then calls `DownloadManager::shutdown()` to cleanly tear down active downloader/post-processing trees. It finally performs a catch-all sweep of its own `QProcess` children using `ProcessUtils::terminateProcessTree()` to ensure transient utilities (like auto-updaters, URL validators, and template checkers) do not become zombie processes on Windows and other platforms.
+- **Exit Cleanup:** `MainWindow::closeEvent` warns if downloads are queued or active, explains that state will be resumed on next launch, then calls `DownloadManager::shutdown()` to cleanly tear down active downloader/post-processing trees. It finally performs a catch-all sweep of its own `QProcess` children using `ProcessUtils::terminateProcessTree()` (which uses detached OS commands to prevent GUI thread blocking) to ensure transient utilities (like auto-updaters, URL validators, and template checkers) do not become zombie processes on Windows and other platforms.
 - **Utilities (`src/utils/`):** Provides helper functions for tasks like string manipulation and URL normalization.
 - **Extractor Domain Loader:** `YtDlpJsonParser` loads the extractor-domain list from the app directory for clipboard auto-paste checks in `StartTab`.
 - **Auto-paste Control:** `DownloadOptionsPage` saves `General/auto_paste_mode`, and `MainWindow` reacts to app focus/clipboard changes to route matching URLs to `StartTab` according to the selected mode, using a brief debounce plus duplicate queue checks instead of a long lockout.
@@ -75,6 +78,7 @@ LzyDownloader/
 │   │   ├── FormatSelectionDialog.h/cpp # Runtime format picker
 │   │   ├── RuntimeSelectionDialog.h/cpp # Runtime subtitle picker
 │   │   ├── DownloadItemWidget.h/cpp # Individual download item widget (displays thumbnail on left side of progress bar)
+│   │   ├── SupportedSitesDialog.h/cpp # Searchable dialog listing supported domains
 │   │   └── ...
 │   └── utils/                  # Helper Modules
 │       ├── BinaryFinder.h/cpp    # Locates external binaries
@@ -91,9 +95,10 @@ LzyDownloader/
 - **Responsibilities:**
   - Loads and saves application settings to `settings.ini` using `QSettings`.
   - Provides default configuration values using an internal `m_defaultSettings` map.
-  - **Ensures 100% format compatibility with the Python version's INI file.**
+  - Uses the application's Qt-native INI schema rather than preserving Python `configparser` quirks.
   - Emits `settingChanged` signal when a setting is modified.
   - Automatically prunes legacy and dead keys from `settings.ini` on startup, ensuring the configuration file remains clean and canonical.
+  - Clamps persisted `General/max_threads` back to `4` during startup so resumed sessions do not reopen with an overly aggressive concurrency level.
 
 ### 4.2 ArchiveManager (`src/core/ArchiveManager.h`)
 - **Responsibilities:**
@@ -112,8 +117,9 @@ LzyDownloader/
   - Tracks per-download cleanup candidates from worker progress (`current_file`, thumbnail paths, and related temp outputs) so stopped items can later clear all known temporary files.
   - Delegates queue state saving/loading to `DownloadQueueState`.
   - Handles playlist expansion via `PlaylistExpander`.
+  - Preserves playlist context (`is_playlist`, `playlist_title`, playlist index, and original playlist URL) across single-item playlist handling, full playlist expansion, resume, sorting, and finalization.
   - Performs post-processing (renaming, metadata embedding).
-  - **Defers queue state persistence (`saveQueueState`) and download initiation (`startNextDownload`) via `QMetaObject::invokeMethod` with `Qt::QueuedConnection` to prevent GUI thread blocking.** These methods MUST be declared as `Q_INVOKABLE` in the header file.
+  - **Defers queue state persistence (`saveQueueState`) and download initiation (`startNextDownload`) via `QMetaObject::invokeMethod` with `Qt::QueuedConnection` to prevent GUI thread blocking.** Queue-finished detection also guards against false positives by waiting for pending playlist expansions and actively paused items to drain before emitting `queueFinished`.
 
 ### 4.4 YtDlpWorker (`src/core/YtDlpWorker.h`)
 - **Responsibilities:**
@@ -152,6 +158,7 @@ LzyDownloader/
 - **Responsibilities:**
   - Evaluates user-defined sorting rules against video metadata.
   - Replaces dynamic tokens (e.g., `{uploader}`) in destination paths.
+  - Accepts both stored internal rule keys (`video_playlist`, `audio_playlist`, `any`, etc.) and older human-readable labels, while resolving aliases such as playlist title vs. album and uploader vs. channel.
 
 ### 4.7 LogManager (`src/utils/LogManager.h`)
 - **Responsibilities:**
@@ -181,6 +188,6 @@ LzyDownloader/
 - **Release Helper Script:** `build_release.ps1` refreshes extractor JSONs, performs a clean Release configure/build, and runs `makensis` so local release packaging follows the same repeatable steps every time.
 - **Executable Name:** The final executable will be named `LzyDownloader.exe` to ensure a seamless update from the Python version.
 - **Bundling:** All dependencies (Qt runtime DLLs, binaries) will be included in the installation directory.
-- **Release Output Hygiene:** After `windeployqt`, `CMakeLists.txt` re-copies the resolved Qt runtime DLLs from the configured Qt installation and removes stray ad-hoc zlib DLLs (`zlib1.dll`, `zlib.dll`, `libz.dll`, `libzlib.dll`) from the output directory to avoid incompatible dependency mixes on clean machines.
+- **Release Output Hygiene:** After `windeployqt`, `CMakeLists.txt` re-copies the resolved Qt runtime DLLs from the configured Qt installation. Keep the deployed compression/runtime DLLs that ship with Qt, including `zlib1.dll`, because `Qt6Network.dll` depends on them on Windows.
 - **Qt Image Format Plugins:** Windows deployments must include the required `plugins/imageformats` codecs for active-download artwork and converted thumbnails, including `qjpeg`, `qpng`, `qwebp`, and `qico` (plus debug variants when available).
 - **User Data Preservation:** The NSIS installer MUST NOT overwrite user data files (`settings.ini`, `download_archive.db`, `downloads_backup.json`, or timestamped log files). These are stored in platform-specific user data directories (for example `%LOCALAPPDATA%\LzyDownloader\` on Windows), separate from the installation directory, ensuring they persist across application updates.

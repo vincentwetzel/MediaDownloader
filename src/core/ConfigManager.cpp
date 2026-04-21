@@ -23,6 +23,15 @@ ConfigManager::ConfigManager(const QString &filePath, QObject *parent)
     m_settings = new QSettings(configPath, QSettings::IniFormat, this);
     initializeDefaultSettings();
     cleanUpLegacyKeys();
+
+    // Enforce max concurrency cap of 4 on startup to prevent accidental aggressive spam
+    QString maxThreads = m_settings->value("General/max_threads", "4").toString();
+    bool isInt;
+    int threads = maxThreads.toInt(&isInt);
+    if (isInt && threads > 4) {
+        m_settings->setValue("General/max_threads", "4");
+        m_settings->sync();
+    }
 }
 
 void ConfigManager::initializeDefaultSettings() {
@@ -37,6 +46,14 @@ void ConfigManager::initializeDefaultSettings() {
     m_defaultSettings["General"]["auto_paste_mode"] = 0; // Changed from auto_paste_on_focus (bool) to auto_paste_mode (int)
     m_defaultSettings["General"]["single_line_preview"] = false;
     m_defaultSettings["General"]["restrict_filenames"] = false;
+    m_defaultSettings["General"]["max_threads"] = "4";
+    m_defaultSettings["General"]["playlist_logic"] = "Ask";
+    m_defaultSettings["General"]["rate_limit"] = "Unlimited";
+    m_defaultSettings["General"]["override_archive"] = false;
+    m_defaultSettings["General"]["exit_after"] = false;
+    m_defaultSettings["General"]["language"] = "🇺🇸 English";
+    m_defaultSettings["General"]["show_debug_console"] = false;
+    m_defaultSettings["General"]["warn_stable_yt_dlp"] = true;
     m_defaultSettings["Video"]["video_quality"] = "best";
     m_defaultSettings["Video"]["video_codec"] = "H.264 (AVC)";
     m_defaultSettings["Video"]["video_extension"] = "mp4";

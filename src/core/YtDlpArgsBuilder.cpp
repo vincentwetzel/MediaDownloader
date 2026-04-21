@@ -237,7 +237,12 @@ QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString 
     if (options.value("override_archive", false).toBool()) rawArgs << "--force-download";
 
     // --- General Options ---
-    if (configManager->get("General", "sponsorblock", false).toBool()) rawArgs << "--sponsorblock-remove" << "all";
+    if (configManager->get("General", "sponsorblock", false).toBool()) {
+        rawArgs << "--sponsorblock-remove" << "all";
+        if (downloadType == "video" || isLivestream) {
+            rawArgs << "--force-keyframes-at-cuts";
+        }
+    }
     const ProcessUtils::FoundBinary aria2Binary = ProcessUtils::findBinary("aria2c", configManager);
     if (configManager->get("Metadata", "use_aria2c", false).toBool() && aria2Binary.source != "Not Found" && aria2Binary.source != "Invalid Custom") {
         QString aria2cPath = aria2Binary.path;

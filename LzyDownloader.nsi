@@ -2,7 +2,7 @@
 !include "LogicLib.nsh"
 
 !ifndef APP_VERSION
-  !error "APP_VERSION must be supplied to makensis (for example /DAPP_VERSION=1.1.4)"
+  !error "APP_VERSION must be supplied to makensis (for example /DAPP_VERSION=1.1.7)"
 !endif
 
 ;--------------------------------
@@ -49,13 +49,6 @@ Section "Install"
     ; Copy all files from the CMake build Release directory
     ; This includes LzyDownloader.exe, Qt DLLs, plugins, and extractor JSONs
     File /r "build\Release\*.*"
-
-    ; Guard against stray zlib DLLs that can break Qt6Network startup on
-    ; clean machines when they export plain inflate() instead of z_inflate().
-    Delete "$INSTDIR\zlib1.dll"
-    Delete "$INSTDIR\zlib.dll"
-    Delete "$INSTDIR\libz.dll"
-    Delete "$INSTDIR\libzlib.dll"
 
     ; Create Start Menu shortcut
     CreateDirectory "$SMPROGRAMS\LzyDownloader"

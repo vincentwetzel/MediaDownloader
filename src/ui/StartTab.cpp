@@ -31,6 +31,7 @@
 #include "ToggleSwitch.h"
 #include "StartTabUiBuilder.h" // Include the new builder
 #include "core/ProcessUtils.h"
+#include "SupportedSitesDialog.h"
 
 StartTab::StartTab(ConfigManager *configManager, ExtractorJsonParser *extractorJsonParser, QWidget *parent) : QWidget(parent), m_configManager(configManager), m_extractorJsonParser(extractorJsonParser), m_uiBuilder(nullptr) {
     m_ytDlpArgsBuilder = new YtDlpArgsBuilder();
@@ -107,6 +108,40 @@ void StartTab::focusInEvent(QFocusEvent *event) {
 void StartTab::setupUI() {
     QVBoxLayout *mainLayout = new QVBoxLayout(this); // Use 'this' as parent for mainLayout
     m_uiBuilder->build(this, mainLayout); // Pass 'this' as parentWidget
+
+    if (QPushButton *supportedSitesBtn = findChild<QPushButton*>("supportedSitesBtn")) {
+        connect(supportedSitesBtn, &QPushButton::clicked, this, [this]() {
+            SupportedSitesDialog dialog(this);
+            dialog.exec();
+        });
+    }
+
+    // Wire up operational controls to save instantly to ConfigManager
+    if (m_uiBuilder->maxConcurrentCombo()) {
+        connect(m_uiBuilder->maxConcurrentCombo(), &QComboBox::currentTextChanged, this, [this](const QString &text) {
+            m_configManager->set("General", "max_threads", text);
+            m_configManager->save();
+        });
+    }
+    if (m_uiBuilder->playlistLogicCombo()) {
+        connect(m_uiBuilder->playlistLogicCombo(), &QComboBox::currentTextChanged, this, [this](const QString &text) {
+            m_configManager->set("General", "playlist_logic", text);
+            m_configManager->save();
+        });
+    }
+    if (m_uiBuilder->rateLimitCombo()) {
+        connect(m_uiBuilder->rateLimitCombo(), &QComboBox::currentTextChanged, this, [this](const QString &text) {
+            m_configManager->set("General", "rate_limit", text);
+            m_configManager->save();
+        });
+    }
+    if (m_uiBuilder->overrideDuplicateCheck()) {
+        connect(m_uiBuilder->overrideDuplicateCheck(), &ToggleSwitch::toggled, this, [this](bool checked) {
+            m_configManager->set("General", "override_archive", checked);
+            m_configManager->save();
+        });
+    }
+
     setLayout(mainLayout); // Set the layout for the StartTab widget
 }
 

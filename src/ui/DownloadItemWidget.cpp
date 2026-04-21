@@ -8,6 +8,18 @@
 #include <QFileInfo>
 #include <QPixmap>
 #include <QProgressBar>
+#include <QPainter>
+#include <QApplication>
+#include <QStyle>
+
+static QIcon createColoredIcon(QStyle::StandardPixmap sp, const QColor &color) {
+    QPixmap pixmap = QApplication::style()->standardIcon(sp).pixmap(32, 32);
+    if (pixmap.isNull()) return QIcon();
+    QPainter painter(&pixmap);
+    painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+    painter.fillRect(pixmap.rect(), color);
+    return QIcon(pixmap);
+}
 
 DownloadItemWidget::DownloadItemWidget(const QVariantMap &itemData, QWidget *parent)
     : QWidget(parent), m_itemData(itemData) {
@@ -74,14 +86,22 @@ void DownloadItemWidget::setupUi() {
     infoLayout->addWidget(m_overallProgressLabel);
     infoLayout->addWidget(m_overallProgressBar);
 
-    m_cancelButton = new QPushButton("Stop", this);
+    m_cancelButton = new QPushButton(this);
+    m_cancelButton->setIcon(createColoredIcon(QStyle::SP_MediaStop, QColor("#ef4444")));
+    m_cancelButton->setFixedSize(30, 30);
     m_cancelButton->setToolTip("Stop this download.");
-    m_retryButton = new QPushButton("Retry", this);
+    
+    m_retryButton = new QPushButton(this);
+    m_retryButton->setIcon(createColoredIcon(QStyle::SP_BrowserReload, QColor("#eab308")));
+    m_retryButton->setFixedSize(30, 30);
     m_retryButton->setToolTip("Retry this failed or cancelled download.");
+    
     m_openFolderButton = new QPushButton("Open Folder", this);
+    m_openFolderButton->setIcon(createColoredIcon(QStyle::SP_DirOpenIcon, QColor("#3b82f6")));
     m_openFolderButton->setToolTip("Open the folder where this file was saved.");
 
     QPushButton *clearTempButton = new QPushButton("Clear Temp Files", this);
+    clearTempButton->setIcon(createColoredIcon(QStyle::SP_TrashIcon, QColor("#64748b")));
     clearTempButton->setObjectName("clearTempButton");
     clearTempButton->setToolTip("Delete partial download files from disk to free up space.");
     clearTempButton->hide();
@@ -270,7 +290,8 @@ void DownloadItemWidget::setFinished(bool success, const QString &message) {
 
     if (!success) {
         m_retryButton->setEnabled(true);
-        m_retryButton->setText("Retry");
+        m_retryButton->setIcon(createColoredIcon(QStyle::SP_BrowserReload, QColor("#eab308")));
+        m_retryButton->setToolTip("Retry");
         m_retryButton->show();
         m_statusLabel->setStyleSheet("color: #dc2626;");
         m_progressBar->setStyleSheet("QProgressBar { color: #dc2626; }");
@@ -304,7 +325,8 @@ void DownloadItemWidget::setCancelled() {
     m_moveUpButton->hide();
     m_moveDownButton->hide();
     m_retryButton->setEnabled(true);
-    m_retryButton->setText("Resume");
+    m_retryButton->setIcon(createColoredIcon(QStyle::SP_MediaPlay, QColor("#22c55e")));
+    m_retryButton->setToolTip("Resume");
     m_retryButton->show();
     m_isFinished = true;
     m_isSuccessful = false;
@@ -337,10 +359,10 @@ void DownloadItemWidget::onCancelClicked() {
 
 void DownloadItemWidget::onRetryClicked() {
     m_retryButton->setEnabled(false);
-    if (m_retryButton->text() == "Resume") {
-        m_retryButton->setText("Resuming...");
+    if (m_retryButton->toolTip() == "Resume") {
+        m_retryButton->setToolTip("Resuming...");
     } else {
-        m_retryButton->setText("Retrying...");
+        m_retryButton->setToolTip("Retrying...");
     }
     
     // Reset state so it can accept progress updates again
@@ -358,7 +380,8 @@ void DownloadItemWidget::onRetryClicked() {
 
     m_cancelButton->show();
     m_cancelButton->setEnabled(true);
-    m_cancelButton->setText("Stop");
+    m_cancelButton->setIcon(createColoredIcon(QStyle::SP_MediaStop, QColor("#ef4444")));
+    m_cancelButton->setToolTip("Stop");
     
     // Clear red error/stopped stylesheets
     m_statusLabel->setStyleSheet("");
@@ -397,7 +420,7 @@ void DownloadItemWidget::showCancellingFeedback()
     // Disable buttons so the user knows the click registered
     if (m_cancelButton) {
         m_cancelButton->setEnabled(false);
-        m_cancelButton->setText("Stopping...");
+        m_cancelButton->setToolTip("Stopping...");
     }
 }
 
