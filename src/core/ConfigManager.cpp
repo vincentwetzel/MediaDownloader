@@ -8,6 +8,9 @@ ConfigManager::ConfigManager(const QString &filePath, QObject *parent)
     : QObject(parent) {
     // Determine the OS-native user data directory (e.g., %LOCALAPPDATA%\LzyDownloader)
     QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
+    if (QCoreApplication::arguments().contains("--headless") || QCoreApplication::arguments().contains("--server")) {
+        configDir = QDir(configDir).filePath("Server");
+    }
     QDir dir(configDir);
     if (!dir.exists()) {
         dir.mkpath(".");
@@ -61,6 +64,7 @@ void ConfigManager::initializeDefaultSettings() {
     m_defaultSettings["General"]["show_debug_console"] = false;
     m_defaultSettings["General"]["warn_stable_yt_dlp"] = true;
     m_defaultSettings["General"]["enable_local_api"] = false;
+    m_defaultSettings["General"]["enable_local_api_server"] = false; // Fallback for UI naming differences
     m_defaultSettings["Video"]["video_quality"] = "best";
     m_defaultSettings["Video"]["video_codec"] = "H.264 (AVC)";
     m_defaultSettings["Video"]["video_extension"] = "mp4";
@@ -99,7 +103,7 @@ void ConfigManager::initializeDefaultSettings() {
 
 void ConfigManager::cleanUpLegacyKeys() {
     // These top-level sections are allowed to have dynamic/user-defined keys
-    const QStringList dynamicGroups = {"SortingRules", "MainWindow", "UI", "Geometry", "Paths", "Binaries"};
+    const QStringList dynamicGroups = {"SortingRules", "MainWindow", "UI", "Geometry", "Paths", "Binaries", "LocalApi"};
     
     QStringList allKeys = m_settings->allKeys();
     bool keysRemoved = false;
@@ -111,11 +115,31 @@ void ConfigManager::cleanUpLegacyKeys() {
         QString section = parts.first();
         QString key = parts.mid(1).join('/');
 
-        // 1. Preserve explicitly dynamic groups completely
-        if (dynamicGroups.contains(section)) continue;
+        // 1. Preserve explicitly dynamic groups completely (case-insensitive)
+        bool inDynamic = false;
+        for (const QString &dg : dynamicGroups) {
+            if (section.compare(dg, Qt::CaseInsensitive) == 0) {
+                inDynamic = true;
+                break;
+            }
+        }
+        if (inDynamic) continue;
 
-        // 2. Preserve keys that exist in our strict defaults map
-        if (m_defaultSettings.contains(section) && m_defaultSettings[section].contains(key)) continue;
+        // 2. Preserve keys that exist in our strict defaults map (case-insensitive)
+        bool found = false;
+        for (auto it = m_defaultSettings.constBegin(); it != m_defaultSettings.constEnd(); ++it) {
+            if (it.key().compare(section, Qt::CaseInsensitive) == 0) {
+                for (auto it2 = it.value().constBegin(); it2 != it.value().constEnd(); ++it2) {
+                    if (it2.key().compare(key, Qt::CaseInsensitive) == 0) {
+                        found = true;
+                        break;
+                    }
+                }
+            }
+            if (found) break;
+        }
+        
+        if (found) continue;
 
         // 3. It's a legacy or dead key, nuke it
         m_settings->remove(fullKey);

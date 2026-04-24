@@ -12,10 +12,21 @@
 #include <QSqlDatabase>
 
 int main(int argc, char *argv[]) {
-    QSystemSemaphore semaphore("LzyDownloaderSemaphore", 1);
+    bool startBackground = false;
+    for (int i = 1; i < argc; ++i) {
+        QString arg(argv[i]);
+        if (arg == "--background" || arg == "-b" || arg == "--headless" || arg == "--server") {
+            startBackground = true;
+            break;
+        }
+    }
+
+    QString instanceSuffix = startBackground ? "_Server" : "";
+
+    QSystemSemaphore semaphore("LzyDownloaderSemaphore" + instanceSuffix, 1);
     semaphore.acquire();
 
-    QSharedMemory sharedMemory("LzyDownloaderSingleInstance");
+    QSharedMemory sharedMemory("LzyDownloaderSingleInstance" + instanceSuffix);
     if (!sharedMemory.create(1)) {
         semaphore.release();
         return 0;
@@ -42,14 +53,6 @@ int main(int argc, char *argv[]) {
 
     // Create the parser here so it can be passed down
     ExtractorJsonParser extractorJsonParser;
-
-    bool startBackground = false;
-    for (int i = 1; i < argc; ++i) {
-        if (QString(argv[i]) == "--background" || QString(argv[i]) == "-b") {
-            startBackground = true;
-            break;
-        }
-    }
 
     MainWindow w(&extractorJsonParser);
     if (!startBackground) {

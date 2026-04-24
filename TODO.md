@@ -9,6 +9,7 @@
   - [x] Add `POST /enqueue` endpoint to accept links safely.
   - [x] Add `GET /status` endpoint to return active queue progress, speed, and ETA.
   - [x] Add GUI Toggle in Advanced Settings (`ConfigurationPage`) to "Enable Local API Server".
+  - [x] **Headless Environment Isolation**: Branch single-instance memory locks and route data files (`settings.ini`, `downloads_backup.json`, `api_token.txt`) to a `Server` subfolder when running with `--headless` or `--server`, allowing a bot and the GUI to run concurrently.
   - [x] Wire server signals to `DownloadQueueManager` and `MainWindow`.
 
 ### Phase 14: Unbundled Binaries & Dependency Management

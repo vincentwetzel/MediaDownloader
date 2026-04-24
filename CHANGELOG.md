@@ -5,7 +5,7 @@ All notable changes to LzyDownloader will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.11] - 2026-04-24
+## [1.1.13] - 2026-04-24
 
 ### Changed
 - **Active Downloads UI Cleanup**: Merged the redundant "Clear Completed" button into a single unified "Clear Inactive" button on the Active Downloads tab, simplifying the toolbar.
@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Post-processing progress animation**: The progress bar now enters an indeterminate (scrolling) animation mode during post-processing and finalizing stages (like FFmpeg merges) instead of freezing statically at 100%, providing clear visual feedback that the application is still working.
 
 ### Added
+- **Isolated Headless Server Mode**: Running the application with `--headless`, `--server`, or `--background` now automatically routes application data (settings, queue backups, API tokens) to a dedicated `Server` subfolder and branches the single-instance memory lock. This allows a headless background instance (like a Discord bot integration) to run simultaneously alongside the standard GUI without lock conflicts or queue corruption.
 - **External Binaries inline descriptions**: Added brief, user-friendly descriptions next to each binary on the External Binaries page explaining what tools like `ffmpeg`, `deno`, and `aria2c` do.
 - **Force Playlist as Single Album**: Added a new "Force Playlist as Single Album" toggle in Advanced Settings -> Metadata. When enabled for audio playlist downloads, this forces the `album` metadata tag to the playlist's title and sets a uniform `album_artist` tag ("Various Artists"), ensuring local music players group all tracks into a single album.
 - **Supported Sites Dialog**: Added a searchable dialog that lists all supported websites and indicates whether they support Video/Audio (yt-dlp) or Image Galleries (gallery-dl), populated dynamically from the application's extractor lists.

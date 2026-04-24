@@ -70,7 +70,7 @@ Agents MUST preserve and respect the following behaviors from the original Pytho
 The project follows a **modular, separation-of-concerns design** using C++ and Qt.
 
 ### Entry Point
-- `main.cpp` - Initializes the `QApplication`, creates and shows the `MainWindow`, and enforces single application instance using `QSystemSemaphore` and `QSharedMemory`. Installs a custom message handler for logging.
+- `main.cpp` - Initializes the `QApplication`, creates and shows the `MainWindow`, and enforces single application instance using `QSystemSemaphore` and `QSharedMemory` (branches the lock with a `_Server` suffix for headless runs). Installs a custom message handler for logging.
 - `CMakeLists.txt` - Project definition, **version source of truth** (`project(VERSION x.y.z)`), dependencies (Qt6), and build instructions. Version is auto-generated into `version.h` via `configure_file`. **Supports both standalone Qt installs and vcpkg-toolchain builds, and on Windows now copies Qt runtime plugins from vcpkg when a manifest/toolchain build is active.**
 - `vcpkg.json` - vcpkg manifest for source builds. Declares the baseline package dependencies (currently Qt base with SQLite support) used by the CMake presets and release workflow.
 - `LzyDownloader.rc` - Windows resource file for embedding the application icon and **version info** (file/product version from `version.h`) into the executable.
@@ -128,7 +128,7 @@ The project follows a **modular, separation-of-concerns design** using C++ and Q
 
 ### Quick-Reference: Where is X?
 
-- **Settings/Config**: `src/core/ConfigManager.h/.cpp` (handles `settings.ini` I/O, emits `settingChanged` signal, ensures `output_template` is a filename template, `temporary_downloads_directory` is correctly set, automatically prunes legacy keys on startup, uses `H.264 (AVC)` as the canonical default video codec label, and clamps persisted startup concurrency back to `4`).
+- **Settings/Config**: `src/core/ConfigManager.h/.cpp` (handles `settings.ini` I/O, emits `settingChanged` signal, ensures `output_template` is a filename template, `temporary_downloads_directory` is correctly set, automatically prunes legacy keys on startup, uses `H.264 (AVC)` as the canonical default video codec label, and clamps persisted startup concurrency back to `4`. Automatically routes settings to a `Server/` subfolder when running in headless/server mode).
 - **Build Dependencies / vcpkg Manifest**: `vcpkg.json` (declares manifest-mode source-build dependencies) and `CMakePresets.json` (points Windows preset builds at the vcpkg toolchain/triplet).
 - **Download Archive**: `src/core/ArchiveManager.h/.cpp` (handles `download_archive.db` I/O).
 - **URL Validation**: `src/core/DownloadManager.h/.cpp`.
@@ -158,7 +158,7 @@ The project follows a **modular, separation-of-concerns design** using C++ and Q
 - **yt-dlp error popups**: `src/core/DownloadManager.h/.cpp` (always forwards item metadata for popup actions) and `src/ui/MainWindow.h/.cpp` (renders rich-text dialogs with clickable source URLs when available).
 - **Runtime subtitle selection**: `src/ui/MainWindow.h/.cpp` and `src/ui/RuntimeSelectionDialog.h/.cpp`.
 - **Non-interactive CLI/API downloads**: `src/ui/MainWindow.h/.cpp` (direct URL and Local API request defaults, prompt suppression) and `src/core/DownloadManager.h/.cpp` (archive override, playlist download-all, runtime/section prompt bypass).
-- **Local API server**: `src/core/LocalApiServer.h/.cpp` (localhost listener, token auth, enqueue/status endpoints), `src/ui/advanced_settings/ConfigurationPage.h/.cpp` (`General/enable_local_api` toggle), and `src/ui/MainWindow.h/.cpp` (server lifecycle plus non-interactive enqueue routing).
+- **Local API server**: `src/core/LocalApiServer.h/.cpp` (localhost listener, token auth, enqueue/status endpoints; routes `api_token.txt` to the `Server/` subfolder when headless), `src/ui/advanced_settings/ConfigurationPage.h/.cpp` (`General/enable_local_api` toggle), and `src/ui/MainWindow.h/.cpp` (server lifecycle plus non-interactive enqueue routing).
 - **Section download filename labeling**: `src/ui/DownloadSectionsDialog.h/.cpp` (human-readable label generation), `src/ui/MainWindow.h/.cpp` (stores section label in queued options), and `src/core/YtDlpArgsBuilder.h/.cpp` (injects the label into the output filename template).
 - **Video/audio codec preference routing**: `src/ui/advanced_settings/VideoSettingsPage.h/.cpp` (codec UI and legacy-label normalization), `src/ui/MainWindow.h/.cpp` (marks runtime-selected format IDs as concrete overrides), and `src/core/YtDlpArgsBuilder.h/.cpp` (maps Advanced Settings codec choices and runtime format overrides to yt-dlp selectors).
 - **Auto-paste URL behavior**: `src/ui/AdvancedSettingsTab.h/.cpp` (setting via `QComboBox`) and `src/ui/MainWindow.h/.cpp` (clipboard monitoring and logic). **Includes a short 500 ms debounce and queue-duplicate checking to prevent multiple enqueues of the same URL while still allowing quick successive copies.**

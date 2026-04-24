@@ -6,7 +6,7 @@ This document outlines the architecture for the C++ port of LzyDownloader. The a
 ## 2. System Design
 
 ### 2.1 Single Instance Enforcement
-The application ensures that only one instance can run at a time. This is achieved in `main.cpp` using `QSystemSemaphore` and `QSharedMemory`. A `QSystemSemaphore` with a unique key is acquired at startup, and a `QSharedMemory` segment is created. If another instance already holds the semaphore or has created the shared memory segment, the new instance exits gracefully.
+The application ensures that only one GUI instance can run at a time. This is achieved in `main.cpp` using `QSystemSemaphore` and `QSharedMemory`. A `QSystemSemaphore` with a unique key guards startup, and a `QSharedMemory` segment marks the active instance. If another instance is already running and the new process was launched with a direct URL argument, the new process forwards that URL to the active instance through a lightweight `QLocalSocket` handoff channel and exits. Non-URL duplicate launches still exit gracefully. **Note:** Launching the application with `--headless`, `--server`, or `--background` appends a `_Server` suffix to these locks and isolates the data directory, allowing a headless API server to run concurrently with the standard GUI.
 
 ### 2.2 Core Components
 - **UI Layer (`src/ui/`):** Handles user interaction, input, and visual feedback using Qt Widgets.
@@ -98,7 +98,7 @@ LzyDownloader/
 - **Responsibilities:**
   - Loads and saves application settings to `settings.ini` using `QSettings`.
   - Provides default configuration values using an internal `m_defaultSettings` map.
-  - Uses the application's Qt-native INI schema rather than preserving Python `configparser` quirks.
+  - Uses the application's Qt-native INI schema. If launched in headless/server mode, it automatically routes settings to a `Server/` subfolder to prevent conflict with the GUI.
   - Emits `settingChanged` signal when a setting is modified.
   - Automatically prunes legacy and dead keys from `settings.ini` on startup, ensuring the configuration file remains clean and canonical.
   - Clamps persisted `General/max_threads` back to `4` during startup so resumed sessions do not reopen with an overly aggressive concurrency level.

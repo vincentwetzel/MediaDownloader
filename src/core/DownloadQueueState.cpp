@@ -6,11 +6,17 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QDebug>
+#include <QCoreApplication>
 
 DownloadQueueState::DownloadQueueState(QObject *parent)
     : QObject(parent)
 {
-    m_backupPath = QDir(QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation)).filePath("downloads_backup.json");
+    QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+    if (QCoreApplication::arguments().contains("--headless") || QCoreApplication::arguments().contains("--server")) {
+        configDir = QDir(configDir).filePath("Server");
+    }
+    QDir().mkpath(configDir);
+    m_backupPath = QDir(configDir).filePath("downloads_backup.json");
 }
 
 QJsonArray DownloadQueueState::load()

@@ -12,7 +12,7 @@ This document outlines the specifications for the C++ port of the LzyDownloader 
 ## 2. Core Requirements
 
 ### 2.1. Single Instance Enforcement
-- The application must ensure that only one instance of itself can run at any given time. Attempts to launch a second instance should result in the new instance exiting gracefully.
+- The application must ensure that only one instance of itself can run at any given time for a given mode. Standard GUI launches use one lock, while headless/server launches (`--headless`, `--server`) use a separate isolated lock and data directory, allowing one GUI instance and one background server instance to safely co-exist.
 
 ### 2.2. Configuration Compatibility
 - **File Format**: `settings.ini` (INI format).
@@ -75,7 +75,7 @@ This document outlines the specifications for the C++ port of the LzyDownloader 
     - **Navigation Styling**: The left column uses a palette-aware `QListWidget` whose stylesheet is rebuilt on palette changes so the category list stays compact and theme-consistent without reverting to a plain scrollbar-heavy layout.
     - **Saving Behavior**: Most settings auto-save on change. The "Output Template" requires a dedicated "Save" button.
 - **System Integration**: A system tray icon for quick show/hide and quit actions. Clicking the window close button (`X`) must exit the application (it must not keep running in the background).
-- **Local API Server**: When enabled, the app must bind a small HTTP API only to localhost (`127.0.0.1:8765`), require a Bearer token stored in `api_token.txt`, accept `POST /enqueue` with a JSON `url`, and return queue snapshots from `GET /status`. API and direct CLI requests must be treated as non-interactive: no modal prompts, playlist download-all behavior, runtime picker bypasses, and log-only UI warnings.
+- **Local API Server**: When enabled, the app must bind a small HTTP API only to localhost (`127.0.0.1:8765`), require a Bearer token stored in `api_token.txt` (or `Server/api_token.txt` if running headless), accept `POST /enqueue` with a JSON `url`, and return queue snapshots from `GET /status`. API and direct CLI requests must be treated as non-interactive: no modal prompts, playlist download-all behavior, runtime picker bypasses, and log-only UI warnings.
 - **Theming**: Support for Light, Dark, and System themes.
 
 ### 2.5. Download Engine (yt-dlp & gallery-dl)

@@ -9,6 +9,7 @@
 #include <QUrl>
 #include <QRegularExpression>
 #include <QDebug>
+#include <QCoreApplication>
 
 LocalApiServer::LocalApiServer(ConfigManager *configManager, QObject *parent)
     : QObject(parent), m_configManager(configManager), m_server(new QTcpServer(this))
@@ -61,6 +62,9 @@ QString LocalApiServer::getApiKey() const
 void LocalApiServer::generateOrLoadApiKey()
 {
     QString dataPath = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
+    if (QCoreApplication::arguments().contains("--headless") || QCoreApplication::arguments().contains("--server")) {
+        dataPath = QDir(dataPath).filePath("Server");
+    }
     QDir().mkpath(dataPath);
     QString keyPath = QDir(dataPath).filePath("api_token.txt");
 

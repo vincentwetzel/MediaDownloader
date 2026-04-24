@@ -200,12 +200,18 @@ MainWindow::MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent
     m_localApiServer = new LocalApiServer(m_configManager, this);
     connect(m_localApiServer, &LocalApiServer::enqueueRequested, this, &MainWindow::onLocalApiEnqueueRequested);
     if (m_configManager->get("General", "enable_local_api", false).toBool()) {
+        qInfo() << "[LocalApi] Attempting to start Local API Server on startup...";
         m_localApiServer->start();
     }
     connect(m_configManager, &ConfigManager::settingChanged, this, [this](const QString &section, const QString &key, const QVariant &value) {
         if (section == "General" && key == "enable_local_api") {
-            if (value.toBool()) m_localApiServer->start();
-            else m_localApiServer->stop();
+            if (value.toBool()) {
+                qInfo() << "[LocalApi] Local API Server enabled by user setting. Starting server...";
+                m_localApiServer->start();
+            } else {
+                qInfo() << "[LocalApi] Local API Server disabled by user setting. Stopping server...";
+                m_localApiServer->stop();
+            }
         }
     });
 
@@ -1115,103 +1121,38 @@ void MainWindow::onYtDlpErrorPopup(const QString &id, const QString &errorType, 
 
             // Dynamically adjust wait time based on how far away the stream is.
             int minWait, maxWait;
-            if (cleanError.contains("day", Qt::CaseInsensitive)) {
-                minWait = 3600; // 60 minutes
-                maxWait = 7200; // 120 minutes
-            } else if (cleanError.contains("hour", Qt::CaseInsensitive)) {
+            if (cleanError.contains("days", Qt::CaseInsensitive) || cleanError.contains("hours", Qt::CaseInsensitive)) {
                 minWait = 1800; // 30 minutes
                 maxWait = 3600; // 60 minutes
-            } else if (cleanError.contains("second", Qt::CaseInsensitive)) {
-                minWait = 5;    // 5 seconds
-                maxWait = 15;   // 15 seconds
-            } else { // Default to configured values for "minutes" or unknown units
-                minWait = m_configManager->get("Livestream", "wait_for_video_min", 60).toInt();
-                maxWait = m_configManager->get("Livestream", "wait_for_video_max", 300).toInt();
+            } else if (cleanError.contains("minutes", Qt::CaseInsensitive)) {
+                minWait = 60; // 1 minute
+                maxWait = 300; // 5 minutes
+            } else {
+                minWait = m_configManager->get("Livestream", "wait_for_video_min", 5).toInt();
+                maxWait = m_configManager->get("Livestream", "wait_for_video_max", 15).toInt();
             }
+
             options["livestream_wait_min"] = minWait;
             options["livestream_wait_max"] = maxWait;
-
             newItemData["options"] = options;
-
             m_downloadManager->restartDownloadWithOptions(newItemData);
         }
     } else {
-        if (nonInteractive) {
-            qWarning() << "Non-interactive download error" << errorType << "for" << url << ":" << cleanError;
-            return;
-        }
-
-        // Generic error handling
-        QString title;
-        if (errorType == "private") title = "Private Video";
-        else if (errorType == "unavailable") title = "Video Unavailable";
-        else if (errorType == "geo_restricted") title = "Geo-Restricted Video";
-        else if (errorType == "members_only") title = "Members-Only Video";
-        else if (errorType == "age_restricted") title = "Age-Restricted Video";
-        else if (errorType == "content_removed") title = "Content Removed";
-        else title = "Download Error";
-
-        QMessageBox msgBox(QMessageBox::Warning, title, "", QMessageBox::Ok, this);
+        QMessageBox msgBox(this);
+        msgBox.setWindowTitle("Download Error");
         msgBox.setTextFormat(Qt::RichText);
         msgBox.setTextInteractionFlags(Qt::TextBrowserInteraction);
         msgBox.setText(richUserMessage + urlHtml);
         if (!cleanError.isEmpty()) {
             msgBox.setInformativeText(cleanError.toHtmlEscaped().replace("\n", "<br>"));
         }
+        msgBox.setIcon(QMessageBox::Warning);
         msgBox.exec();
     }
 }
 
 void MainWindow::setYtDlpVersion(const QString &version) {
-    if (m_advancedSettingsTab) {
-        m_advancedSettingsTab->setYtDlpVersion(version);
-    }
-
-    if (m_nonInteractiveLaunch) {
-        return;
-    }
-
-    // Check if the user has opted out of this warning
-    bool warnStable = m_configManager->get("General", "warn_stable_yt_dlp", true).toBool();
-    if (!warnStable) {
-        return;
-    }
-
-    // Stable versions typically have 3 segments (e.g., "2023.11.16")
-    // Nightly versions typically have 4+ segments (e.g., "2024.02.24.232323")
-    QStringList parts = version.split('.');
-    if (parts.size() == 3 && !version.contains("-") && !version.contains("unknown") && version != "Not Found" && version != "Error") {
-        QMessageBox msgBox(this);
-        msgBox.setIcon(QMessageBox::Information);
-        msgBox.setWindowTitle("Stable yt-dlp Version Detected");
-        msgBox.setTextFormat(Qt::RichText);
-        msgBox.setText("You are currently using a stable release of yt-dlp (" + version + ").");
-
-        QString informativeText =
-            "It is highly recommended to use the <b>nightly</b> channel of yt-dlp. Websites frequently change their extraction methods, and nightly builds contain the latest fixes.<br><br>"
-            "How to upgrade depends on how yt-dlp was installed:<ul>"
-            "<li><b>Standalone Binary:</b> If you manually downloaded yt-dlp.exe, you can update it directly from the 'Updates' page in Advanced Settings.</li>"
-            "<li><b>pip:</b> Run <code>pip install -U --pre yt-dlp</code></li>"
-            "<li><b>Scoop:</b> Run <code>scoop install yt-dlp-nightly</code></li>"
-            "<li><b>Homebrew:</b> Run <code>brew install yt-dlp --HEAD</code></li></ul>"
-            "<b>Note:</b> Package managers like <b>winget</b> and <b>Chocolatey</b> only provide stable builds and should not be used for yt-dlp.<br><br>"
-            "Would you like to go to the External Binaries settings to view your installation options now?";
-
-        msgBox.setInformativeText(informativeText);
-
-        QPushButton *settingsButton = msgBox.addButton("Go to Settings", QMessageBox::ActionRole);
-        QPushButton *dontWarnButton = msgBox.addButton("Don't Warn Me Again", QMessageBox::DestructiveRole);
-        msgBox.addButton(QMessageBox::Ok);
-
-        msgBox.exec();
-
-        if (msgBox.clickedButton() == settingsButton) {
-            m_uiBuilder->tabWidget()->setCurrentWidget(m_advancedSettingsTab);
-            m_advancedSettingsTab->navigateToCategory("External Binaries");
-        } else if (msgBox.clickedButton() == dontWarnButton) {
-            m_configManager->set("General", "warn_stable_yt_dlp", false);
-            m_configManager->save();
-        }
-    }
+    // Deprecated: BinariesPage autonomously fetches its own versions now.
+    // Retained here to satisfy MOC and the linker.
+    Q_UNUSED(version);
 }
-
