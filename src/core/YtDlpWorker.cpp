@@ -571,8 +571,16 @@ void YtDlpWorker::handleOutputLine(const QString &line) {
         }
         // Check for scheduled livestream/premiere
         else if (normalizedLine.contains("Premieres in", Qt::CaseInsensitive) ||
+                 normalizedLine.contains("Premiering in", Qt::CaseInsensitive) ||
+                 normalizedLine.contains("Premiere will begin", Qt::CaseInsensitive) ||
                  normalizedLine.contains("live event will begin", Qt::CaseInsensitive) ||
-                 normalizedLine.contains("is upcoming", Qt::CaseInsensitive)) {
+                 normalizedLine.contains("is upcoming", Qt::CaseInsensitive) ||
+                 normalizedLine.contains("Offline (expected)", Qt::CaseInsensitive) ||
+                 normalizedLine.contains("Offline expected", Qt::CaseInsensitive) ||
+                 normalizedLine.contains("waiting for premiere", Qt::CaseInsensitive) ||
+                 normalizedLine.contains("waiting for livestream", Qt::CaseInsensitive) ||
+                 normalizedLine.contains("Live in ", Qt::CaseInsensitive) ||
+                 normalizedLine.contains("Starting in ", Qt::CaseInsensitive)) {
             if (!m_errorEmitted) {
                 m_errorEmitted = true;
                 emit ytDlpErrorDetected(m_id, "scheduled_livestream",
@@ -621,6 +629,7 @@ void YtDlpWorker::handleOutputLine(const QString &line) {
                 QNetworkAccessManager *manager = new QNetworkAccessManager(this);
                 QUrl oembedUrl("https://www.youtube.com/oembed?url=" + url + "&format=json");
                 QNetworkRequest request(oembedUrl);
+                request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
                 QNetworkReply *reply = manager->get(request);
                 connect(reply, &QNetworkReply::finished, this, [this, reply, manager]() {
                     if (reply->error() == QNetworkReply::NoError) {
@@ -643,24 +652,34 @@ void YtDlpWorker::handleOutputLine(const QString &line) {
 
                             if (!thumbUrl.isEmpty() && m_thumbnailPath.isEmpty()) {
                                 QNetworkRequest thumbReq((QUrl(thumbUrl)));
+                                thumbReq.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
                                 QNetworkReply *thumbReply = manager->get(thumbReq);
                                 connect(thumbReply, &QNetworkReply::finished, this, [this, thumbReply, manager]() {
                                     if (thumbReply->error() == QNetworkReply::NoError) {
                                         QString tempDir = m_configManager->get("Paths", "temporary_downloads_directory").toString();
-                                        QString newThumbPath = QDir(tempDir).filePath(m_id + "_wait_thumbnail.jpg");
+                                        QDir().mkpath(tempDir);
+                                        QString ext = ".jpg";
+                                        if (thumbReply->url().toString().contains(".webp", Qt::CaseInsensitive)) ext = ".webp";
+                                        QString newThumbPath = QDir(tempDir).filePath(m_id + "_wait_thumbnail" + ext);
                                         QFile file(newThumbPath);
                                         if (file.open(QIODevice::WriteOnly)) {
-                                            file.write(thumbReply->readAll());
-                                            file.close();
-                                            m_thumbnailPath = newThumbPath;
-                                            qDebug() << "[YtDlpWorker] oEmbed thumbnail downloaded to:" << m_thumbnailPath;
-                                            
-                                            QVariantMap pd;
-                                            pd["progress"] = -1;
-                                            pd["status"] = "Waiting for livestream to start...";
-                                            pd["title"] = m_videoTitle;
-                                            pd["thumbnail_path"] = m_thumbnailPath;
-                                            emit progressUpdated(m_id, pd);
+                                            QByteArray data = thumbReply->readAll();
+                                            if (!data.isEmpty()) {
+                                                file.write(data);
+                                                file.close();
+                                                m_thumbnailPath = QDir::toNativeSeparators(newThumbPath);
+                                                qDebug() << "[YtDlpWorker] oEmbed thumbnail downloaded to:" << m_thumbnailPath;
+
+                                                QVariantMap pd;
+                                                pd["progress"] = -1;
+                                                pd["status"] = "Waiting for livestream to start...";
+                                                pd["title"] = m_videoTitle;
+                                                pd["thumbnail_path"] = m_thumbnailPath;
+                                                emit progressUpdated(m_id, pd);
+                                            } else {
+                                                file.close();
+                                                file.remove();
+                                            }
                                         }
                                     }
                                     thumbReply->deleteLater();
@@ -731,25 +750,35 @@ void YtDlpWorker::handleOutputLine(const QString &line) {
                             qDebug() << "[YtDlpWorker] Pre-wait thumbnail URL found:" << thumbUrl;
                             QNetworkAccessManager *manager = new QNetworkAccessManager(this);
                             QNetworkRequest request((QUrl(thumbUrl)));
+                            request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
                             QNetworkReply *reply = manager->get(request);
                             connect(reply, &QNetworkReply::finished, this, [this, reply, manager]() {
                                 if (reply->error() == QNetworkReply::NoError) {
                                     QString tempDir = m_configManager->get("Paths", "temporary_downloads_directory").toString();
-                                    QString newThumbPath = QDir(tempDir).filePath(m_id + "_wait_thumbnail.jpg");
+                                    QDir().mkpath(tempDir);
+                                    QString ext = ".jpg";
+                                    if (reply->url().toString().contains(".webp", Qt::CaseInsensitive)) ext = ".webp";
+                                    QString newThumbPath = QDir(tempDir).filePath(m_id + "_wait_thumbnail" + ext);
                                     QFile file(newThumbPath);
                                     if (file.open(QIODevice::WriteOnly)) {
-                                        file.write(reply->readAll());
-                                        file.close();
-                                        m_thumbnailPath = newThumbPath;
-                                        qDebug() << "[YtDlpWorker] Pre-wait thumbnail downloaded to:" << m_thumbnailPath;
-                                        
-                                        // Update the UI again now that we have the image
-                                        QVariantMap progressData;
-                                        progressData["progress"] = -1;
-                                        progressData["status"] = "Waiting for livestream to start...";
-                                        progressData["title"] = m_videoTitle;
-                                        progressData["thumbnail_path"] = m_thumbnailPath;
-                                        emit progressUpdated(m_id, progressData);
+                                        QByteArray data = reply->readAll();
+                                        if (!data.isEmpty()) {
+                                            file.write(data);
+                                            file.close();
+                                            m_thumbnailPath = QDir::toNativeSeparators(newThumbPath);
+                                            qDebug() << "[YtDlpWorker] Pre-wait thumbnail downloaded to:" << m_thumbnailPath;
+
+                                            // Update the UI again now that we have the image
+                                            QVariantMap progressData;
+                                            progressData["progress"] = -1;
+                                            progressData["status"] = "Waiting for livestream to start...";
+                                            progressData["title"] = m_videoTitle;
+                                            progressData["thumbnail_path"] = m_thumbnailPath;
+                                            emit progressUpdated(m_id, progressData);
+                                        } else {
+                                            file.close();
+                                            file.remove();
+                                        }
                                     }
                                 } else {
                                     qWarning() << "[YtDlpWorker] Failed to download pre-wait thumbnail:" << reply->errorString();
@@ -785,7 +814,7 @@ void YtDlpWorker::handleOutputLine(const QString &line) {
         return; // This line is handled, no further processing needed.
     }
 
-    if (normalizedLine.startsWith("[download] Waiting for video") || normalizedLine.startsWith("[Wait]")) {
+    if (normalizedLine.startsWith("[download] Waiting for video", Qt::CaseInsensitive) || normalizedLine.startsWith("[wait]", Qt::CaseInsensitive)) {
         QVariantMap progressData;
         progressData["progress"] = -1; // Indeterminate state
         progressData["status"] = "Waiting for livestream to start...";

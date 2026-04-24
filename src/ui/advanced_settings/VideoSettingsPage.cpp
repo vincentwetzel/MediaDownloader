@@ -33,7 +33,9 @@ VideoSettingsPage::VideoSettingsPage(ConfigManager *configManager, QWidget *pare
     m_videoQualityCombo = new QComboBox(this);
     m_videoQualityCombo->setToolTip("Pick the default picture quality for video downloads. Choose 'Select at Runtime' to hide the rest of these defaults and pick exact formats when you queue a download.");
     m_videoQualityCombo->addItems({"Select at Runtime", "best", "2160p", "1440p", "1080p", "720p", "480p", "360p", "240p", "144p", "worst"});
-    videoLayout->addRow("Quality:", m_videoQualityCombo);
+    QLabel *qualityLabel = new QLabel("Quality:", this);
+    qualityLabel->setToolTip(m_videoQualityCombo->toolTip());
+    videoLayout->addRow(qualityLabel, m_videoQualityCombo);
 
     m_videoCodecLabel = new QLabel("Codec:", this);
     m_videoCodecLabel->setToolTip("Choose the default video codec used when runtime selection is off.");

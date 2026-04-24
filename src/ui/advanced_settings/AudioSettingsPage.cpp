@@ -19,7 +19,9 @@ AudioSettingsPage::AudioSettingsPage(ConfigManager *configManager, QWidget *pare
     m_audioQualityCombo = new QComboBox(this);
     m_audioQualityCombo->setToolTip("Pick the default audio quality. Choose 'Select at Runtime' to hide the rest of these defaults and pick exact formats when you queue a download.");
     m_audioQualityCombo->addItems({"Select at Runtime", "best", "320k", "256k", "192k", "128k", "96k", "64k", "32k", "worst"});
-    audioLayout->addRow("Quality:", m_audioQualityCombo);
+    QLabel *qualityLabel = new QLabel("Quality:", this);
+    qualityLabel->setToolTip(m_audioQualityCombo->toolTip());
+    audioLayout->addRow(qualityLabel, m_audioQualityCombo);
 
     m_audioCodecLabel = new QLabel("Codec:", this);
     m_audioCodecLabel->setToolTip("Choose the default audio codec used when runtime selection is off.");

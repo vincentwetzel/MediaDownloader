@@ -12,6 +12,100 @@ SortingManager::SortingManager(ConfigManager *configManager, QObject *parent)
     : QObject(parent), m_configManager(configManager) {
 }
 
+namespace {
+
+QString normalizedRuleText(const QString &value) {
+    QString normalized = value.trimmed().toLower();
+    normalized.replace(QRegularExpression("[^a-z0-9]+"), "_");
+    normalized.remove(QRegularExpression("^_+|_+$"));
+    return normalized;
+}
+
+bool isDurationField(const QString &field) {
+    const QString normalizedField = normalizedRuleText(field);
+    return normalizedField == "duration" || normalizedField == "duration_seconds";
+}
+
+QString canonicalOperator(const QString &op) {
+    const QString normalized = normalizedRuleText(op);
+    if (normalized == "equals") {
+        return "is";
+    }
+    if (normalized == "is_one_of") {
+        return "is_one_of";
+    }
+    if (normalized == "starts_with") {
+        return "starts_with";
+    }
+    if (normalized == "ends_with") {
+        return "ends_with";
+    }
+    if (normalized == "greater_than") {
+        return "greater_than";
+    }
+    if (normalized == "less_than") {
+        return "less_than";
+    }
+    if (normalized == "contains") {
+        return "contains";
+    }
+    return normalized;
+}
+
+QVariantMap mergedSortingMetadata(const QVariantMap &metadata, const QVariantMap &downloadOptions) {
+    QVariantMap combined = downloadOptions;
+    for (auto it = metadata.constBegin(); it != metadata.constEnd(); ++it) {
+        combined.insert(it.key(), it.value());
+    }
+
+    if (!combined.contains("playlist_title") || combined.value("playlist_title").toString().trimmed().isEmpty()) {
+        const QString playlistTitle = downloadOptions.value("playlist_title").toString().trimmed();
+        if (!playlistTitle.isEmpty()) {
+            combined.insert("playlist_title", playlistTitle);
+        }
+    }
+
+    if (!combined.contains("is_playlist")) {
+        combined.insert("is_playlist", downloadOptions.value("is_playlist", false).toBool());
+    }
+
+    if (!combined.contains("playlist_index") && downloadOptions.contains("playlist_index")) {
+        combined.insert("playlist_index", downloadOptions.value("playlist_index"));
+    }
+
+    return combined;
+}
+
+bool hasPlaylistContext(const QVariantMap &metadata, const QVariantMap &downloadOptions) {
+    const int metadataPlaylistIndex = metadata.value("playlist_index", -1).toInt();
+    if (metadataPlaylistIndex != -1) {
+        return true;
+    }
+
+    const int optionsPlaylistIndex = downloadOptions.value("playlist_index", -1).toInt();
+    if (optionsPlaylistIndex != -1) {
+        return true;
+    }
+
+    if (metadata.value("is_playlist", false).toBool() || downloadOptions.value("is_playlist", false).toBool()) {
+        return true;
+    }
+
+    const QString playlistTitle = metadata.value("playlist_title").toString().trimmed();
+    if (!playlistTitle.isEmpty()) {
+        return true;
+    }
+
+    const QString playlistId = metadata.value("playlist_id").toString().trimmed();
+    if (!playlistId.isEmpty()) {
+        return true;
+    }
+
+    return false;
+}
+
+}
+
 QString SortingManager::normalizedMetadataKey(const QString &key) const {
     QString normalized = key.trimmed().toLower();
     normalized.replace(QRegularExpression("[^a-z0-9]+"), "_");
@@ -83,10 +177,12 @@ QVariant SortingManager::metadataValueForField(const QString &field, const QVari
 }
 
 QString SortingManager::getSortedDirectory(const QVariantMap &videoMetadata, const QVariantMap &downloadOptions) {
+    const QVariantMap sortingMetadata = mergedSortingMetadata(videoMetadata, downloadOptions);
+
     qDebug() << "SortingManager::getSortedDirectory called.";
-    qDebug() << "  videoMetadata keys:" << videoMetadata.keys();
-    if (videoMetadata.contains("uploader")) {
-        qDebug() << "  uploader value:" << videoMetadata["uploader"].toString();
+    qDebug() << "  videoMetadata keys:" << sortingMetadata.keys();
+    if (sortingMetadata.contains("uploader")) {
+        qDebug() << "  uploader value:" << sortingMetadata["uploader"].toString();
     } else {
         qDebug() << "  uploader key NOT FOUND in metadata!";
     }
@@ -135,24 +231,21 @@ QString SortingManager::getSortedDirectory(const QVariantMap &videoMetadata, con
 
         // 1. Check if the rule applies to this download type
         QString downloadType = downloadOptions.value("type", "video").toString();
-        bool isPlaylist = (videoMetadata.contains("playlist_index") && videoMetadata.value("playlist_index").toInt() != -1) ||
-                          (downloadOptions.contains("playlist_index") && downloadOptions.value("playlist_index").toInt() != -1) ||
-                          videoMetadata.value("is_playlist", false).toBool() ||
-                          downloadOptions.value("is_playlist", false).toBool() ||
-                          !downloadOptions.value("original_playlist_url").toString().isEmpty();
+        const bool isPlaylist = hasPlaylistContext(sortingMetadata, downloadOptions);
 
         bool typeMatch = false;
-        if (appliesTo == "any" || appliesTo == "all" || appliesTo == "All Downloads") {
+        const QString normalizedAppliesTo = normalizedRuleText(appliesTo);
+        if (normalizedAppliesTo == "any" || normalizedAppliesTo == "all" || normalizedAppliesTo == "all_downloads") {
             typeMatch = true;
-        } else if ((appliesTo == "video" || appliesTo == "Video Downloads") && downloadType == "video" && !isPlaylist) {
+        } else if ((normalizedAppliesTo == "video" || normalizedAppliesTo == "video_downloads") && downloadType == "video" && !isPlaylist) {
             typeMatch = true;
-        } else if ((appliesTo == "audio" || appliesTo == "Audio Downloads") && downloadType == "audio" && !isPlaylist) {
+        } else if ((normalizedAppliesTo == "audio" || normalizedAppliesTo == "audio_downloads") && downloadType == "audio" && !isPlaylist) {
             typeMatch = true;
-        } else if ((appliesTo == "gallery" || appliesTo == "Gallery Downloads") && downloadType == "gallery") {
+        } else if ((normalizedAppliesTo == "gallery" || normalizedAppliesTo == "gallery_downloads") && downloadType == "gallery") {
             typeMatch = true;
-        } else if ((appliesTo == "video_playlist" || appliesTo == "Video Playlist Downloads") && downloadType == "video" && isPlaylist) {
+        } else if ((normalizedAppliesTo == "video_playlist" || normalizedAppliesTo == "video_playlist_downloads") && downloadType == "video" && isPlaylist) {
             typeMatch = true;
-        } else if ((appliesTo == "audio_playlist" || appliesTo == "Audio Playlist Downloads") && downloadType == "audio" && isPlaylist) {
+        } else if ((normalizedAppliesTo == "audio_playlist" || normalizedAppliesTo == "audio_playlist_downloads") && downloadType == "audio" && isPlaylist) {
             typeMatch = true;
         }
 
@@ -169,36 +262,37 @@ QString SortingManager::getSortedDirectory(const QVariantMap &videoMetadata, con
             QString op = condition["operator"].toString();
             QString value = condition["value"].toString();
 
-            QVariant metadataValue = metadataValueForField(field, videoMetadata);
+            const QString normalizedOperator = canonicalOperator(op);
+            QVariant metadataValue = metadataValueForField(field, sortingMetadata);
 
             qDebug() << "    Condition" << c << "- field:" << field << "op:" << op;
             qDebug() << "      metadataValue:" << metadataValue.toString() << "(isEmpty:" << metadataValue.toString().isEmpty() << ")";
             qDebug() << "      condition value:" << value.left(100);
 
             bool match = false;
-            if (field == "Duration (seconds)") {
+            if (isDurationField(field)) {
                 bool ok;
-                int durationValue = metadataValue.toInt();
-                int conditionValue = value.toInt(&ok);
+                const qlonglong durationValue = metadataValue.toLongLong();
+                const qlonglong conditionValue = value.toLongLong(&ok);
                 if (ok) {
-                    if (op == "Is") {
+                    if (normalizedOperator == "is") {
                         match = (durationValue == conditionValue);
-                    } else if (op == "Greater Than") {
+                    } else if (normalizedOperator == "greater_than") {
                         match = (durationValue > conditionValue);
-                    } else if (op == "Less Than") {
+                    } else if (normalizedOperator == "less_than") {
                         match = (durationValue < conditionValue);
                     }
                 }
             } else {
-                if (op == "Contains") {
+                if (normalizedOperator == "contains") {
                     match = metadataValue.toString().contains(value, Qt::CaseInsensitive);
-                } else if (op == "Is") {
+                } else if (normalizedOperator == "is") {
                     match = metadataValue.toString().compare(value, Qt::CaseInsensitive) == 0;
-                } else if (op == "Starts With") {
+                } else if (normalizedOperator == "starts_with") {
                     match = metadataValue.toString().startsWith(value, Qt::CaseInsensitive);
-                } else if (op == "Ends With") {
+                } else if (normalizedOperator == "ends_with") {
                     match = metadataValue.toString().endsWith(value, Qt::CaseInsensitive);
-                } else if (op == "Is One Of") {
+                } else if (normalizedOperator == "is_one_of") {
                     QStringList values = value.split('\n', Qt::SkipEmptyParts);
                     qDebug() << "      Is One Of has" << values.size() << "values. First 5:" << values.mid(0, 5);
                     for (const QString &v : values) {
@@ -229,7 +323,7 @@ QString SortingManager::getSortedDirectory(const QVariantMap &videoMetadata, con
 
             QString finalSubfolder;
             if (!subfolderPattern.isEmpty()) {
-                finalSubfolder = parseAndReplaceTokens(subfolderPattern, videoMetadata);
+                finalSubfolder = parseAndReplaceTokens(subfolderPattern, sortingMetadata);
             }
 
             return QDir(targetFolder).filePath(finalSubfolder);

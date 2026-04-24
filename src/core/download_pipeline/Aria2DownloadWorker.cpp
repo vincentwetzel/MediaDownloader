@@ -6,6 +6,33 @@
 #include <QDebug>
 #include "core/YtDlpArgsBuilder.h"
 
+namespace {
+bool containsHeader(const QMap<QString, QString> &headers, const QString &name)
+{
+    for (auto it = headers.constBegin(); it != headers.constEnd(); ++it) {
+        if (it.key().compare(name, Qt::CaseInsensitive) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+QString siteSpecificReferer(const QString &url)
+{
+    if (url.contains("bilibili.com", Qt::CaseInsensitive)) {
+        return url;
+    }
+    if (url.contains("bilibili.tv", Qt::CaseInsensitive)) {
+        return "https://www.bilibili.tv/";
+    }
+    if (url.contains("nicovideo.jp", Qt::CaseInsensitive)
+        || url.contains("nico.ms", Qt::CaseInsensitive)) {
+        return url;
+    }
+    return QString();
+}
+}
+
 Aria2DownloadWorker::Aria2DownloadWorker(Aria2RpcClient* globalDaemon, QObject* parent)
     : QObject(parent), m_daemon(globalDaemon)
 {
@@ -33,6 +60,7 @@ void Aria2DownloadWorker::start(const QString& ytDlpPath, const QString& ffmpegP
     m_state = State::Extracting;
     m_ffmpegPath = ffmpegPath;
     m_saveDir = saveDir;
+    setProperty("sourceUrl", url);
     m_isCancelled = false;
 
     emit statusTextChanged("Extracting media information...");
@@ -58,6 +86,11 @@ void Aria2DownloadWorker::onExtractionSuccess(const QString& title, const QStrin
     m_downloadedParts.clear();
     m_downloadedSubtitles.clear();
     m_finalFileName = finalFilename;
+    QMap<QString, QString> effectiveHttpHeaders = httpHeaders;
+    const QString referer = siteSpecificReferer(property("sourceUrl").toString());
+    if (!referer.isEmpty() && !containsHeader(effectiveHttpHeaders, "Referer")) {
+        effectiveHttpHeaders.insert("Referer", referer);
+    }
 
     // Store metadata for the DownloadManager to retrieve later, bypassing brittle JSON disk reads
     this->setProperty("metadata", metadata);
@@ -92,7 +125,7 @@ void Aria2DownloadWorker::onExtractionSuccess(const QString& title, const QStrin
         }
         
         // Tell aria2c to start downloading this part
-        m_daemon->addDownload(target.url, m_saveDir, target.filename, httpHeaders, [ptr, checkStartPolling](const QString& gid) {
+        m_daemon->addDownload(target.url, m_saveDir, target.filename, effectiveHttpHeaders, [ptr, checkStartPolling](const QString& gid) {
             if (ptr) {
                 ptr->m_activeGids.append(gid);
                 ptr->m_allGids.append(gid);
@@ -111,7 +144,7 @@ void Aria2DownloadWorker::onExtractionSuccess(const QString& title, const QStrin
     }
 
     if (hasThumbnail) {
-        m_daemon->addDownload(m_thumbnailUrl, m_saveDir, QFileInfo(m_thumbnailPath).fileName(), httpHeaders, [ptr, checkStartPolling](const QString& gid) {
+        m_daemon->addDownload(m_thumbnailUrl, m_saveDir, QFileInfo(m_thumbnailPath).fileName(), effectiveHttpHeaders, [ptr, checkStartPolling](const QString& gid) {
             if (ptr) {
                 ptr->m_activeGids.append(gid);
                 ptr->m_allGids.append(gid);

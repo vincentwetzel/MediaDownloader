@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(LzyDownloader VERSION 1.1.8 LANGUAGES CXX)
+project(LzyDownloader VERSION 1.1.12 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -122,6 +122,7 @@ add_executable(LzyDownloader
     # Explicitly include recently added files so link-time availability
     # does not depend on whether the generator re-ran after they were created.
     src/core/ProcessUtils.cpp
+    src/core/LocalApiServer.cpp
     src/ui/RuntimeSelectionDialog.cpp
     src/ui/FormatSelectionDialog.cpp
     src/ui/DownloadSectionsDialog.cpp
@@ -182,6 +183,17 @@ if(WIN32)
                 COMMENT "Copying Qt plugin directory: ${_plugin_dir}"
             )
         endforeach()
+
+        # The OpenSSL TLS backend plugin is present in the deployed Qt plugin set,
+        # but it still needs the OpenSSL runtime DLLs beside the executable.
+        foreach(_openssl_runtime IN ITEMS libcrypto-3-x64.dll libssl-3-x64.dll)
+            add_custom_command(TARGET LzyDownloader POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<$<CONFIG:Debug>:${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/debug/bin/${_openssl_runtime}>$<$<NOT:$<CONFIG:Debug>>:${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin/${_openssl_runtime}>"
+                "$<TARGET_FILE_DIR:LzyDownloader>/${_openssl_runtime}"
+                COMMENT "Copying OpenSSL runtime: ${_openssl_runtime}"
+            )
+        endforeach()
     else()
         # Find windeployqt from Qt6::qmake location
         get_target_property(_qmake_executable Qt6::qmake IMPORTED_LOCATION)
@@ -219,6 +231,17 @@ if(WIN32)
                     "$<TARGET_FILE_DIR:LzyDownloader>/${_qt_runtime}"
                     COMMENT "Re-copying ${_qt_runtime} from configured Qt runtime"
                 )
+            endforeach()
+
+            foreach(_openssl_runtime IN ITEMS libcrypto-3-x64.dll libssl-3-x64.dll)
+                if(EXISTS "${_qt_bin_dir}/${_openssl_runtime}")
+                    add_custom_command(TARGET LzyDownloader POST_BUILD
+                        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        "${_qt_bin_dir}/${_openssl_runtime}"
+                        "$<TARGET_FILE_DIR:LzyDownloader>/${_openssl_runtime}"
+                        COMMENT "Copying OpenSSL runtime: ${_openssl_runtime}"
+                    )
+                endif()
             endforeach()
 
         else()

@@ -1,6 +1,6 @@
 {
   "name": "lzydownloader",
-  "version-string": "1.1.4",
+  "version-string": "1.1.11",
   "dependencies": [
     {
       "name": "qtbase",

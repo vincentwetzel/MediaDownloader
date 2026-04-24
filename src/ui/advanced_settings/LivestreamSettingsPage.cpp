@@ -21,6 +21,7 @@ void LivestreamSettingsPage::setupUI() {
     mainLayout->setSpacing(15);
 
     QGroupBox *livestreamGroup = new QGroupBox("Livestream Settings", this);
+    livestreamGroup->setToolTip("Set the default options for downloading livestreams, including scheduled streams.");
     QFormLayout *formLayout = new QFormLayout(livestreamGroup);
     formLayout->setSpacing(10);
 
@@ -28,6 +29,7 @@ void LivestreamSettingsPage::setupUI() {
     m_liveFromStartCheck->setToolTip("If enabled, downloads the livestream from the start instead of the current live edge (where supported).");
     QLabel *liveFromStartLabel = new QLabel("Record from beginning of broadcast", this);
     liveFromStartLabel->setWordWrap(true);
+    liveFromStartLabel->setToolTip(m_liveFromStartCheck->toolTip());
     formLayout->addRow(liveFromStartLabel, m_liveFromStartCheck);
 
     QHBoxLayout *waitLayout = new QHBoxLayout();
@@ -47,12 +49,17 @@ void LivestreamSettingsPage::setupUI() {
     
     QLabel *waitLabel = new QLabel("Wait for video to start", this);
     waitLabel->setWordWrap(true);
+    waitLabel->setToolTip(m_waitForVideoCheck->toolTip());
     waitLayout->addWidget(waitLabel);
     waitLayout->addWidget(m_waitForVideoCheck);
     waitLayout->addSpacing(15);
-    waitLayout->addWidget(new QLabel("Min:", this));
+    QLabel *minLabel = new QLabel("Min:", this);
+    minLabel->setToolTip("Minimum seconds to wait between retries.");
+    waitLayout->addWidget(minLabel);
     waitLayout->addWidget(m_waitMinSpin);
-    waitLayout->addWidget(new QLabel("Max:", this));
+    QLabel *maxLabel = new QLabel("Max:", this);
+    maxLabel->setToolTip("Maximum seconds to wait between retries.");
+    waitLayout->addWidget(maxLabel);
     waitLayout->addWidget(m_waitMaxSpin);
     waitLayout->addStretch();
     
@@ -60,22 +67,30 @@ void LivestreamSettingsPage::setupUI() {
 
     m_usePartCheck = new ToggleSwitch(this);
     m_usePartCheck->setToolTip("Resume interrupted livestream downloads using .part files.");
-    formLayout->addRow("Use .part files", m_usePartCheck);
+    QLabel *usePartLabel = new QLabel("Use .part files", this);
+    usePartLabel->setToolTip(m_usePartCheck->toolTip());
+    formLayout->addRow(usePartLabel, m_usePartCheck);
 
     m_downloadAsCombo = new QComboBox(this);
     m_downloadAsCombo->addItems({"MPEG-TS", "MKV"});
     m_downloadAsCombo->setToolTip("Preferred container format for downloading the livestream.");
-    formLayout->addRow("Download As:", m_downloadAsCombo);
+    QLabel *downloadAsLabel = new QLabel("Download As:", this);
+    downloadAsLabel->setToolTip(m_downloadAsCombo->toolTip());
+    formLayout->addRow(downloadAsLabel, m_downloadAsCombo);
 
     m_qualityCombo = new QComboBox(this);
     m_qualityCombo->addItems({"best", "1080p", "720p", "480p", "360p", "worst"});
     m_qualityCombo->setToolTip("Target resolution for the livestream.");
-    formLayout->addRow("Quality:", m_qualityCombo);
+    QLabel *qualityLabel = new QLabel("Quality:", this);
+    qualityLabel->setToolTip(m_qualityCombo->toolTip());
+    formLayout->addRow(qualityLabel, m_qualityCombo);
 
     m_convertToCombo = new QComboBox(this);
     m_convertToCombo->addItems({"None", "mp4", "mkv", "flv", "webm", "avi", "mov"});
     m_convertToCombo->setToolTip("Automatically convert the livestream to this format using FFmpeg after the download finishes.");
-    formLayout->addRow("Convert To:", m_convertToCombo);
+    QLabel *convertToLabel = new QLabel("Convert To:", this);
+    convertToLabel->setToolTip(m_convertToCombo->toolTip());
+    formLayout->addRow(convertToLabel, m_convertToCombo);
 
     mainLayout->addWidget(livestreamGroup);
     mainLayout->addStretch();

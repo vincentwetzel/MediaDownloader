@@ -32,6 +32,12 @@ ConfigManager::ConfigManager(const QString &filePath, QObject *parent)
         m_settings->setValue("General/max_threads", "4");
         m_settings->sync();
     }
+
+    // Always reset 'exit_after' to false on startup
+    if (m_settings->value("General/exit_after", false).toBool()) {
+        m_settings->setValue("General/exit_after", false);
+        m_settings->sync();
+    }
 }
 
 void ConfigManager::initializeDefaultSettings() {
@@ -54,6 +60,7 @@ void ConfigManager::initializeDefaultSettings() {
     m_defaultSettings["General"]["language"] = "🇺🇸 English";
     m_defaultSettings["General"]["show_debug_console"] = false;
     m_defaultSettings["General"]["warn_stable_yt_dlp"] = true;
+    m_defaultSettings["General"]["enable_local_api"] = false;
     m_defaultSettings["Video"]["video_quality"] = "best";
     m_defaultSettings["Video"]["video_codec"] = "H.264 (AVC)";
     m_defaultSettings["Video"]["video_extension"] = "mp4";

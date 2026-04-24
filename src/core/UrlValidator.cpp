@@ -1,4 +1,6 @@
 #include "UrlValidator.h"
+#include "YtDlpArgsBuilder.h"
+#include "core/ProcessUtils.h"
 #include <QDebug>
 
 UrlValidator::UrlValidator(ConfigManager *configManager, QObject *parent)
@@ -9,18 +11,22 @@ UrlValidator::UrlValidator(ConfigManager *configManager, QObject *parent)
 }
 
 void UrlValidator::validate(const QString &url) {
-    QStringList args;
-    args << "--simulate";
-    args << url;
-
-    // Add cookies if configured
-    QString cookiesBrowser = m_configManager->get("General", "cookies_from_browser", "None").toString();
-    if (cookiesBrowser != "None") {
-        args << "--cookies-from-browser" << cookiesBrowser;
+    YtDlpArgsBuilder argsBuilder;
+    const QStringList args = argsBuilder.buildValidationArgs(m_configManager, url);
+    if (args.isEmpty()) {
+        emit validationFinished(false, "Unable to build yt-dlp validation command.");
+        return;
     }
 
-    qDebug() << "UrlValidator executing command: yt-dlp" << args;
-    m_process->start("yt-dlp", args);
+    const ProcessUtils::FoundBinary ytDlpBinary = ProcessUtils::findBinary("yt-dlp", m_configManager);
+    if (ytDlpBinary.source == "Not Found" || ytDlpBinary.path.isEmpty()) {
+        emit validationFinished(false, "yt-dlp could not be found. Configure it in Advanced Settings -> External Binaries.");
+        return;
+    }
+
+    ProcessUtils::setProcessEnvironment(*m_process);
+    qDebug() << "UrlValidator executing command:" << ytDlpBinary.path << args;
+    m_process->start(ytDlpBinary.path, args);
 }
 
 void UrlValidator::onProcessFinished(int exitCode, QProcess::ExitStatus exitStatus) {
@@ -28,6 +34,7 @@ void UrlValidator::onProcessFinished(int exitCode, QProcess::ExitStatus exitStat
     QString error;
     if (!isValid) {
         QString stderrOutput = m_process->readAllStandardError();
+        qWarning().noquote() << "UrlValidator yt-dlp stderr:" << stderrOutput.trimmed();
         error = "yt-dlp encountered an error.";
         QStringList lines = stderrOutput.split('\n');
         for (const QString &line : lines) {

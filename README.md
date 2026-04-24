@@ -2,7 +2,7 @@
 
 A lightweight, high-performance desktop application for downloading media (video and audio) from online platforms using **yt-dlp**.
 
-**This is a C++ port of the original Python application.** It is designed to be a drop-in replacement, offering faster startup times, lower memory usage, and a native look and feel while maintaining full compatibility with existing user settings and download history.
+**This is a C++ port of the original Python application.** It is designed as a faster native replacement with lower memory usage and a Qt-based settings format. Download history remains portable through the shared `download_archive.db`.
 
 ## Features
 
@@ -12,7 +12,8 @@ A lightweight, high-performance desktop application for downloading media (video
 - 🖼️ **Gallery Support** — Download image galleries from supported sites (e.g., Instagram, Twitter) via `gallery-dl`
 - 🎨 **Advanced Settings** — Quality selection, format filtering, SponsorBlock integration, metadata embedding
 - 🎛️ **Runtime Format Selection** — Optionally prompt for specific video/audio qualities on every download, supporting multiple simultaneous format selections for the same media
-- 🔄 **Auto-Update** — Checks GitHub for newer releases and updates silently
+- 🔄 **App Updates** — Checks GitHub Releases for newer installers and prompts before downloading
+- 🔌 **Local API** — Optional localhost API for trusted local integrations such as Discord bots
 - 📊 **Concurrent Downloads** — Queue and manage multiple downloads simultaneously
 - ⏸️ **Pause & Resume** — Safely stop downloads, preserve partial `.part` files, and resume them across application restarts
 - 🧰 **External Binaries Manager** — Detect, version-check, install, and update `yt-dlp`, `gallery-dl`, `ffmpeg`, `ffprobe`, `aria2c`, and `deno` from inside the app
@@ -30,7 +31,7 @@ Download the latest installer from [Releases](https://github.com/vincentwetzel/L
 2. Run the installer
 3. Launch from Start Menu or desktop shortcut
 
-**Note for existing users:** The installer will automatically replace your existing Python version of LzyDownloader. Your settings and download history will be preserved.
+**Note for existing users:** The installer can replace the Python version of LzyDownloader. Download history is preserved through `download_archive.db`; settings use the C++ app's Qt-native `settings.ini` layout and may need to be regenerated.
 
 ### From Source
 
@@ -74,6 +75,16 @@ All settings are saved to `settings.ini` and persist between sessions. The C++ p
 - **Metadata** — Embed titles, artists, and thumbnails
 - **SponsorBlock** — Automatically skip sponsored segments
 - **Browser Cookies** — Select a browser to use for authentication
+- **Local API** — Enable a localhost-only API server from Advanced Settings -> Configuration
+
+### Local API
+
+When enabled, LzyDownloader listens only on `127.0.0.1:8765`. The API token is stored in the app-local data directory as `api_token.txt` and must be sent as a Bearer token.
+
+- `POST /enqueue` with JSON body `{"url":"https://..."}` queues a video download using non-interactive defaults.
+- `GET /status` returns current tracked jobs, including progress fields when available.
+
+Automation can also launch `LzyDownloader.exe --background <url>` or `LzyDownloader.exe --server <url>` to enqueue a direct URL without showing blocking prompt dialogs.
 
 ## Architecture
 
@@ -89,6 +100,7 @@ LzyDownloader/
 │   │   ├── ArchiveManager.h/cpp  # Download history (SQLite)
 │   │   ├── DownloadQueueState.h/cpp # Manages persistence of download queue state
 │   │   ├── DownloadManager.h/cpp # Queue & Lifecycle Management
+│   │   ├── LocalApiServer.h/cpp  # localhost API for local integrations
 │   │   ├── DownloadFinalizer.h/cpp # File Verification & Moving
 │   │   ├── YtDlpWorker.h/cpp     # QProcess Wrapper & Parsing
 │   │   └── ...

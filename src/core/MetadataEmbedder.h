@@ -2,6 +2,7 @@
 #define METADATAEMBEDDER_H
 
 #include <QObject>
+#include <QByteArray>
 #include <QProcess>
 
 class ConfigManager;
@@ -28,6 +29,7 @@ private:
 
     void startDurationProbe();
     void startRewrite();
+    void appendProcessOutput(const QByteArray &data);
 
     QProcess *m_process;
     ConfigManager *m_configManager;
@@ -37,6 +39,7 @@ private:
     bool m_normalizeContainerTimestamps;
     double m_targetDurationSeconds;
     Stage m_stage;
+    QString m_processOutputTail;
 };
 
 #endif // METADATAEMBEDDER_H

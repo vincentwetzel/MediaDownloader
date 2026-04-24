@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QObject>
+#include <QByteArray>
 #include <QProcess>
 #include <QVariantMap>
 
@@ -22,8 +23,11 @@ private slots:
     void onProcessError(QProcess::ProcessError processError);
 
 private:
+    void appendProcessOutput(const QByteArray &data);
+
     ConfigManager *m_configManager;
     QProcess *m_process;
     QString m_originalFile;
     QString m_tempFile;
+    QString m_processOutputTail;
 };

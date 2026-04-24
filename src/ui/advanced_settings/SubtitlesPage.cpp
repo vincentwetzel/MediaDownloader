@@ -7,6 +7,7 @@
 #include <QHBoxLayout>
 #include <QComboBox>
 #include <QLineEdit>
+#include <QLabel>
 #include <QPushButton>
 #include <QDialog>
 #include <QListWidget>
@@ -21,27 +22,41 @@ SubtitlesPage::SubtitlesPage(ConfigManager *configManager, QWidget *parent)
     layout->setContentsMargins(0, 0, 0, 0);
 
     QGroupBox *subtitlesGroup = new QGroupBox("Subtitles", this);
+    subtitlesGroup->setToolTip("Configure how subtitles are downloaded and handled.");
     QFormLayout *subtitlesLayout = new QFormLayout(subtitlesGroup);
 
     m_subtitleLanguagesDisplay = new QLineEdit(this);
     m_subtitleLanguagesDisplay->setReadOnly(true);
     m_subtitleLanguagesDisplay->setToolTip("Comma-separated list of subtitle language codes to download (e.g., en,es,fr).");
     m_selectLanguagesButton = new QPushButton("Select...", this);
+    m_selectLanguagesButton->setToolTip("Open a dialog to easily select which subtitle languages to download.");
     QHBoxLayout *langLayout = new QHBoxLayout();
     langLayout->addWidget(m_subtitleLanguagesDisplay, 1);
     langLayout->addWidget(m_selectLanguagesButton);
 
     m_embedSubtitlesCheck = new ToggleSwitch(this);
+    m_embedSubtitlesCheck->setToolTip("Embed downloaded subtitles directly into the video file (requires compatible container like MKV or MP4).");
     m_writeSubtitlesCheck = new ToggleSwitch(this);
+    m_writeSubtitlesCheck->setToolTip("Save subtitles as separate files alongside the video.");
     m_includeAutoSubtitlesCheck = new ToggleSwitch(this);
+    m_includeAutoSubtitlesCheck->setToolTip("Include auto-generated subtitles (e.g., YouTube's auto-captions) if manual ones aren't available.");
     m_subtitleFormatCombo = new QComboBox(this);
+    m_subtitleFormatCombo->setToolTip("Select the preferred format for downloaded subtitle files.");
     m_subtitleFormatCombo->addItems({"srt", "vtt", "ass"});
 
-    subtitlesLayout->addRow("Subtitle language(s):", langLayout);
-    subtitlesLayout->addRow("Embed subtitles in video", m_embedSubtitlesCheck);
-    subtitlesLayout->addRow("Write subtitles to separate file(s)", m_writeSubtitlesCheck);
-    subtitlesLayout->addRow("Include automatically-generated subtitles", m_includeAutoSubtitlesCheck);
-    subtitlesLayout->addRow("Subtitle file format:", m_subtitleFormatCombo);
+    auto addFormRow = [&](const QString& labelText, QWidget* field) {
+        QLabel* label = new QLabel(labelText, this);
+        label->setToolTip(field->toolTip());
+        subtitlesLayout->addRow(label, field);
+    };
+
+    QLabel *langLabel = new QLabel("Subtitle language(s):", this);
+    langLabel->setToolTip(m_subtitleLanguagesDisplay->toolTip());
+    subtitlesLayout->addRow(langLabel, langLayout);
+    addFormRow("Embed subtitles in video", m_embedSubtitlesCheck);
+    addFormRow("Write subtitles to separate file(s)", m_writeSubtitlesCheck);
+    addFormRow("Include automatically-generated subtitles", m_includeAutoSubtitlesCheck);
+    addFormRow("Subtitle file format:", m_subtitleFormatCombo);
 
     layout->addWidget(subtitlesGroup);
     layout->addStretch();

@@ -2,6 +2,15 @@
 
 ## In Progress
 
+### Phase 18: Local API Server & Discord Bridge
+- [x] **Local API Server implementation**:
+  - [x] Create `LocalApiServer` class using `QTcpServer` for zero-dependency local networking.
+  - [x] Implement API key generation and storage (`api_token.txt`).
+  - [x] Add `POST /enqueue` endpoint to accept links safely.
+  - [x] Add `GET /status` endpoint to return active queue progress, speed, and ETA.
+  - [x] Add GUI Toggle in Advanced Settings (`ConfigurationPage`) to "Enable Local API Server".
+  - [x] Wire server signals to `DownloadQueueManager` and `MainWindow`.
+
 ### Phase 14: Unbundled Binaries & Dependency Management
 - [x] **Project Cleanup**:
   - [x] Remove the `bin/` directory and all bundled executables from the source repository. **COMPLETED**: The `bin/` directory was already not tracked in git. Removed fallback code from `ProcessUtils::resolveBinary()` that checked for bundled binaries.
@@ -68,6 +77,8 @@
 - [x] **Playlist sorting tags**: Fixed playlist downloads falling back to standard video/audio rules.
 - [x] **Resumed download info.json deletion**: Fixed an issue where resumed downloads wiped out `info.json`, causing sorting metadata to fall back to `Unknown`.
 - [x] **Exit-after startup bug**: Fixed application instantly closing on launch if the queue was empty and "Exit after" was enabled.
+- [x] **Silent failure on restricted/scheduled videos**: Fixed an issue where private videos, geo-restricted videos, and scheduled livestreams would fail silently during the `PlaylistExpander` phase before reaching the main queue.
+- [x] **Livestream pre-wait thumbnails**: Fixed thumbnail fetching during livestream `[wait]` states failing due to unhandled HTTP redirects or unexpected `.webp` formatting.
 
 ## Completed
 
@@ -105,6 +116,7 @@
 
 ### UI/UX Enhancements (Phase 15)
 - Toggle switch visual fix, smart URL download type detection
+- **Force Playlist as Single Album**: Added a toggle to force audio playlists to be treated as a single album with uniform metadata.
 - gallery-dl output template fixes, progress bar updates, move logic fixes
 - **Metadata Options**: Added options to crop audio thumbnails to a square and to generate `folder.jpg` for audio playlists.
 - **Clear Inactive Downloads**: Consolidated the redundant "Clear Completed" button into a single "Clear Inactive" button that clears all finished, stopped, and failed downloads.

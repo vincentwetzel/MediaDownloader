@@ -40,8 +40,9 @@ Application-wide settings that control theme, cookie handling, clipboard behavio
 | `playlist_logic` | String | `Ask` | Default playlist handling mode. Options: `Ask`, `Download All (no prompt)`, `Download Single (ignore playlist)`. |
 | `rate_limit` | String | `Unlimited` | Global yt-dlp rate limit preset shown on the Start tab. |
 | `override_archive` | Boolean | `false` | Allow downloads that would otherwise be blocked by archive/duplicate detection. |
-| `exit_after` | Boolean | `false` | Exit the app automatically after the queue fully finishes. The delayed shutdown re-checks queued and active counts before quitting. |
+| `exit_after` | Boolean | `false` | Exit the app automatically after the queue fully finishes. Always resets to `false` on application startup. The delayed shutdown re-checks queued and active counts before quitting. |
 | `language` | String | `🇺🇸 English` | UI language selector value stored by the main window. |
+| `enable_local_api` | Boolean | `false` | Enable the localhost API server on `127.0.0.1:8765` for trusted local integrations like Discord bots. |
 | `show_debug_console` | Boolean | `true` (Debug) / `false` (Release) | Show or hide the command prompt / debug console window while the application is running. |
 | `warn_stable_yt_dlp` | Boolean | `true` | Controls whether the runtime popup warns when the detected `yt-dlp` build looks like a stable release instead of a nightly build. This preference is currently changed from the popup itself, not a dedicated settings page. |
 
@@ -156,6 +157,7 @@ Settings for embedding metadata, thumbnails, and chapter information into downlo
 | `convert_thumbnail_to` | String | `jpg` | Convert embedded thumbnails to this format. Options: `None`, `jpg`, `png`. |
 | `crop_artwork_to_square` | Boolean | `true` | Crop audio thumbnails to square aspect ratio. |
 | `generate_folder_jpg` | Boolean | `false` | Generate a `folder.jpg` file for audio playlists. |
+| `force_playlist_as_album` | Boolean | `false` | For audio playlist downloads, force the `album` tag to the playlist title and `album_artist` to `Various Artists`. |
 
 ---
 
@@ -284,6 +286,15 @@ Active, paused, and stopped downloads are automatically serialized to a JSON fil
 
 Stopped and failed entries also retain the latest known temporary file paths needed for resume and cleanup workflows. This allows the Active Downloads tab's `Clear Temp Files` action to remove tracked partial media, sidecar metadata, thumbnails, and downloader state files even after an app restart.
 
+## Local API Token Location
+
+When `General/enable_local_api` is enabled, the API token is stored as `api_token.txt` in the app-local data directory:
+- **Windows:** `%LOCALAPPDATA%\LzyDownloader\api_token.txt`
+- **Linux:** `~/.local/share/LzyDownloader/api_token.txt`
+- **macOS:** `~/Library/Application Support/LzyDownloader/api_token.txt`
+
+The server binds only to `127.0.0.1:8765`. Requests must include `Authorization: Bearer <token>`. Supported endpoints are `POST /enqueue` with a JSON `url` field and `GET /status`.
+
 ## Log File Location
 
 Application logs are stored in the same user configuration directory:
@@ -320,14 +331,14 @@ All other settings are reset to their default values.
 | UI Location | Setting Section | Key(s) |
 |-------------|----------------|--------|
 | **Advanced Settings → Configuration** | `Paths` | `completed_downloads_directory`, `temporary_downloads_directory` |
-| **Advanced Settings → Configuration** | `General` | `theme` |
+| **Advanced Settings → Configuration** | `General` | `theme`, `enable_local_api` |
 | **Advanced Settings → Authentication Access** | `General` | `cookies_from_browser`, `gallery_cookies_from_browser` |
 | **Advanced Settings → Output Template** | `General` | `output_template`, `output_template_video`, `output_template_audio`, `gallery_output_template` |
 | **Advanced Settings → Download Options** | `Metadata` | `use_aria2c` |
 | **Advanced Settings → Download Options** | `General` | `sponsorblock`, `auto_paste_mode`, `single_line_preview`, `restrict_filenames`, `embed_chapters` |
 | **Advanced Settings → Download Options** | `DownloadOptions` | `split_chapters`, `download_sections_enabled`, `auto_clear_completed`, `geo_verification_proxy` |
 | **Advanced Settings → Configuration** | `General` | `show_debug_console` |
-| **Advanced Settings → Metadata** | `Metadata` | `embed_metadata`, `embed_thumbnail`, `high_quality_thumbnail`, `convert_thumbnail_to`, `crop_artwork_to_square`, `generate_folder_jpg` |
+| **Advanced Settings → Metadata** | `Metadata` | `embed_metadata`, `embed_thumbnail`, `high_quality_thumbnail`, `convert_thumbnail_to`, `crop_artwork_to_square`, `generate_folder_jpg`, `force_playlist_as_album` |
 | **Advanced Settings → Subtitles** | `Subtitles` | `languages`, `embed_subtitles`, `write_subtitles`, `write_auto_subtitles`, `format` |
 | **Advanced Settings → External Binaries** | *(N/A - runtime only)* | yt-dlp/gallery-dl version display and update buttons |
 | **Advanced Settings → External Binaries** | `Binaries` | `yt-dlp_path`, `ffmpeg_path`, `ffprobe_path`, `gallery-dl_path`, `aria2c_path`, `deno_path` |
@@ -353,4 +364,4 @@ If a required binary (`yt-dlp`, `ffmpeg`, `ffprobe`, `deno`) is not found, use t
 
 ---
 
-*Last updated: April 3, 2026 — LzyDownloader C++ Port*
+*Last updated: April 24, 2026 — LzyDownloader C++ Port*

@@ -26,6 +26,7 @@ class SortingTab;
 class ExtractorJsonParser;
 class YtDlpDownloadInfoExtractor;
 class MainWindowUiBuilder;
+class LocalApiServer;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -50,6 +51,7 @@ private slots:
     void updateTotalSpeed(double speed);
     void onDownloadStatsUpdated(int queued, int active, int completed, int errors);
     void setYtDlpVersion(const QString &version);
+    void onLocalApiEnqueueRequested(const QString &url);
     void onClipboardChanged(); // New slot for clipboard changes
     void onRuntimeInfoReady(const QVariantMap &info);
     void onRuntimeInfoError(const QString &error);
@@ -73,6 +75,7 @@ private:
     ExtractorJsonParser *m_extractorJsonParser;
     YtDlpDownloadInfoExtractor *m_runtimeExtractor;
     MainWindowUiBuilder *m_uiBuilder;
+    LocalApiServer *m_localApiServer;
     QClipboard *m_clipboard; // New QClipboard member
 
     QTabWidget *m_tabWidget;
@@ -91,6 +94,7 @@ private:
     QString m_pendingUrl;
     QVariantMap m_pendingOptions;
     bool m_silentUpdateCheck;
+    bool m_nonInteractiveLaunch;
     QString m_lastAutoPastedUrl; // Track last auto-pasted URL to prevent duplicates
     qint64 m_lastAutoPasteTimestamp; // Timestamp of last auto-paste to enforce cooldown
 };

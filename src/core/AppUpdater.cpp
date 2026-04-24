@@ -10,6 +10,62 @@
 #include <QFile>
 #include <QCoreApplication>
 #include <QDir>
+#include <QRegularExpression>
+#include <QVersionNumber>
+
+namespace {
+
+QString normalizeVersionString(QString version)
+{
+    version = version.trimmed();
+    version.remove(QRegularExpression("^[^0-9]+"));
+
+    const QRegularExpression matchRe(R"((\d+(?:\.\d+)*))");
+    const QRegularExpressionMatch match = matchRe.match(version);
+    return match.hasMatch() ? match.captured(1) : QString();
+}
+
+bool isNewerVersion(const QString &latestVersion, const QString &currentVersion)
+{
+    const QString normalizedLatest = normalizeVersionString(latestVersion);
+    const QString normalizedCurrent = normalizeVersionString(currentVersion);
+
+    const QVersionNumber latest = QVersionNumber::fromString(normalizedLatest);
+    const QVersionNumber current = QVersionNumber::fromString(normalizedCurrent);
+
+    if (!latest.isNull() && !current.isNull()) {
+        return QVersionNumber::compare(latest, current) > 0;
+    }
+
+    return normalizedLatest > normalizedCurrent;
+}
+
+QUrl selectInstallerAsset(const QJsonArray &assets)
+{
+    QUrl fallbackExeUrl;
+
+    for (const QJsonValue &value : assets) {
+        const QJsonObject asset = value.toObject();
+        const QString assetName = asset["name"].toString();
+        const QUrl downloadUrl(asset["browser_download_url"].toString());
+
+        if (!assetName.endsWith(".exe", Qt::CaseInsensitive) || !downloadUrl.isValid()) {
+            continue;
+        }
+
+        if (assetName.startsWith("LzyDownloader-Setup-", Qt::CaseInsensitive)) {
+            return downloadUrl;
+        }
+
+        if (!fallbackExeUrl.isValid()) {
+            fallbackExeUrl = downloadUrl;
+        }
+    }
+
+    return fallbackExeUrl;
+}
+
+} // namespace
 
 AppUpdater::AppUpdater(const QStringList &repoUrls, const QString &currentVersion, QObject *parent)
     : QObject(parent), m_repoUrls(repoUrls), m_currentVersion(currentVersion), m_currentUrlIndex(0) {
@@ -59,22 +115,23 @@ void AppUpdater::onCheckFinished(QNetworkReply *reply) {
     }
 
     QJsonObject release = doc.object();
-    QString latestVersion = release["tag_name"].toString().remove(0, 1); // Remove 'v' prefix
+    const QString latestVersion = normalizeVersionString(release["tag_name"].toString());
     QString releaseNotes = release["body"].toString();
 
-    // Simple version comparison
-    if (latestVersion > m_currentVersion) {
-        QJsonArray assets = release["assets"].toArray();
-        for (const QJsonValue &value : assets) {
-            QJsonObject asset = value.toObject();
-            QString assetName = asset["name"].toString();
-            if (assetName.endsWith(".exe")) { // Assuming installer is .exe
-                QUrl downloadUrl(asset["browser_download_url"].toString());
-                emit updateAvailable(latestVersion, releaseNotes, downloadUrl);
-                reply->deleteLater();
-                return;
-            }
+    if (latestVersion.isEmpty()) {
+        emit updateCheckFailed("Latest release did not contain a usable version tag.");
+        reply->deleteLater();
+        return;
+    }
+
+    if (isNewerVersion(latestVersion, m_currentVersion)) {
+        const QUrl downloadUrl = selectInstallerAsset(release["assets"].toArray());
+        if (downloadUrl.isValid()) {
+            emit updateAvailable(latestVersion, releaseNotes, downloadUrl);
+            reply->deleteLater();
+            return;
         }
+
         emit updateCheckFailed("No suitable installer found in the latest release.");
     } else {
         emit noUpdateAvailable();

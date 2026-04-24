@@ -155,6 +155,7 @@ void BinariesPage::setupRow(QVBoxLayout *layout,
     else if (binaryName == "aria2c") description = "Accelerates downloads using multiple connections.";
 
     QLabel *descLabel = new QLabel(QString("<i>%1</i>").arg(description), rowGroup);
+    descLabel->setToolTip("A brief description of what this binary does.");
     descLabel->setWordWrap(true);
     descLabel->setAlignment(Qt::AlignTop | Qt::AlignLeft);
 
@@ -176,6 +177,8 @@ void BinariesPage::setupRow(QVBoxLayout *layout,
     } else if (binaryName == "gallery-dl") {
         updateButton->setObjectName("updateGalleryDlButton");
         updateButton->setToolTip("Check for and install gallery-dl updates.");
+    } else {
+        updateButton->setToolTip(QString("Update %1 via the detected package manager.").arg(labelText));
     }
 
     QFont childFont = browseButton->font();
@@ -218,6 +221,115 @@ void BinariesPage::setupRow(QVBoxLayout *layout,
         saveBinaryOverride(binaryName, "");
     });
     connect(installButton, &QPushButton::clicked, this, [this, binaryName]() { installBinaryFor(binaryName); });
+    connect(updateButton, &QPushButton::clicked, this, [this, binaryName]() {
+        const ProcessUtils::FoundBinary foundBinary = ProcessUtils::resolveBinary(binaryName, m_configManager);
+        QString pathLower = foundBinary.path.toLower();
+        QString manager;
+        QString cmd;
+
+        if (pathLower.contains("scoop")) {
+            manager = "Scoop";
+            cmd = (binaryName == "yt-dlp") ? "scoop update yt-dlp-nightly" : "scoop update " + binaryName;
+        } else if (pathLower.contains("windowsapps")) {
+            manager = "WinGet";
+            cmd = (binaryName == "yt-dlp") ? "winget upgrade yt-dlp" : "winget upgrade " + binaryName;
+        } else if (pathLower.contains("python") || pathLower.contains("pip") || pathLower.contains("scripts") || pathLower.contains("site-packages")) {
+            manager = "pip";
+            cmd = (binaryName == "yt-dlp") ? "pip install -U --pre yt-dlp" : "pip install -U " + binaryName;
+        } else if (pathLower.contains("homebrew") || pathLower.contains("cellar") || pathLower.contains("linuxbrew")) {
+            manager = "Homebrew";
+            cmd = "brew upgrade " + binaryName;
+        } else if (pathLower.contains("chocolatey") || pathLower.contains("choco")) {
+            manager = "Chocolatey";
+            cmd = "choco upgrade " + binaryName;
+        }
+
+        bool isStandalone = manager.isEmpty();
+        if (isStandalone) {
+            manager = "Standalone";
+            cmd = QString("\"%1\" -U").arg(foundBinary.path);
+        }
+
+        if (!manager.isEmpty()) {
+            QMessageBox msgBox(this);
+            msgBox.setWindowTitle("Update " + displayName(binaryName));
+            msgBox.setTextFormat(Qt::RichText);
+            QString messageText;
+            if (isStandalone) {
+                messageText = QString("Would you like to run the built-in updater for <b>%1</b>?<br><br>"
+                                      "<code>%2</code>").arg(displayName(binaryName), cmd);
+            } else {
+                messageText = QString("LzyDownloader detected that %1 is managed by <b>%2</b>.<br><br>"
+                                      "Would you like to run the following update command now?<br><br>"
+                                      "<code>%3</code>").arg(displayName(binaryName), manager, cmd);
+            }
+            msgBox.setText(messageText);
+            msgBox.setIcon(QMessageBox::Question);
+            QPushButton *runButton = msgBox.addButton("Run Update", QMessageBox::AcceptRole);
+            msgBox.addButton(QMessageBox::Cancel);
+
+            msgBox.exec();
+
+            if (msgBox.clickedButton() == runButton) {
+                QDialog progressDialog(this);
+                progressDialog.setWindowTitle(QString("Updating %1 via %2").arg(displayName(binaryName), manager));
+                progressDialog.resize(600, 400);
+
+                QVBoxLayout *pLayout = new QVBoxLayout(&progressDialog);
+                QTextEdit *outputEdit = new QTextEdit(&progressDialog);
+                outputEdit->setReadOnly(true);
+                outputEdit->setFontFamily("Courier New");
+                pLayout->addWidget(outputEdit);
+
+                QDialogButtonBox *pButtons = new QDialogButtonBox(QDialogButtonBox::Close, &progressDialog);
+                QPushButton *closeBtn = pButtons->button(QDialogButtonBox::Close);
+                closeBtn->setEnabled(false);
+                pLayout->addWidget(pButtons);
+
+                connect(pButtons, &QDialogButtonBox::rejected, &progressDialog, &QDialog::reject);
+
+                QProcess *process = new QProcess(&progressDialog);
+                process->setProcessChannelMode(QProcess::MergedChannels);
+
+                connect(process, &QProcess::readyReadStandardOutput, [&]() {
+                    QString output = QString::fromLocal8Bit(process->readAllStandardOutput());
+                    outputEdit->moveCursor(QTextCursor::End);
+                    outputEdit->insertPlainText(output);
+                    outputEdit->moveCursor(QTextCursor::End);
+                });
+
+                connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), [&](int exitCode, QProcess::ExitStatus exitStatus) {
+                    closeBtn->setEnabled(true);
+                    if (exitStatus == QProcess::NormalExit && exitCode == 0) {
+                        outputEdit->moveCursor(QTextCursor::End);
+                        outputEdit->insertPlainText("\n--- Update completed successfully. ---\n");
+                        ProcessUtils::clearCache();
+                        this->refreshBinaryStatus(binaryName);
+                    } else {
+                        outputEdit->moveCursor(QTextCursor::End);
+                        outputEdit->insertPlainText(QString("\n--- Update failed with exit code %1. ---\n").arg(exitCode));
+                    }
+                });
+
+                connect(process, &QProcess::errorOccurred, [&](QProcess::ProcessError) {
+                    closeBtn->setEnabled(true);
+                    outputEdit->moveCursor(QTextCursor::End);
+                    outputEdit->insertPlainText(QString("\n--- Process error: %1 ---\n").arg(process->errorString()));
+                });
+
+                outputEdit->insertPlainText(QString("Running command: %1\n\n").arg(cmd));
+#ifdef Q_OS_WIN
+                process->start("cmd", {"/C", cmd});
+#else
+                process->start("/bin/sh", {"-c", cmd});
+#endif
+
+                progressDialog.exec();
+            }
+        } else {
+            installBinaryFor(binaryName);
+        }
+    });
 }
 
 void BinariesPage::setYtDlpVersion(const QString &version) {

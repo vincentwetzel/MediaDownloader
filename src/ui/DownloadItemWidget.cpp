@@ -90,12 +90,12 @@ void DownloadItemWidget::setupUi() {
     m_cancelButton->setIcon(createColoredIcon(QStyle::SP_MediaStop, QColor("#ef4444")));
     m_cancelButton->setFixedSize(30, 30);
     m_cancelButton->setToolTip("Stop this download.");
-    
+
     m_retryButton = new QPushButton(this);
     m_retryButton->setIcon(createColoredIcon(QStyle::SP_BrowserReload, QColor("#eab308")));
     m_retryButton->setFixedSize(30, 30);
     m_retryButton->setToolTip("Retry this failed or cancelled download.");
-    
+
     m_openFolderButton = new QPushButton("Open Folder", this);
     m_openFolderButton->setIcon(createColoredIcon(QStyle::SP_DirOpenIcon, QColor("#3b82f6")));
     m_openFolderButton->setToolTip("Open the folder where this file was saved.");
@@ -138,10 +138,10 @@ void DownloadItemWidget::setupUi() {
     connect(m_cancelButton, &QPushButton::clicked, this, &DownloadItemWidget::onCancelClicked);
     connect(m_retryButton, &QPushButton::clicked, this, &DownloadItemWidget::onRetryClicked);
     connect(m_openFolderButton, &QPushButton::clicked, this, &DownloadItemWidget::onOpenContainingFolderClicked);
-    connect(m_clearButton, &QPushButton::clicked, this, [this]() { 
+    connect(m_clearButton, &QPushButton::clicked, this, [this]() {
         m_clearButton->setEnabled(false);
         emit cancelRequested(getId()); // Tell the backend to clean up temp files
-        emit clearRequested(getId()); 
+        emit clearRequested(getId());
     });
     connect(clearTempButton, &QPushButton::clicked, this, [this, clearTempButton]() {
         clearTempButton->setEnabled(false);
@@ -173,7 +173,7 @@ void DownloadItemWidget::updateProgress(const QVariantMap &progressData) {
     if (progressData.contains("status")) {
         m_statusLabel->setStyleSheet("");
         QString statusText = progressData["status"].toString();
-        
+
         if (statusText == "Downloading...") {
             const QString type = m_itemData.value("options").toMap().value("type").toString();
             if (type == "audio") {
@@ -204,9 +204,8 @@ void DownloadItemWidget::updateProgress(const QVariantMap &progressData) {
                                        m_statusLabel->text().contains("Copying", Qt::CaseInsensitive) ||
                                        m_statusLabel->text().contains("Embedding", Qt::CaseInsensitive) ||
                                        m_statusLabel->text() == "Complete")) {
-            // Still in post-processing / finalizing phase - teal
-            m_progressBar->setRange(0, 100);
-            m_progressBar->setValue(100);
+            // Still in post-processing / finalizing phase - teal (animated)
+            m_progressBar->setRange(0, 0);
             m_progressBar->setStyleSheet("QProgressBar::chunk { background-color: #008080; }");
             m_progressBar->setProgressText("Finalizing...");
         } else {
@@ -259,17 +258,17 @@ void DownloadItemWidget::setThumbnail(const QString &imagePath) {
     if (imagePath.isEmpty()) {
         return;
     }
-    
+
     QFileInfo fileInfo(imagePath);
     if (!fileInfo.exists()) {
         return;
     }
-    
+
     QPixmap pixmap(imagePath);
     if (pixmap.isNull()) {
         return;
     }
-    
+
     // Scale the pixmap to fit the label while maintaining aspect ratio
     QPixmap scaled = pixmap.scaled(m_thumbnailLabel->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
     m_thumbnailLabel->setPixmap(scaled);
@@ -294,6 +293,7 @@ void DownloadItemWidget::setFinished(bool success, const QString &message) {
         m_retryButton->setToolTip("Retry");
         m_retryButton->show();
         m_statusLabel->setStyleSheet("color: #dc2626;");
+        if (m_progressBar->maximum() == 0) m_progressBar->setRange(0, 100); // Exit indeterminate mode
         m_progressBar->setStyleSheet("QProgressBar { color: #dc2626; }");
         m_progressBar->setProgressText("Download failed");
         m_overallProgressBar->hide();
@@ -333,6 +333,7 @@ void DownloadItemWidget::setCancelled() {
     m_clearButton->show();
     m_statusLabel->setStyleSheet("color: #dc2626;");
     m_statusLabel->setText("Stopped");
+    if (m_progressBar->maximum() == 0) m_progressBar->setRange(0, 100); // Exit indeterminate mode
     m_progressBar->setStyleSheet("QProgressBar { color: #dc2626; }");
     m_progressBar->setProgressText("Stopped");
     m_overallProgressBar->hide();
@@ -364,16 +365,16 @@ void DownloadItemWidget::onRetryClicked() {
     } else {
         m_retryButton->setToolTip("Retrying...");
     }
-    
+
     // Reset state so it can accept progress updates again
     m_isFinished = false;
     m_isSuccessful = false;
     m_isPaused = false;
-    
+
     // Restore normal buttons
     m_retryButton->hide();
     m_clearButton->hide();
-    
+
     if (QPushButton *clearTempButton = findChild<QPushButton*>("clearTempButton")) {
         clearTempButton->hide();
     }
@@ -382,11 +383,11 @@ void DownloadItemWidget::onRetryClicked() {
     m_cancelButton->setEnabled(true);
     m_cancelButton->setIcon(createColoredIcon(QStyle::SP_MediaStop, QColor("#ef4444")));
     m_cancelButton->setToolTip("Stop");
-    
+
     // Clear red error/stopped stylesheets
     m_statusLabel->setStyleSheet("");
     m_progressBar->setStyleSheet("");
-    
+
     emit retryRequested(m_itemData);
 }
 
@@ -416,7 +417,7 @@ void DownloadItemWidget::showCancellingFeedback()
     if (m_statusLabel) {
         m_statusLabel->setText("Stopping...");
     }
-    
+
     // Disable buttons so the user knows the click registered
     if (m_cancelButton) {
         m_cancelButton->setEnabled(false);

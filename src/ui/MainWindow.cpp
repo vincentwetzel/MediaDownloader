@@ -14,6 +14,7 @@
 #include "core/UrlValidator.h"
 #include "core/UpdateStatus.h" // Include UpdateStatus enum
 #include "core/StartupWorker.h"
+#include "core/LocalApiServer.h"
 #include "utils/ExtractorJsonParser.h"
 #include "core/download_pipeline/YtDlpDownloadInfoExtractor.h"
 #include "core/ProcessUtils.h"
@@ -89,14 +90,58 @@ const QString DEVELOPER_DISCORD_URL_PART1 = "https://discord.gg/";
 const QString DEVELOPER_DISCORD_URL_PART2 = "NfWaqK";
 const QString DEVELOPER_DISCORD_URL_PART3 = "gYRG";
 
+namespace {
+bool isHttpUrlArgument(const QString &arg)
+{
+    return !arg.startsWith("--") && (arg.startsWith("http://") || arg.startsWith("https://"));
+}
+
+QString directCliUrl()
+{
+    const QStringList args = QCoreApplication::arguments();
+    for (int i = 1; i < args.size(); ++i) {
+        if (isHttpUrlArgument(args[i])) {
+            return args[i];
+        }
+    }
+    return {};
+}
+
+bool hasNonInteractiveLaunchArgument()
+{
+    const QStringList args = QCoreApplication::arguments();
+    return args.contains("--headless") || args.contains("--server") || !directCliUrl().isEmpty();
+}
+
+bool isNonInteractiveRequest(const QVariantMap &options)
+{
+    return options.value("non_interactive", false).toBool();
+}
+
+void applyNonInteractiveDownloadDefaults(QVariantMap &options)
+{
+    options["non_interactive"] = true;
+    options["override_archive"] = true;
+    options["playlist_logic"] = "Download All (no prompt)";
+    options["runtime_format_selected"] = true;
+    options["download_sections_set"] = true;
+}
+}
+
 MainWindow::MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent)
     : QMainWindow(parent), m_configManager(nullptr), m_archiveManager(nullptr), m_downloadManager(nullptr),
       m_appUpdater(nullptr), m_urlValidator(nullptr), m_startupWorker(nullptr), m_startupThread(nullptr),
       m_extractorJsonParser(extractorJsonParser), m_runtimeExtractor(nullptr), m_uiBuilder(nullptr),
+      m_localApiServer(nullptr),
       m_clipboard(nullptr), m_startTab(nullptr), m_activeDownloadsTab(nullptr),
       m_advancedSettingsTab(nullptr), m_trayIcon(nullptr), m_trayMenu(nullptr),
-      m_silentUpdateCheck(false), m_lastAutoPasteTimestamp(0)
+      m_silentUpdateCheck(false), m_nonInteractiveLaunch(hasNonInteractiveLaunchArgument()), m_lastAutoPasteTimestamp(0)
 {
+    // Intercept window creation BEFORE it can be shown by main.cpp
+    if (QCoreApplication::arguments().contains("--headless") || QCoreApplication::arguments().contains("--server")) {
+        setAttribute(Qt::WA_DontShowOnScreen, true);
+    }
+
     // Initialize core components
     QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
     if (configDir.isEmpty()) {
@@ -107,6 +152,15 @@ MainWindow::MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent
     qInfo() << "Using settings file at:" << configPath;
 
     m_configManager = new ConfigManager(configPath, this);
+
+    // Apply CLI overrides and ensure exit_after resets to false on normal launches
+    if (QCoreApplication::arguments().contains("--exit-after")) {
+        m_configManager->set("General", "exit_after", true);
+    } else {
+        m_configManager->set("General", "exit_after", false);
+    }
+    m_configManager->save();
+
     m_archiveManager = new ArchiveManager(m_configManager, this);
     m_downloadManager = new DownloadManager(m_configManager, this);
     m_appUpdater = new AppUpdater(REPO_URLS, QString(APP_VERSION_STRING), this);
@@ -142,6 +196,19 @@ MainWindow::MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent
     m_uiBuilder = new MainWindowUiBuilder(m_configManager, this); // Initialize UI builder
     applyTheme(m_configManager->get("General", "theme", "System").toString());
 
+    // Local API Server setup
+    m_localApiServer = new LocalApiServer(m_configManager, this);
+    connect(m_localApiServer, &LocalApiServer::enqueueRequested, this, &MainWindow::onLocalApiEnqueueRequested);
+    if (m_configManager->get("General", "enable_local_api", false).toBool()) {
+        m_localApiServer->start();
+    }
+    connect(m_configManager, &ConfigManager::settingChanged, this, [this](const QString &section, const QString &key, const QVariant &value) {
+        if (section == "General" && key == "enable_local_api") {
+            if (value.toBool()) m_localApiServer->start();
+            else m_localApiServer->stop();
+        }
+    });
+
 #ifdef Q_OS_WIN
     bool isDebug = false;
 #ifdef QT_DEBUG
@@ -170,11 +237,97 @@ MainWindow::MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent
     setupUI();
     setupTrayIcon();
 
+    connect(m_appUpdater, &AppUpdater::updateAvailable, this,
+            [this](const QString &latestVersion, const QString &releaseNotes, const QUrl &downloadUrl) {
+                if (m_nonInteractiveLaunch) {
+                    qInfo() << "Skipping update prompt during non-interactive launch. Available version:" << latestVersion;
+                    m_silentUpdateCheck = false;
+                    return;
+                }
+
+                m_silentUpdateCheck = false;
+
+                QMessageBox msgBox(this);
+                msgBox.setIcon(QMessageBox::Information);
+                msgBox.setWindowTitle("Update Available");
+                msgBox.setText(QString("LzyDownloader %1 is available. You are currently running %2.")
+                                   .arg(latestVersion, QString(APP_VERSION_STRING)));
+
+                QString informativeText = "Would you like to download and install the update now?";
+                if (!releaseNotes.trimmed().isEmpty()) {
+                    QString trimmedNotes = releaseNotes.trimmed();
+                    if (trimmedNotes.size() > 1200) {
+                        trimmedNotes = trimmedNotes.left(1200).trimmed() + "\n\n[Release notes truncated]";
+                    }
+                    informativeText += "\n\nRelease notes:\n" + trimmedNotes;
+                }
+                msgBox.setInformativeText(informativeText);
+
+                QPushButton *updateNowButton = msgBox.addButton("Update Now", QMessageBox::AcceptRole);
+                QPushButton *viewReleaseButton = msgBox.addButton("View Release", QMessageBox::ActionRole);
+                msgBox.addButton(QMessageBox::Cancel);
+                msgBox.exec();
+
+                if (msgBox.clickedButton() == updateNowButton) {
+                    statusBar()->showMessage("Downloading update...");
+                    m_appUpdater->downloadAndInstall(downloadUrl);
+                } else if (msgBox.clickedButton() == viewReleaseButton) {
+                    QDesktopServices::openUrl(QUrl(GITHUB_PROJECT_URL + "/releases/latest"));
+                }
+            });
+
+    connect(m_appUpdater, &AppUpdater::noUpdateAvailable, this, [this]() {
+        m_silentUpdateCheck = false;
+        qInfo() << "No app update available. Current version:" << APP_VERSION_STRING;
+    });
+
+    connect(m_appUpdater, &AppUpdater::updateCheckFailed, this, [this](const QString &error) {
+        const bool wasSilent = m_silentUpdateCheck;
+        m_silentUpdateCheck = false;
+        qWarning() << "App update check failed:" << error;
+        if (!wasSilent) {
+            QMessageBox::warning(this, "Update Check Failed", error);
+        }
+    });
+
+    connect(m_appUpdater, &AppUpdater::downloadProgress, this, [this](qint64 bytesReceived, qint64 bytesTotal) {
+        if (bytesTotal > 0) {
+            const double percent = (static_cast<double>(bytesReceived) / static_cast<double>(bytesTotal)) * 100.0;
+            statusBar()->showMessage(QString("Downloading update... %1%").arg(percent, 0, 'f', 1));
+        } else {
+            statusBar()->showMessage("Downloading update...");
+        }
+    });
+
+    connect(m_appUpdater, &AppUpdater::downloadFinished, this, [this]() {
+        statusBar()->showMessage("Update downloaded. Launching installer...", 5000);
+    });
+
     // Defer the setup dialogs until after the main window is shown
     QTimer::singleShot(0, this, [this]() {
+        bool isHeadless = QCoreApplication::arguments().contains("--headless") || QCoreApplication::arguments().contains("--server");
+        bool isNonInteractive = m_nonInteractiveLaunch;
+
+        if (isHeadless) {
+            if (m_trayIcon) {
+                m_trayIcon->showMessage("LzyDownloader", "Running in headless server mode.", QSystemTrayIcon::Information, 3000);
+            }
+        }
+
         // Ensure completed downloads directory is set
         QString completedDownloadsDir = m_configManager->get("Paths", "completed_downloads_directory").toString();
         if (completedDownloadsDir.isEmpty()) {
+            if (isNonInteractive) {
+                QString baseDownloadDir = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
+                if (baseDownloadDir.isEmpty()) {
+                    baseDownloadDir = QDir::homePath();
+                }
+                completedDownloadsDir = QDir(baseDownloadDir).filePath("LzyDownloader");
+                if (m_configManager->set("Paths", "completed_downloads_directory", completedDownloadsDir)) {
+                    m_configManager->save();
+                }
+                qInfo() << "Set default completed downloads directory for non-interactive launch:" << completedDownloadsDir;
+            } else {
             QMessageBox::information(this, "Setup Required",
                                      "Please select a directory for completed downloads. This will also set up a temporary downloads directory.");
             QString selectedDir = QFileDialog::getExistingDirectory(this, "Select Completed Downloads Directory",
@@ -192,6 +345,7 @@ MainWindow::MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent
                 QMessageBox::warning(this, "Directory Not Set",
                                      "No completed downloads directory was selected. Please set it in Advanced Settings to enable downloads.");
             }
+            }
         }
 
         // Ensure temporary downloads directory is set if completed is available but temp is not
@@ -203,6 +357,13 @@ MainWindow::MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent
                 qInfo() << "Automatically set missing temporary_downloads_directory to" << defaultTempDir;
             }
         }
+
+        m_silentUpdateCheck = true;
+        QTimer::singleShot(0, this, [this]() {
+            if (m_appUpdater) {
+                m_appUpdater->checkForUpdates();
+            }
+        });
     });
 
     // Connect signals
@@ -230,7 +391,12 @@ MainWindow::MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent
     connect(m_downloadManager, &DownloadManager::totalSpeedUpdated, this, &MainWindow::updateTotalSpeed);
     connect(m_downloadManager, &DownloadManager::videoQualityWarning, this, &MainWindow::onVideoQualityWarning);
     connect(m_downloadManager, &DownloadManager::downloadStatsUpdated, this, &MainWindow::onDownloadStatsUpdated);
-    
+
+    connect(m_downloadManager, &DownloadManager::downloadAddedToQueue, m_localApiServer, &LocalApiServer::onDownloadAdded);
+    connect(m_downloadManager, &DownloadManager::downloadProgress, m_localApiServer, &LocalApiServer::onDownloadProgress);
+    connect(m_downloadManager, &DownloadManager::downloadFinished, m_localApiServer, &LocalApiServer::onDownloadFinished);
+    connect(m_downloadManager, &DownloadManager::downloadRemovedFromQueue, m_localApiServer, &LocalApiServer::onDownloadRemoved);
+
     // Connect duplicate detection signal to StartTab
     connect(m_downloadManager, &DownloadManager::duplicateDownloadDetected, m_startTab, &StartTab::onDuplicateDownloadDetected);
 
@@ -241,6 +407,13 @@ MainWindow::MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent
     connect(m_downloadManager, &DownloadManager::downloadSectionsRequested, this, &MainWindow::onDownloadSectionsRequested);
     connect(m_downloadManager, &DownloadManager::playlistActionRequested, this,
             [this](const QString &url, int itemCount, const QVariantMap &options, const QList<QVariantMap> &expandedItems) {
+                if (isNonInteractiveRequest(options)) {
+                    qInfo() << "Non-interactive playlist request detected; queueing all playlist items for" << url << "count:" << itemCount;
+                    m_downloadManager->processPlaylistSelection(url, "Download All", options, expandedItems);
+                    m_uiBuilder->tabWidget()->setCurrentWidget(m_activeDownloadsTab);
+                    return;
+                }
+
                 QMessageBox msgBox(this);
                 msgBox.setIcon(QMessageBox::Question);
                 msgBox.setWindowTitle("Playlist Detected");
@@ -267,8 +440,16 @@ MainWindow::MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent
             });
 
     // Handle requests for runtime format selection
-    connect(m_downloadManager, &DownloadManager::formatSelectionRequested, this, 
+    connect(m_downloadManager, &DownloadManager::formatSelectionRequested, this,
         [this](const QString &url, const QVariantMap &options, const QVariantMap &infoDict) {
+            if (isNonInteractiveRequest(options)) {
+                QVariantMap newOptions = options;
+                newOptions["runtime_format_selected"] = true;
+                qInfo() << "Skipping runtime format dialog for non-interactive request:" << url;
+                m_downloadManager->enqueueDownload(url, newOptions);
+                return;
+            }
+
             FormatSelectionDialog dialog(infoDict, options, this);
             if (dialog.exec() == QDialog::Accepted) {
                 QStringList selectedFormats = dialog.getSelectedFormatIds();
@@ -342,6 +523,17 @@ MainWindow::MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent
     connect(m_clipboard, &QClipboard::changed, this, &MainWindow::onClipboardChanged);
 
     startStartupChecks();
+
+    // Process direct CLI URL downloads (e.g., for Discord bots)
+    QString cliUrl = directCliUrl();
+    if (!cliUrl.isEmpty()) {
+        QTimer::singleShot(500, this, [this, cliUrl]() {
+            QVariantMap options;
+            options["type"] = "video"; // Default to video
+            applyNonInteractiveDownloadDefaults(options);
+            onDownloadRequested(cliUrl, options);
+        });
+    }
 }
 
 MainWindow::~MainWindow() {
@@ -412,12 +604,12 @@ void MainWindow::closeEvent(QCloseEvent *event) {
 
     int activeCount = 0;
     int queuedCount = 0;
-    
+
     QString activeText = m_uiBuilder->activeDownloadsLabel()->text();
     if (activeText.startsWith("Active: ")) {
         activeCount = activeText.mid(8).toInt();
     }
-    
+
     QString queuedText = m_uiBuilder->queuedDownloadsLabel()->text();
     if (queuedText.startsWith("Queued: ")) {
         queuedCount = queuedText.mid(8).toInt();
@@ -524,7 +716,7 @@ void MainWindow::handleClipboardAutoPaste(bool forceEnqueue)
             m_uiBuilder->tabWidget()->setCurrentWidget(m_startTab);
         }
         m_startTab->focusUrlInput();
-        
+
         // Only auto-enqueue if forceEnqueue is true AND this is a new URL
         if (forceEnqueue) {
             m_startTab->onDownloadButtonClicked(); // Trigger download
@@ -543,9 +735,26 @@ void MainWindow::onTrayIconActivated(QSystemTrayIcon::ActivationReason reason) {
     }
 }
 
+void MainWindow::onLocalApiEnqueueRequested(const QString &url) {
+    // Default to video download as requested. The settings will be handled automatically
+    // by the pipeline exactly as if the user clicked "Download" on the Start tab.
+    QVariantMap options;
+    options["type"] = "video";
+    applyNonInteractiveDownloadDefaults(options);
+
+    // Route it through the standard validation and queuing pipeline
+    onDownloadRequested(url, options);
+}
+
 void MainWindow::onDownloadRequested(const QString &url, const QVariantMap &options) {
+    const bool nonInteractive = isNonInteractiveRequest(options);
+
     if (!m_pendingUrl.isEmpty()) {
-        QMessageBox::warning(this, "Please Wait", "Currently fetching info for another download.");
+        if (nonInteractive) {
+            qWarning() << "Ignoring non-interactive download request while another metadata request is pending:" << url;
+        } else {
+            QMessageBox::warning(this, "Please Wait", "Currently fetching info for another download.");
+        }
         return;
     }
 
@@ -588,6 +797,12 @@ void MainWindow::onDownloadRequested(const QString &url, const QVariantMap &opti
     }
 
     if (!missingBinaries.isEmpty()) {
+        if (nonInteractive) {
+            qWarning() << "Cannot queue non-interactive download because required binaries are missing:"
+                       << missingBinaries.join(", ") << "URL:" << url;
+            return;
+        }
+
         QMessageBox msgBox(this);
         msgBox.setIcon(QMessageBox::Warning);
         msgBox.setWindowTitle("Missing Required Binaries");
@@ -606,6 +821,10 @@ void MainWindow::onDownloadRequested(const QString &url, const QVariantMap &opti
     }
 
     QVariantMap mutableOptions = options;
+    if (nonInteractive) {
+        applyNonInteractiveDownloadDefaults(mutableOptions);
+    }
+
     bool overrideArchive = mutableOptions.value("override_archive", m_configManager->get("General", "override_archive", false)).toBool();
 
     if (!overrideArchive && m_archiveManager && m_archiveManager->isInArchive(url)) {
@@ -622,7 +841,7 @@ void MainWindow::onDownloadRequested(const QString &url, const QVariantMap &opti
     // Handle runtime subtitle selection. (Video and Audio runtime formats are handled internally by DownloadManager).
     bool runtimeSubs = m_configManager->get("Subtitles", "languages", "en").toString().split(',').contains("runtime");
 
-    if (runtimeSubs) {
+    if (runtimeSubs && !nonInteractive) {
         m_pendingUrl = url;
         m_pendingOptions = mutableOptions;
         statusBar()->showMessage("Fetching media info for runtime selection...");
@@ -667,13 +886,26 @@ void MainWindow::onRuntimeInfoReady(const QVariantMap &info) {
 
 void MainWindow::onRuntimeInfoError(const QString &error) {
     statusBar()->clearMessage();
-    QMessageBox::warning(this, "Extraction Error", "Failed to fetch media info for runtime selection:\n" + error);
+    if (isNonInteractiveRequest(m_pendingOptions)) {
+        qWarning() << "Runtime metadata extraction failed for non-interactive request:" << error;
+    } else {
+        QMessageBox::warning(this, "Extraction Error", "Failed to fetch media info for runtime selection:\n" + error);
+    }
     m_pendingUrl.clear();
     m_pendingOptions.clear();
 }
 
 void MainWindow::onDownloadSectionsRequested(const QString &url, const QVariantMap &options, const QVariantMap &infoJson)
 {
+    if (isNonInteractiveRequest(options)) {
+        QVariantMap newOptions = options;
+        newOptions["download_sections_set"] = true;
+        qInfo() << "Skipping download sections dialog for non-interactive request:" << url;
+        m_downloadManager->enqueueDownload(url, newOptions);
+        m_uiBuilder->tabWidget()->setCurrentWidget(m_activeDownloadsTab);
+        return;
+    }
+
     DownloadSectionsDialog dialog(infoJson, this);
     if (dialog.exec() == QDialog::Accepted) {
         QString sections = dialog.getSectionsString();
@@ -700,7 +932,11 @@ void MainWindow::onValidationFinished(bool isValid, const QString &error) {
         m_downloadManager->enqueueDownload(m_pendingUrl, m_pendingOptions); // Corrected: m_downloadManager
         m_uiBuilder->tabWidget()->setCurrentWidget(m_activeDownloadsTab);
     } else {
-        QMessageBox::warning(this, "Invalid URL", "The URL could not be validated:\n" + error);
+        if (isNonInteractiveRequest(m_pendingOptions)) {
+            qWarning() << "Non-interactive URL validation failed for" << m_pendingUrl << ":" << error;
+        } else {
+            QMessageBox::warning(this, "Invalid URL", "The URL could not be validated:\n" + error);
+        }
     }
     m_pendingUrl.clear();
     m_pendingOptions.clear();
@@ -760,6 +996,11 @@ void MainWindow::startStartupChecks() {
 }
 
 void MainWindow::onVideoQualityWarning(const QString &url, const QString &message) {
+    if (m_nonInteractiveLaunch) {
+        qWarning() << "Low quality video warning for non-interactive launch:" << url << message;
+        return;
+    }
+
     QMessageBox::warning(this, "Low Quality Video",
                          QString("The following video was downloaded at a low quality:\n%1\n\n%2").arg(url, message));
 }
@@ -825,6 +1066,8 @@ void MainWindow::onYtDlpErrorPopup(const QString &id, const QString &errorType, 
     Q_UNUSED(id);
 
     QString url = itemData.value("url").toString();
+    QVariantMap requestOptions = itemData.value("options").toMap();
+    const bool nonInteractive = isNonInteractiveRequest(requestOptions);
     QString urlHtml = url.isEmpty() ? "" : QString("<br><br><a href=\"%1\">%1</a>").arg(url.toHtmlEscaped());
     QString richUserMessage = userMessage.toHtmlEscaped().replace("\n", "<br>");
 
@@ -837,6 +1080,19 @@ void MainWindow::onYtDlpErrorPopup(const QString &id, const QString &errorType, 
     cleanError.remove(QRegularExpression("^\\[[^\\]]+\\]\\s*"));
 
     if (errorType == "scheduled_livestream") {
+        if (nonInteractive) {
+            QVariantMap newItemData = itemData;
+            QVariantMap options = requestOptions;
+            options["wait_for_video"] = true;
+            options["livestream_wait_min"] = m_configManager->get("Livestream", "wait_for_video_min", 60).toInt();
+            options["livestream_wait_max"] = m_configManager->get("Livestream", "wait_for_video_max", 300).toInt();
+            applyNonInteractiveDownloadDefaults(options);
+            newItemData["options"] = options;
+            qInfo() << "Automatically waiting for scheduled livestream in non-interactive request:" << url;
+            m_downloadManager->restartDownloadWithOptions(newItemData);
+            return;
+        }
+
         QMessageBox msgBox(this);
         msgBox.setWindowTitle("Scheduled Livestream");
         msgBox.setTextFormat(Qt::RichText);
@@ -859,24 +1115,32 @@ void MainWindow::onYtDlpErrorPopup(const QString &id, const QString &errorType, 
 
             // Dynamically adjust wait time based on how far away the stream is.
             int minWait, maxWait;
-            if (cleanError.contains("hour", Qt::CaseInsensitive)) {
+            if (cleanError.contains("day", Qt::CaseInsensitive)) {
+                minWait = 3600; // 60 minutes
+                maxWait = 7200; // 120 minutes
+            } else if (cleanError.contains("hour", Qt::CaseInsensitive)) {
                 minWait = 1800; // 30 minutes
                 maxWait = 3600; // 60 minutes
             } else if (cleanError.contains("second", Qt::CaseInsensitive)) {
                 minWait = 5;    // 5 seconds
                 maxWait = 15;   // 15 seconds
             } else { // Default to configured values for "minutes" or unknown units
-                minWait = m_configManager->get("Livestream", "wait_for_video_min").toInt();
-                maxWait = m_configManager->get("Livestream", "wait_for_video_max").toInt();
+                minWait = m_configManager->get("Livestream", "wait_for_video_min", 60).toInt();
+                maxWait = m_configManager->get("Livestream", "wait_for_video_max", 300).toInt();
             }
             options["livestream_wait_min"] = minWait;
             options["livestream_wait_max"] = maxWait;
 
             newItemData["options"] = options;
-            
+
             m_downloadManager->restartDownloadWithOptions(newItemData);
         }
     } else {
+        if (nonInteractive) {
+            qWarning() << "Non-interactive download error" << errorType << "for" << url << ":" << cleanError;
+            return;
+        }
+
         // Generic error handling
         QString title;
         if (errorType == "private") title = "Private Video";
@@ -901,6 +1165,10 @@ void MainWindow::onYtDlpErrorPopup(const QString &id, const QString &errorType, 
 void MainWindow::setYtDlpVersion(const QString &version) {
     if (m_advancedSettingsTab) {
         m_advancedSettingsTab->setYtDlpVersion(version);
+    }
+
+    if (m_nonInteractiveLaunch) {
+        return;
     }
 
     // Check if the user has opted out of this warning
@@ -928,7 +1196,7 @@ void MainWindow::setYtDlpVersion(const QString &version) {
             "<li><b>Homebrew:</b> Run <code>brew install yt-dlp --HEAD</code></li></ul>"
             "<b>Note:</b> Package managers like <b>winget</b> and <b>Chocolatey</b> only provide stable builds and should not be used for yt-dlp.<br><br>"
             "Would you like to go to the External Binaries settings to view your installation options now?";
- 
+
         msgBox.setInformativeText(informativeText);
 
         QPushButton *settingsButton = msgBox.addButton("Go to Settings", QMessageBox::ActionRole);
@@ -946,4 +1214,4 @@ void MainWindow::setYtDlpVersion(const QString &version) {
         }
     }
 }
- 
+

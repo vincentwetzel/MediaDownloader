@@ -15,6 +15,12 @@ MetadataEmbedder::MetadataEmbedder(ConfigManager *configManager, QObject *parent
       m_targetDurationSeconds(0.0),
       m_stage(Stage::Idle) {
     ProcessUtils::setProcessEnvironment(*m_process);
+    connect(m_process, &QProcess::readyReadStandardOutput, this, [this]() {
+        appendProcessOutput(m_process->readAllStandardOutput());
+    });
+    connect(m_process, &QProcess::readyReadStandardError, this, [this]() {
+        appendProcessOutput(m_process->readAllStandardError());
+    });
     connect(m_process, &QProcess::finished, this, &MetadataEmbedder::onProcessFinished);
 }
 
@@ -37,6 +43,7 @@ void MetadataEmbedder::processFile(const QString &filePath, int trackNumber, boo
     m_tempFilePath = fileInfo.absolutePath() + "/temp_" + fileInfo.fileName();
     m_pendingTrackNumber = trackNumber;
     m_targetDurationSeconds = 0.0;
+    m_processOutputTail.clear();
     m_normalizeContainerTimestamps = normalizeContainerTimestamps &&
         (suffix == "mp4" || suffix == "m4v" || suffix == "mov" || suffix == "m4a");
 
@@ -74,6 +81,7 @@ void MetadataEmbedder::startRewrite() {
         args << "-fix_sub_duration";
     }
 
+    args << "-nostdin";
     args << "-i" << m_originalFilePath;
     args << "-map" << "0";
     args << "-c" << "copy";
@@ -92,7 +100,6 @@ void MetadataEmbedder::startRewrite() {
             args << "-t" << QString::number(m_targetDurationSeconds, 'f', 3);
         }
         args << "-shortest";
-        args << "-movflags" << "+faststart";
         qDebug() << "MetadataEmbedder: normalizing section clip metadata with hard duration limit" << m_targetDurationSeconds << "for" << m_originalFilePath;
     }
 
@@ -106,8 +113,11 @@ void MetadataEmbedder::startRewrite() {
 }
 
 void MetadataEmbedder::onProcessFinished(int exitCode, QProcess::ExitStatus exitStatus) {
+    appendProcessOutput(m_process->readAllStandardOutput());
+    appendProcessOutput(m_process->readAllStandardError());
+
     if (m_stage == Stage::ProbingDuration) {
-        const QString output = QString::fromUtf8(m_process->readAllStandardOutput()).trimmed();
+        const QString output = m_processOutputTail.trimmed();
         if (exitStatus == QProcess::NormalExit && exitCode == 0) {
             bool ok = false;
             const double duration = output.toDouble(&ok);
@@ -118,9 +128,10 @@ void MetadataEmbedder::onProcessFinished(int exitCode, QProcess::ExitStatus exit
                 qWarning() << "MetadataEmbedder: could not parse ffprobe duration output:" << output;
             }
         } else {
-            qWarning() << "MetadataEmbedder: ffprobe failed, continuing without hard trim:" << QString::fromUtf8(m_process->readAllStandardError());
+            qWarning() << "MetadataEmbedder: ffprobe failed, continuing without hard trim:" << m_processOutputTail;
         }
 
+        m_processOutputTail.clear();
         startRewrite();
         return;
     }
@@ -138,9 +149,22 @@ void MetadataEmbedder::onProcessFinished(int exitCode, QProcess::ExitStatus exit
             error = "Failed to remove original file.";
         }
     } else {
-        error = QString::fromUtf8(m_process->readAllStandardError());
+        error = m_processOutputTail;
         QFile::remove(m_tempFilePath);
     }
 
     emit finished(error.isEmpty(), error);
+}
+
+void MetadataEmbedder::appendProcessOutput(const QByteArray &data)
+{
+    if (data.isEmpty()) {
+        return;
+    }
+
+    m_processOutputTail += QString::fromUtf8(data);
+    constexpr qsizetype maxTailLength = 12000;
+    if (m_processOutputTail.size() > maxTailLength) {
+        m_processOutputTail = m_processOutputTail.right(maxTailLength);
+    }
 }

@@ -53,6 +53,29 @@ QString canonicalizeCodecSetting(QString codecName)
     }
     return codecName;
 }
+
+QString siteSpecificReferer(const QString &url)
+{
+    if (url.contains("bilibili.com", Qt::CaseInsensitive)) {
+        return url;
+    }
+    if (url.contains("bilibili.tv", Qt::CaseInsensitive)) {
+        return "https://www.bilibili.tv/";
+    }
+    if (url.contains("nicovideo.jp", Qt::CaseInsensitive)
+        || url.contains("nico.ms", Qt::CaseInsensitive)) {
+        return url;
+    }
+    return QString();
+}
+
+void appendSiteSpecificRefererWorkarounds(QStringList &args, const QString &url)
+{
+    const QString referer = siteSpecificReferer(url);
+    if (!referer.isEmpty()) {
+        args << "--referer" << referer;
+    }
+}
 }
 
 YtDlpArgsBuilder::YtDlpArgsBuilder() {
@@ -84,6 +107,28 @@ QString YtDlpArgsBuilder::getCodecMapping(const QString& codecName) {
 
     // Fallback for any unmapped or simple names
     return QRegularExpression::escape(canonicalCodec.toLower());
+}
+
+QStringList YtDlpArgsBuilder::buildValidationArgs(ConfigManager *configManager, const QString &url)
+{
+    if (!configManager) {
+        qCritical() << "YtDlpArgsBuilder::buildValidationArgs called without a ConfigManager";
+        return {};
+    }
+    QStringList args;
+    args << "--simulate";
+
+    // --- Cookies ---
+    QString cookiesBrowser = configManager->get("General", "cookies_from_browser", "None").toString();
+    if (cookiesBrowser != "None") {
+        args << "--cookies-from-browser" << cookiesBrowser.toLower();
+    }
+
+    // --- Site-specific Referer Workarounds ---
+    appendSiteSpecificRefererWorkarounds(args, url);
+
+    args << url;
+    return args;
 }
 
 QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString &url, const QVariantMap &options) {
@@ -246,8 +291,14 @@ QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString 
     const ProcessUtils::FoundBinary aria2Binary = ProcessUtils::findBinary("aria2c", configManager);
     if (configManager->get("Metadata", "use_aria2c", false).toBool() && aria2Binary.source != "Not Found" && aria2Binary.source != "Invalid Custom") {
         QString aria2cPath = aria2Binary.path;
+        QStringList aria2Args;
+        aria2Args << "--summary-interval=1";
+        const QString referer = siteSpecificReferer(url);
+        if (!referer.isEmpty()) {
+            aria2Args << QString("--referer=%1").arg(referer);
+        }
         rawArgs << "--external-downloader" << aria2cPath;
-        rawArgs << "--external-downloader-args" << "aria2c:--summary-interval=1";
+        rawArgs << "--external-downloader-args" << "aria2c:" + aria2Args.join(' ');
         qInfo() << "YtDlpArgsBuilder: Using aria2c as external downloader (" << aria2cPath << ")";
     } else {
         qInfo() << "YtDlpArgsBuilder: Using native yt-dlp downloader";
@@ -261,6 +312,12 @@ QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString 
     if (configManager->get("Metadata", "embed_chapters", true).toBool()) rawArgs << "--embed-chapters";
     if (configManager->get("DownloadOptions", "split_chapters", false).toBool()) rawArgs << "--split-chapters";
     if (configManager->get("Metadata", "embed_metadata", true).toBool()) rawArgs << "--embed-metadata";
+
+    bool forceSingleAlbum = (downloadType == "audio" && configManager->get("Metadata", "force_playlist_as_album", false).toBool() && options.value("playlist_index", -1).toInt() > 0);
+    if (forceSingleAlbum) {
+        rawArgs << "--parse-metadata" << "playlist_title:%(album)s";
+        rawArgs << "--parse-metadata" << "Various Artists:%(album_artist)s";
+    }
 
     const QStringList supportedThumbnailExts = {"mp3", "mkv", "mka", "ogg", "opus", "flac", "m4a", "mp4", "m4v", "mov"};
     
@@ -402,6 +459,9 @@ QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString 
     }
 
     rawArgs << "-o" << QDir(tempPath).filePath(outputTemplate);
+
+    // --- Site-specific Referer Workarounds ---
+    appendSiteSpecificRefererWorkarounds(rawArgs, url);
 
     // --- Print final filepath ---
     rawArgs << "--print" << "after_move:LZY_FINAL_PATH:%(filepath)s";

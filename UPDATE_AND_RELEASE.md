@@ -63,7 +63,7 @@ cmake --build build --config Release
 
 Replace `X.X.X` with the exact version from `CMakeLists.txt`.
 
-`CMakeLists.txt` already runs `windeployqt` and re-copies the resolved Qt runtime DLLs from the configured Qt installation. Keep the deployed compression/runtime dependencies that Qt ships with, including `zlib1.dll`, because `Qt6Network.dll` depends on them on Windows.
+`CMakeLists.txt` already runs `windeployqt`, re-copies the resolved Qt runtime DLLs from the configured Qt installation, and deploys the OpenSSL runtime DLLs (`libcrypto-3-x64.dll`, `libssl-3-x64.dll`) when available. Keep the deployed compression/runtime dependencies that Qt ships with, including `zlib1.dll`, because `Qt6Network.dll` depends on them on Windows.
 
 ## Release to GitHub
 
@@ -92,6 +92,7 @@ Navigate to https://github.com/vincentwetzel/lzy-downloader/releases and:
 - [ ] Installer was rebuilt from the current `CMakeLists.txt` version (`build_release.ps1` or `makensis /DAPP_VERSION=...`), not manually renamed afterward
 - [ ] Release build completed (`build_release.ps1` or equivalent manual steps)
 - [ ] NSIS installer tested (install/uninstall preserves `%LOCALAPPDATA%\LzyDownloader\settings.ini`, `download_archive.db`, `downloads_backup.json`, and log files)
+- [ ] Clean Windows install tested for HTTPS update checks (Qt TLS backend loads with `libcrypto-3-x64.dll` and `libssl-3-x64.dll` beside `LzyDownloader.exe`)
 - [ ] Timestamped logging verified (`%LOCALAPPDATA%\LzyDownloader\LzyDownloader_YYYY-MM-dd_HH-mm-ss.log`)
 - [ ] Log retention verified (startup cleanup keeps only the 5 most recent logs)
 - [ ] GitHub release published with installer asset
@@ -105,6 +106,7 @@ The application stores user data in standard Windows directories:
 | Settings | `%LOCALAPPDATA%\LzyDownloader\settings.ini` |
 | Archive | `%LOCALAPPDATA%\LzyDownloader\download_archive.db` |
 | Queue Backup | `%LOCALAPPDATA%\LzyDownloader\downloads_backup.json` |
+| Local API token | `%LOCALAPPDATA%\LzyDownloader\api_token.txt` |
 | Logs | `%LOCALAPPDATA%\LzyDownloader\LzyDownloader_YYYY-MM-dd_HH-mm-ss.log` (one new file per run; oldest logs deleted after the most recent 5) |
 
-**Important:** The NSIS installer must NOT overwrite `settings.ini`, `download_archive.db`, `downloads_backup.json`, or log files. These are stored in user data directories, not the installation directory.
+**Important:** The NSIS installer must NOT overwrite `settings.ini`, `download_archive.db`, `downloads_backup.json`, `api_token.txt`, or log files. These are stored in user data directories, not the installation directory.

@@ -6,6 +6,7 @@
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QComboBox>
+#include <QLabel>
 #include <QLineEdit>
 #include <QSignalBlocker>
 
@@ -15,6 +16,7 @@ DownloadOptionsPage::DownloadOptionsPage(ConfigManager *configManager, QWidget *
     layout->setContentsMargins(0, 0, 0, 0);
 
     QGroupBox *downloadOptionsGroup = new QGroupBox("Download Options", this);
+    downloadOptionsGroup->setToolTip("Configure various download-related behaviors and features.");
     QFormLayout *downloadOptionsLayout = new QFormLayout(downloadOptionsGroup);
 
     m_externalDownloaderCombo = new QComboBox(this);
@@ -25,12 +27,19 @@ DownloadOptionsPage::DownloadOptionsPage(ConfigManager *configManager, QWidget *
                                           "aria2c: External downloader for faster multi-connection downloads.");
     
     m_sponsorBlockCheck = new ToggleSwitch(this);
+    m_sponsorBlockCheck->setToolTip("Automatically remove or skip sponsored segments using the SponsorBlock API.");
     m_embedChaptersCheck = new ToggleSwitch(this);
+    m_embedChaptersCheck->setToolTip("Embed chapter markers into the video file if available.");
     m_splitChaptersCheck = new ToggleSwitch(this);
+    m_splitChaptersCheck->setToolTip("Split the video into separate files based on its chapters.");
     m_downloadSectionsCheck = new ToggleSwitch(this);
+    m_downloadSectionsCheck->setToolTip("Prompt to download only a specific time range or chapter instead of the full video.");
     m_singleLineCommandPreviewCheck = new ToggleSwitch(this);
+    m_singleLineCommandPreviewCheck->setToolTip("Display the yt-dlp command preview as a single scrolling line instead of wrapping.");
     m_restrictFilenamesCheck = new ToggleSwitch(this);
+    m_restrictFilenamesCheck->setToolTip("Restrict filenames to ASCII characters, avoiding spaces and special characters.");
     m_autoClearCompletedCheck = new ToggleSwitch(this);
+    m_autoClearCompletedCheck->setToolTip("Automatically remove downloads from the Active list once they finish successfully.");
     m_autoPasteModeCombo = new QComboBox(this);
     m_autoPasteModeCombo->addItems({
         "Disabled",
@@ -44,17 +53,24 @@ DownloadOptionsPage::DownloadOptionsPage(ConfigManager *configManager, QWidget *
 
     m_geoProxyInput = new QLineEdit(this);
     m_geoProxyInput->setPlaceholderText("e.g., http://proxy.server:port");
+    m_geoProxyInput->setToolTip("Use this proxy server for geo-verification if a video is restricted in your region.");
 
-    downloadOptionsLayout->addRow("External Downloader:", m_externalDownloaderCombo);
-    downloadOptionsLayout->addRow("Enable SponsorBlock", m_sponsorBlockCheck);
-    downloadOptionsLayout->addRow("Embed video chapters", m_embedChaptersCheck);
-    downloadOptionsLayout->addRow("Split chapters into separate files", m_splitChaptersCheck);
-    downloadOptionsLayout->addRow("Enable Download Sections", m_downloadSectionsCheck);
-    downloadOptionsLayout->addRow("Auto-clear completed downloads", m_autoClearCompletedCheck);
-    downloadOptionsLayout->addRow("Auto-paste URL behavior:", m_autoPasteModeCombo);
-    downloadOptionsLayout->addRow("Single-line command preview", m_singleLineCommandPreviewCheck);
-    downloadOptionsLayout->addRow("Restrict filenames", m_restrictFilenamesCheck);
-    downloadOptionsLayout->addRow("Geo-verification proxy:", m_geoProxyInput);
+    auto addFormRow = [&](const QString& labelText, QWidget* field) {
+        QLabel* label = new QLabel(labelText, this);
+        label->setToolTip(field->toolTip());
+        downloadOptionsLayout->addRow(label, field);
+    };
+
+    addFormRow("External Downloader:", m_externalDownloaderCombo);
+    addFormRow("Enable SponsorBlock", m_sponsorBlockCheck);
+    addFormRow("Embed video chapters", m_embedChaptersCheck);
+    addFormRow("Split chapters into separate files", m_splitChaptersCheck);
+    addFormRow("Enable Download Sections", m_downloadSectionsCheck);
+    addFormRow("Auto-clear completed downloads", m_autoClearCompletedCheck);
+    addFormRow("Auto-paste URL behavior:", m_autoPasteModeCombo);
+    addFormRow("Single-line command preview", m_singleLineCommandPreviewCheck);
+    addFormRow("Restrict filenames", m_restrictFilenamesCheck);
+    addFormRow("Geo-verification proxy:", m_geoProxyInput);
 
     layout->addWidget(downloadOptionsGroup);
     layout->addStretch();

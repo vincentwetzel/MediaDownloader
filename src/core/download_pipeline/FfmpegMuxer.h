@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QObject>
+#include <QByteArray>
 #include <QProcess>
 #include <QString>
 #include <QStringList>
@@ -26,8 +27,11 @@ signals:
     void mergeFailed(const QString &error);
 
 private:
+    void appendProcessOutput(const QByteArray &data);
+
     QProcess *m_process;
     QString m_currentOutputFile;
     QStringList m_currentInputFiles;
     QList<SubtitleFile> m_currentSubtitleFiles;
+    QString m_processOutputTail;
 };

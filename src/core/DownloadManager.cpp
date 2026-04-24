@@ -53,6 +53,11 @@ void appendCleanupCandidate(QVariantMap &options, const QString &path)
         options["cleanup_candidates"] = cleanupCandidates;
     }
 }
+
+bool isNonInteractiveRequest(const QVariantMap &options)
+{
+    return options.value("non_interactive", false).toBool();
+}
 }
 
 DownloadManager::DownloadManager(ConfigManager *configManager, QObject *parent) : QObject(parent),
@@ -167,8 +172,16 @@ void DownloadManager::onRequestStartNextDownload() {
 }
 
 void DownloadManager::enqueueDownload(const QString &url, const QVariantMap &options) {
+    QVariantMap effectiveOptions = options;
+    if (isNonInteractiveRequest(effectiveOptions)) {
+        effectiveOptions["override_archive"] = true;
+        effectiveOptions["playlist_logic"] = "Download All (no prompt)";
+        effectiveOptions["runtime_format_selected"] = true;
+        effectiveOptions["download_sections_set"] = true;
+    }
+
     // Check if URL is already in any state (prevents duplicate enqueuing)
-    bool overrideArchive = options.value("override_archive", false).toBool();
+    bool overrideArchive = effectiveOptions.value("override_archive", false).toBool();
     DownloadQueueManager::DuplicateStatus status = m_queueManager->getDuplicateStatus(url, m_activeItems);
     
     if (status != DownloadQueueManager::NotDuplicate) {
@@ -202,15 +215,15 @@ void DownloadManager::enqueueDownload(const QString &url, const QVariantMap &opt
 
     // Intercept for download sections before anything else
     bool useSections = m_configManager->get("DownloadOptions", "download_sections_enabled", false).toBool();
-    QString downloadTypeCheck = options.value("type", "video").toString();
+    QString downloadTypeCheck = effectiveOptions.value("type", "video").toString();
     // The "download_sections_set" flag prevents an infinite loop.
-    if (useSections && !options.contains("download_sections_set") && (downloadTypeCheck == "video" || downloadTypeCheck == "audio")) {
+    if (useSections && !isNonInteractiveRequest(effectiveOptions) && !effectiveOptions.contains("download_sections_set") && (downloadTypeCheck == "video" || downloadTypeCheck == "audio")) {
         qDebug() << "Download sections enabled, fetching metadata for" << url;
-        fetchInfoForSections(url, options);
+        fetchInfoForSections(url, effectiveOptions);
         return;
     }
 
-    QString downloadType = options.value("type", "video").toString();
+    QString downloadType = effectiveOptions.value("type", "video").toString();
 
     // Intercept for runtime format selection before doing anything else
     bool needsRuntimeSelection = false;
@@ -224,8 +237,8 @@ void DownloadManager::enqueueDownload(const QString &url, const QVariantMap &opt
         }
     }
 
-    if (needsRuntimeSelection && !options.value("runtime_format_selected", false).toBool()) {
-        fetchFormatsForSelection(url, options);
+    if (needsRuntimeSelection && !isNonInteractiveRequest(effectiveOptions) && !effectiveOptions.value("runtime_format_selected", false).toBool()) {
+        fetchFormatsForSelection(url, effectiveOptions);
         return;
     }
 
@@ -233,7 +246,7 @@ void DownloadManager::enqueueDownload(const QString &url, const QVariantMap &opt
         DownloadItem item;
         item.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
         item.url = url;
-        item.options = options;
+        item.options = effectiveOptions;
         item.playlistIndex = -1; // Not part of a playlist initially
 
         m_queueManager->enqueueDownload(item);
@@ -242,18 +255,18 @@ void DownloadManager::enqueueDownload(const QString &url, const QVariantMap &opt
         DownloadItem item;
         item.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
         item.url = url;
-        item.options = options;
+        item.options = effectiveOptions;
         item.playlistIndex = -1;
 
         QVariantMap uiData;
         uiData["id"] = item.id;
         uiData["url"] = url;
         uiData["status"] = "Checking for playlist...";
-        uiData["options"] = options;
+        uiData["options"] = effectiveOptions;
         emit downloadAddedToQueue(uiData);
 
         PlaylistExpander *expander = new PlaylistExpander(url, m_configManager, this);
-        expander->setProperty("options", options);
+        expander->setProperty("options", effectiveOptions);
         expander->setProperty("queueId", item.id); // Store queue ID for later
 
         // Mark the placeholder as pending before it enters the queue so the
@@ -263,7 +276,7 @@ void DownloadManager::enqueueDownload(const QString &url, const QVariantMap &opt
         connect(expander, &PlaylistExpander::expansionFinished, this, &DownloadManager::onPlaylistExpanded);
         connect(expander, &PlaylistExpander::playlistDetected, this, &DownloadManager::onPlaylistDetected);
 
-        QString playlistLogic = options.value("playlist_logic", "Ask").toString();
+        QString playlistLogic = effectiveOptions.value("playlist_logic", "Ask").toString();
         expander->startExpansion(playlistLogic);
         emit playlistExpansionStarted(url);
     }
@@ -626,6 +639,14 @@ void DownloadManager::onPlaylistDetected(const QString &url, int itemCount, cons
         expander->deleteLater();
     }
 
+    if (isNonInteractiveRequest(storedOptions)) {
+        qInfo() << "Non-interactive playlist detected; queueing all items without prompting:" << url << "count:" << itemCount;
+        QMetaObject::invokeMethod(this, [this, url, storedOptions, expandedItems]() {
+            processPlaylistSelection(url, "Download All", storedOptions, expandedItems);
+        }, Qt::QueuedConnection);
+        return;
+    }
+
     // Delegate UI presentation to the View layer
     QMetaObject::invokeMethod(this, [this, url, itemCount, storedOptions, expandedItems]() {
         emit playlistActionRequested(url, itemCount, storedOptions, expandedItems);
@@ -725,23 +746,62 @@ void DownloadManager::onPlaylistExpanded(const QString &originalUrl, const QList
         expander->deleteLater();
     }
 
+        QList<QVariantMap> itemsToProcess = expandedItems;
+
     if (!error.isEmpty()) {
-        qDebug() << "Playlist expansion failed:" << error;
-        // Update the UI item to show error
-        if (!queueId.isEmpty()) {
-            emit downloadProgress(queueId, {{"status", "Failed to check playlist"}});
-            emit downloadFinished(queueId, false, "Playlist expansion failed: " + error);
-            m_queueManager->m_pendingExpansions.remove(queueId);
-            m_queueManager->cancelQueuedOrPausedDownload(queueId); // Remove placeholder from queue
+            bool isKnownVideoError = false;
+
+            if (error.contains("Premieres in", Qt::CaseInsensitive) ||
+                error.contains("Premiering in", Qt::CaseInsensitive) ||
+                error.contains("Premiere will begin", Qt::CaseInsensitive) ||
+                error.contains("live event will begin", Qt::CaseInsensitive) ||
+                error.contains("is upcoming", Qt::CaseInsensitive) ||
+                error.contains("Offline (expected)", Qt::CaseInsensitive) ||
+                error.contains("Offline expected", Qt::CaseInsensitive) ||
+                error.contains("waiting for premiere", Qt::CaseInsensitive) ||
+                error.contains("waiting for livestream", Qt::CaseInsensitive) ||
+                error.contains("Live in ", Qt::CaseInsensitive) ||
+                error.contains("Starting in ", Qt::CaseInsensitive)) {
+                isKnownVideoError = true;
+            } else if (error.contains("private", Qt::CaseInsensitive)) {
+                isKnownVideoError = true;
+            } else if (error.contains("unavailable", Qt::CaseInsensitive) ||
+                     error.contains("no longer available", Qt::CaseInsensitive) ||
+                     error.contains("does not exist", Qt::CaseInsensitive) ||
+                     error.contains("removed", Qt::CaseInsensitive)) {
+                isKnownVideoError = true;
+            } else if (error.contains("members", Qt::CaseInsensitive) && error.contains("only", Qt::CaseInsensitive)) {
+                isKnownVideoError = true;
+            } else if (error.contains("geo", Qt::CaseInsensitive) || error.contains("country", Qt::CaseInsensitive)) {
+                isKnownVideoError = true;
+            } else if (error.contains("age", Qt::CaseInsensitive)) {
+                isKnownVideoError = true;
+            }
+
+            if (isKnownVideoError) {
+                qDebug() << "Playlist expansion hit a known video-level error. Bypassing to let YtDlpWorker handle it. Error:" << error;
+                QVariantMap singleItem;
+                singleItem["url"] = originalUrl;
+                singleItem["playlist_index"] = -1;
+                itemsToProcess.append(singleItem);
+            } else {
+                qDebug() << "Playlist expansion failed:" << error;
+                // Update the UI item to show error
+                if (!queueId.isEmpty()) {
+                    emit downloadProgress(queueId, {{"status", "Failed to check playlist"}});
+                    emit downloadFinished(queueId, false, "Playlist expansion failed: " + error);
+                    m_queueManager->m_pendingExpansions.remove(queueId);
+                    m_queueManager->cancelQueuedOrPausedDownload(queueId); // Remove placeholder from queue
+                }
+                return;
         }
-        return;
     }
 
-    emit playlistExpansionFinished(originalUrl, expandedItems.count());
+        emit playlistExpansionFinished(originalUrl, itemsToProcess.count());
 
     // If this was a single video (no expansion needed), update the existing UI item
-    if (expandedItems.size() == 1 && !queueId.isEmpty()) {
-        QVariantMap itemData = expandedItems.first();
+        if (itemsToProcess.size() == 1 && !queueId.isEmpty()) {
+            QVariantMap itemData = itemsToProcess.first();
 
         // Find the placeholder item in the queue and update it in-place.
         // This avoids re-enqueueing and causing a duplicate download.
@@ -786,13 +846,13 @@ void DownloadManager::onPlaylistExpanded(const QString &originalUrl, const QList
             
             startNextDownload();
         }
-    } else if (expandedItems.size() > 1) {
+    } else if (itemsToProcess.size() > 1) {
         // This is an actual playlist - remove the placeholder from queue
         if (!queueId.isEmpty()) {
             m_queueManager->removePendingExpansionPlaceholder(queueId);
         }
         
-        for (const QVariantMap &itemData : expandedItems) {
+        for (const QVariantMap &itemData : itemsToProcess) {
             DownloadItem item;
             item.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
             item.url = itemData["url"].toString();

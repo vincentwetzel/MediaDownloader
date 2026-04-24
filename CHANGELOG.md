@@ -5,20 +5,27 @@ All notable changes to LzyDownloader will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - YYYY-MM-DD
+## [1.1.11] - 2026-04-24
 
 ### Changed
 - **Active Downloads UI Cleanup**: Merged the redundant "Clear Completed" button into a single unified "Clear Inactive" button on the Active Downloads tab, simplifying the toolbar.
 - **Active Downloads toolbar controls**: The tab now uses compact icon-first actions and adds a `Resume All` control for stopped or failed rows alongside the unified clear action.
+- **CLI/API downloads are non-interactive**: Direct URL launches and local API enqueues now bypass GUI prompts by forcing archive override for completed items, queueing playlists without asking, skipping runtime picker dialogs, and logging UI-only warnings instead of blocking automation.
 - **External Binaries Python-free GUI policy**: The in-app installer no longer offers `pip` for `yt-dlp` or `gallery-dl`. Windows users are now steered toward standalone executable downloads first, while pre-existing advanced-user installs can still be detected and used.
 - **Supported Sites Dialog Access**: Removed the top application menu bar ("Help") and moved the "Supported Sites" access to a dedicated button on the Start tab.
 - **Initial setup prompt timing**: The first-run completed-downloads directory prompt is now deferred until after the main window is shown, avoiding awkward startup-time modal behavior before the shell finishes initializing.
+- **Exit after complete reset**: The "Exit after all downloads complete" toggle now automatically resets to the off state whenever the application restarts instead of persisting between sessions.
+- **Post-processing progress animation**: The progress bar now enters an indeterminate (scrolling) animation mode during post-processing and finalizing stages (like FFmpeg merges) instead of freezing statically at 100%, providing clear visual feedback that the application is still working.
 
 ### Added
 - **External Binaries inline descriptions**: Added brief, user-friendly descriptions next to each binary on the External Binaries page explaining what tools like `ffmpeg`, `deno`, and `aria2c` do.
+- **Force Playlist as Single Album**: Added a new "Force Playlist as Single Album" toggle in Advanced Settings -> Metadata. When enabled for audio playlist downloads, this forces the `album` metadata tag to the playlist's title and sets a uniform `album_artist` tag ("Various Artists"), ensuring local music players group all tracks into a single album.
 - **Supported Sites Dialog**: Added a searchable dialog that lists all supported websites and indicates whether they support Video/Audio (yt-dlp) or Image Galleries (gallery-dl), populated dynamically from the application's extractor lists.
 
 ### Fixed
+- **FFmpeg merge stalls**: FFmpeg-based merge/post-processing wrappers now continuously drain process output and start ffmpeg with `-nostdin`, preventing long merges from hanging when stderr/stdout buffers fill.
+- **Windows OpenSSL runtime deployment**: Release packaging now explicitly copies both `libcrypto-3-x64.dll` and `libssl-3-x64.dll` beside `LzyDownloader.exe` so Qt's `qopensslbackend` can initialize HTTPS correctly on clean installs and the app update checker can reach GitHub Releases.
+- **Application update prompt wiring**: Fixed the app self-updater so startup now actually runs the GitHub release check, shows the update prompt when a newer installer is available, compares dotted versions numerically instead of lexicographically, and prefers the `LzyDownloader-Setup-*.exe` asset when selecting the installer to download.
 - **Mass-stop GUI freeze**: Fixed severe GUI locking when stopping multiple downloads at once (like "Stop All"). Process-tree cleanup (`taskkill`) is now offloaded to a detached background process, and queue evaluation is safely deferred to the end of the event loop, eliminating synchronous cascades that used to freeze the main thread.
 - **SponsorBlock A/V desync**: Added `--force-keyframes-at-cuts` to yt-dlp arguments when SponsorBlock removal is enabled for video and livestream downloads, ensuring the audio and video streams remain perfectly in sync after ad segments are cut out.
 - **Premature queue completion notification**: Fixed an issue where enqueueing the first download would instantly trigger a "Downloads Complete" desktop notification because saving the concurrency setting temporarily evaluated an empty queue.
@@ -39,8 +46,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Sorting rule evaluation**: Fixed a mismatch between human-readable UI labels (e.g., "Audio Playlist Downloads") and internal backend keys, ensuring sorting conditions apply correctly.
 - **Playlist sorting recognition**: Fixed playlist rules falling back to single-item rules by ensuring `is_playlist` and `playlist_title` flags are consistently injected into metadata.
 - **Resumed download metadata**: Fixed an issue where `yt-dlp` skipping an already-downloaded file caused the app to prematurely delete the `info.json` file, which broke sorting tokens like `{album}` and caused fallbacks to `Unknown Year - Unknown`.
+- **Single-video expansion bypass**: Fixed an issue where single videos with known errors (e.g., Private, Geo-Restricted, Scheduled Livestreams) would fail silently during the initial playlist-check phase. These URLs now safely bypass the expansion failure and enter the main queue so the proper error popups or "Wait for Video" prompts can be displayed.
+- **Livestream pre-wait thumbnails**: Fixed a bug where background thumbnail fetching for upcoming livestreams would fail to render or result in 0-byte files. The metadata fetcher now properly follows HTTP redirects, automatically detects `.webp` image extensions, and cleans up empty files.
 - **Premature exit-after completion**: Fixed a bug where the application would immediately close on launch if "Exit after all downloads complete" was enabled and the queue was empty.
 - **Playlist metadata carry-through**: Single-item playlists, expanded playlist entries, resumed items, and fallback finalization now preserve `playlist_title`, `is_playlist`, and other core metadata so sorting rules and cleanup stay consistent.
+- **Bilibili HTTP 412 Error**: Added Bilibili referer handling to yt-dlp arguments, using the source video URL for `bilibili.com` media requests and the `bilibili.tv` site root for international URLs, to fix "HTTP Error 412: Precondition Failed" download errors.
+- **Bilibili aria2c HTTP 412 Error**: Bilibili downloads that use aria2c now pass the same source-aware referer to aria2c itself, fixing cases where yt-dlp validation succeeded but the external downloader's media request was rejected with HTTP 412.
+- **Niconico HTTP 403 Error**: Added `--referer <URL>` to yt-dlp arguments for all Niconico URLs (`nicovideo.jp`, `nico.ms`) to fix "HTTP Error 403: Forbidden" download errors.
+- **Pre-download validation failures**: Centralized site-specific workarounds (e.g., Bilibili/Niconico referer) into `YtDlpArgsBuilder` and applied them to the pre-download URL validation step, including the standalone `UrlValidator` path, fixing cases where valid URLs were incorrectly rejected before being queued.
 
 ## [1.1.4] - 04-18-2026
 

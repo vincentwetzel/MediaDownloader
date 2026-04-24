@@ -8,6 +8,8 @@
 #include <QStringList>
 #include <QSystemSemaphore>
 #include <QSharedMemory>
+#include <QSslSocket>
+#include <QSqlDatabase>
 
 int main(int argc, char *argv[]) {
     QSystemSemaphore semaphore("LzyDownloaderSemaphore", 1);
@@ -32,11 +34,27 @@ int main(int argc, char *argv[]) {
 
     LogManager::installHandler();
 
+    qInfo() << "Qt library paths:" << QApplication::libraryPaths();
+    qInfo() << "Available SQL drivers:" << QSqlDatabase::drivers();
+    qInfo() << "Available TLS backends:" << QSslSocket::availableBackends();
+    qInfo() << "Active TLS backend:" << QSslSocket::activeBackend();
+    qInfo() << "Supports SSL:" << QSslSocket::supportsSsl();
+
     // Create the parser here so it can be passed down
     ExtractorJsonParser extractorJsonParser;
 
+    bool startBackground = false;
+    for (int i = 1; i < argc; ++i) {
+        if (QString(argv[i]) == "--background" || QString(argv[i]) == "-b") {
+            startBackground = true;
+            break;
+        }
+    }
+
     MainWindow w(&extractorJsonParser);
-    w.show();
+    if (!startBackground) {
+        w.show();
+    }
 
     int result = a.exec();
     semaphore.release();

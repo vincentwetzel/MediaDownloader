@@ -27,11 +27,13 @@ This document outlines the specifications for the C++ port of the LzyDownloader 
     - `restrict_filenames`, `exit_after`.
     - `convert_thumbnails`, `high_quality_thumbnail`.
     - `use_aria2c`.
+    - `force_playlist_as_album`.
     - `output_template`.
     - `cookies_from_browser`, `gallery_cookies_from_browser`.
     - `theme`.
     - `playlist_logic`, `max_threads`, `rate_limit`.
     - `override_archive`.
+    - `enable_local_api`.
     - `embed_chapters`, `embed_metadata`, `embed_thumbnail`.
     - `video_quality`, `video_ext`, `vcodec`, `audio_quality`, `audio_ext`, `acodec`.
     - `lock_settings` for video and audio.
@@ -61,19 +63,19 @@ This document outlines the specifications for the C++ port of the LzyDownloader 
     - The toolbar provides Stop All, Resume All, Clear Inactive, Open Temporary Folder, and Open Downloads Folder actions.
 - **Advanced Settings Tab**:
     - **Organization**: Settings are grouped into logical sections:
-        - **Configuration**: Output folder, Temporary folder, Theme.
+        - **Configuration**: Output folder, Temporary folder, Theme, Enable Local API Server.
         - **Authentication Access**: Cookies from browser (Video/Audio), Cookies from browser (Galleries). The cookie access check is handled directly within `AdvancedSettingsTab` using `QProcess`, with a 30-second timeout and improved logging. The check uses a specific YouTube Shorts URL for more reliable validation.
         - **Output Template**: Filename Pattern (with "Insert token...", "Save", and "Reset" buttons). The "Save" button validates the pattern using `yt-dlp`.
         - **Download Options**: External Downloader (aria2c), Enable SponsorBlock, Restrict filenames, Embed video chapters, Enable Download Sections, and the multi-mode auto-paste setting.
-        - **Metadata / Thumbnails**: Embed metadata, Embed thumbnail, Use high-quality thumbnail converter, Convert thumbnails to.
+        - **Metadata / Thumbnails**: Embed metadata, Embed thumbnail, Use high-quality thumbnail converter, Convert thumbnails to, Force Playlist as Single Album.
         - **Livestream Settings**: Record from beginning, Wait for video (with min/max intervals). The app dynamically scales these wait intervals for streams hours away vs seconds away. Download As (MPEG-TS or MKV), Use .part files, Quality, Convert To.
         - **Subtitles**: Subtitle language (using full words in a combo box), Embed subtitles in video, Write subtitles (separate file), Include automatically-generated subtitles, Subtitle file format (greyed out if "Embed subtitles in video" is selected).
         - **External Binaries**: Per-binary status rows for `yt-dlp`, `ffmpeg`, `ffprobe`, `gallery-dl`, `aria2c`, and `deno`, with brief explanations of what each tool does, auto-detection status, manual `Browse` overrides, and `Install` actions that offer detected package-manager commands plus manual-download links. yt-dlp install suggestions should prefer nightly-capable commands where the platform supports them and clearly label stable-only package-manager options.
-        - **Updates**: `yt-dlp` version (display only), Update `yt-dlp` (always to nightly), `gallery-dl` version (display only), Update `gallery-dl`.
         - **Restore defaults** button.
     - **Navigation Styling**: The left column uses a palette-aware `QListWidget` whose stylesheet is rebuilt on palette changes so the category list stays compact and theme-consistent without reverting to a plain scrollbar-heavy layout.
     - **Saving Behavior**: Most settings auto-save on change. The "Output Template" requires a dedicated "Save" button.
 - **System Integration**: A system tray icon for quick show/hide and quit actions. Clicking the window close button (`X`) must exit the application (it must not keep running in the background).
+- **Local API Server**: When enabled, the app must bind a small HTTP API only to localhost (`127.0.0.1:8765`), require a Bearer token stored in `api_token.txt`, accept `POST /enqueue` with a JSON `url`, and return queue snapshots from `GET /status`. API and direct CLI requests must be treated as non-interactive: no modal prompts, playlist download-all behavior, runtime picker bypasses, and log-only UI warnings.
 - **Theming**: Support for Light, Dark, and System themes.
 
 ### 2.5. Download Engine (yt-dlp & gallery-dl)
@@ -93,6 +95,7 @@ This document outlines the specifications for the C++ port of the LzyDownloader 
     - Max concurrent downloads (`--concurrent-fragments`).
     - Rate limit (`--limit-rate`).
     - Override archive (`--no-download-archive`).
+    - **Playlist Album Unification**: When `Force Playlist as Single Album` is enabled for audio playlist downloads, the builder must inject `--parse-metadata "playlist_title:%(album)s"` and `--parse-metadata "Various Artists:%(album_artist)s"` to ensure consistent album grouping in local music players.
     - Embed chapters (`--embed-chapters`).
     - **Section Container Preservation**: Section downloads must preserve the user's requested output container/extension (for example MP4 video clips stay MP4) instead of forcing an intermediate MKV remux. The app may add `--force-keyframes-at-cuts` for video precision, but it must not silently switch the container behind the user's back.
     - **Section Filename Labeling**: When a section/chapter clip is queued, the output filename must include a filename-safe label describing the selected range or chapter (for example `[section 15-00_to_end]`) before the extension so the saved file clearly identifies which part of the source it contains.
@@ -121,7 +124,7 @@ This document outlines the specifications for the C++ port of the LzyDownloader 
 - **Progress Bar Color Coding**: The UI progress bar MUST use color-coding to provide clear visual feedback on download state:
   - **Colorless/Default** (no custom stylesheet): When download is queued, initializing, or in indeterminate state (progress < 0)
   - **Light Blue** (`#3b82f6`): While actively downloading (0% < progress < 100%)
-  - **Teal** (`#008080`): During post-processing phase (progress at 100% with status containing "Processing", "Merging", or "Post")
+  - **Teal** (`#008080`): During post-processing phase (indeterminate scrolling animation with status containing "Processing", "Merging", "Finalizing", etc.)
   - **Green** (`#22c55e`): When download is fully completed (progress at 100% and post-processing finished)
 - **Detailed Progress Information Display**: The application MUST provide comprehensive, real-time progress information to users, comparable to command-line yt-dlp output:
   - **Status Label**: Must display the current download stage with descriptive messages:
@@ -165,12 +168,14 @@ This document outlines the specifications for the C++ port of the LzyDownloader 
 
 ### 2.7. Updaters & Deployment
 - **Application Updater**: Checks GitHub for new application releases and provides a download/install mechanism.
+- **Application Update UX**: Startup update checks must wire `AppUpdater` signals to a user prompt, compare dotted version numbers numerically, and prefer installer assets named `LzyDownloader-Setup-*.exe`.
 - **Dependency Management**:
   - Provides a UI for users to see the status of external binaries (`yt-dlp`, `ffmpeg`, etc.), manually locate them, or trigger an installation process.
   - The installation process will guide the user through automated (package manager) or manual (web download) methods.
 - **Executable Name**: Must be `LzyDownloader.exe`.
 - **Binaries**: The application does not bundle external binaries. It requires the user to have `ffmpeg`, `ffprobe`, `deno`, and `yt-dlp` installed. `gallery-dl` and `aria2c` are optional.
 - **Qt Image Plugins**: Windows builds must deploy the Qt `imageformats` plugins required to display active-download thumbnails and converted artwork, including JPEG, PNG, WebP, and ICO support.
+- **Qt TLS Runtime**: Windows builds must deploy OpenSSL runtime DLLs (`libcrypto-3-x64.dll`, `libssl-3-x64.dll`) beside the executable when Qt's OpenSSL backend requires them.
 
 ### 2.8. Logging
 - A structured file logger (`LzyDownloader_YYYY-MM-dd_HH-mm-ss.log`) must be implemented to capture application output for debugging.

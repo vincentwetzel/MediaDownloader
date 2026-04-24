@@ -5,6 +5,7 @@
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QComboBox>
+#include <QLabel>
 #include <QSignalBlocker>
 
 MetadataPage::MetadataPage(ConfigManager *configManager, QWidget *parent)
@@ -13,22 +14,41 @@ MetadataPage::MetadataPage(ConfigManager *configManager, QWidget *parent)
     layout->setContentsMargins(0, 0, 0, 0);
 
     QGroupBox *metadataGroup = new QGroupBox("Metadata / Thumbnails", this);
+    metadataGroup->setToolTip("Control how metadata and thumbnails are handled for downloaded files.");
     QFormLayout *metadataLayout = new QFormLayout(metadataGroup);
 
     m_embedMetadataCheck = new ToggleSwitch(this);
+    m_embedMetadataCheck->setToolTip("Embed media metadata (title, artist, etc.) into the final downloaded file.");
     m_embedThumbnailCheck = new ToggleSwitch(this);
+    m_embedThumbnailCheck->setToolTip("Embed the downloaded thumbnail/artwork directly into the media file.");
     m_highQualityThumbnailCheck = new ToggleSwitch(this);
+    m_highQualityThumbnailCheck->setToolTip("Request a higher quality thumbnail extraction when converting artwork.");
     m_cropThumbnailCheck = new ToggleSwitch(this);
+    m_cropThumbnailCheck->setToolTip("Crop rectangular video thumbnails into a 1:1 square for better audio-player compatibility.");
     m_generateFolderJpgCheck = new ToggleSwitch(this);
+    m_generateFolderJpgCheck->setToolTip("Save the playlist's thumbnail as 'folder.jpg' in the output directory alongside the audio files.");
+    m_forcePlaylistAsAlbumSwitch = new ToggleSwitch(this);
     m_convertThumbnailsCombo = new QComboBox(this);
+    m_convertThumbnailsCombo->setToolTip("Convert the downloaded thumbnail to a specific image format.");
     m_convertThumbnailsCombo->addItems({"None", "jpg", "png"});
 
-    metadataLayout->addRow("Embed metadata", m_embedMetadataCheck);
-    metadataLayout->addRow("Embed thumbnail", m_embedThumbnailCheck);
-    metadataLayout->addRow("Use high-quality thumbnail converter", m_highQualityThumbnailCheck);
-    metadataLayout->addRow("Crop audio thumbnails to square", m_cropThumbnailCheck);
-    metadataLayout->addRow("Generate folder.jpg for audio playlists", m_generateFolderJpgCheck);
-    metadataLayout->addRow("Convert thumbnails to:", m_convertThumbnailsCombo);
+    m_forcePlaylistAsAlbumSwitch->setToolTip("When enabled for audio playlist downloads, this forces the 'album' metadata tag\n"
+                                             "to be the playlist's title and sets the 'album_artist' tag to 'Various Artists'.\n\n"
+                                             "This ensures local music players group all tracks from the playlist into a single, cohesive album.");
+
+    auto addFormRow = [&](const QString& labelText, QWidget* field) {
+        QLabel* label = new QLabel(labelText, this);
+        label->setToolTip(field->toolTip());
+        metadataLayout->addRow(label, field);
+    };
+
+    addFormRow("Embed metadata", m_embedMetadataCheck);
+    addFormRow("Embed thumbnail", m_embedThumbnailCheck);
+    addFormRow("Use high-quality thumbnail converter", m_highQualityThumbnailCheck);
+    addFormRow("Crop audio thumbnails to square", m_cropThumbnailCheck);
+    addFormRow("Generate folder.jpg for audio playlists", m_generateFolderJpgCheck);
+    addFormRow("Force Playlist as Single Album", m_forcePlaylistAsAlbumSwitch);
+    addFormRow("Convert thumbnails to:", m_convertThumbnailsCombo);
 
     layout->addWidget(metadataGroup);
     layout->addStretch();
@@ -38,6 +58,7 @@ MetadataPage::MetadataPage(ConfigManager *configManager, QWidget *parent)
     connect(m_highQualityThumbnailCheck, &ToggleSwitch::toggled, this, &MetadataPage::onHighQualityThumbnailToggled);
     connect(m_cropThumbnailCheck, &ToggleSwitch::toggled, this, &MetadataPage::onCropThumbnailToggled);
     connect(m_generateFolderJpgCheck, &ToggleSwitch::toggled, this, &MetadataPage::onGenerateFolderJpgToggled);
+    connect(m_forcePlaylistAsAlbumSwitch, &ToggleSwitch::toggled, this, &MetadataPage::onForcePlaylistAsAlbumToggled);
     connect(m_convertThumbnailsCombo, &QComboBox::currentTextChanged, this, &MetadataPage::onConvertThumbnailsChanged);
     connect(m_configManager, &ConfigManager::settingChanged, this, &MetadataPage::handleConfigSettingChanged);
 }
@@ -49,12 +70,14 @@ void MetadataPage::loadSettings() {
     QSignalBlocker b4(m_convertThumbnailsCombo);
     QSignalBlocker b5(m_cropThumbnailCheck);
     QSignalBlocker b6(m_generateFolderJpgCheck);
+    QSignalBlocker b7(m_forcePlaylistAsAlbumSwitch);
 
     m_embedMetadataCheck->setChecked(m_configManager->get("Metadata", "embed_metadata", true).toBool());
     m_embedThumbnailCheck->setChecked(m_configManager->get("Metadata", "embed_thumbnail", true).toBool());
     m_highQualityThumbnailCheck->setChecked(m_configManager->get("Metadata", "high_quality_thumbnail", true).toBool());
     m_cropThumbnailCheck->setChecked(m_configManager->get("Metadata", "crop_artwork_to_square", true).toBool());
     m_generateFolderJpgCheck->setChecked(m_configManager->get("Metadata", "generate_folder_jpg", false).toBool());
+    m_forcePlaylistAsAlbumSwitch->setChecked(m_configManager->get("Metadata", "force_playlist_as_album", false).toBool());
     m_convertThumbnailsCombo->setCurrentText(m_configManager->get("Metadata", "convert_thumbnail_to", "jpg").toString());
 }
 void MetadataPage::onEmbedMetadataToggled(bool c) { m_configManager->set("Metadata", "embed_metadata", c); }
@@ -62,5 +85,6 @@ void MetadataPage::onEmbedThumbnailToggled(bool c) { m_configManager->set("Metad
 void MetadataPage::onHighQualityThumbnailToggled(bool c) { m_configManager->set("Metadata", "high_quality_thumbnail", c); }
 void MetadataPage::onCropThumbnailToggled(bool c) { m_configManager->set("Metadata", "crop_artwork_to_square", c); }
 void MetadataPage::onGenerateFolderJpgToggled(bool c) { m_configManager->set("Metadata", "generate_folder_jpg", c); }
+void MetadataPage::onForcePlaylistAsAlbumToggled(bool c) { m_configManager->set("Metadata", "force_playlist_as_album", c); }
 void MetadataPage::onConvertThumbnailsChanged(const QString &text) { m_configManager->set("Metadata", "convert_thumbnail_to", text); }
 void MetadataPage::handleConfigSettingChanged(const QString &section, const QString &key, const QVariant &value) { /* Handled seamlessly through toggles mapping */ }

@@ -6,6 +6,7 @@
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QComboBox>
+#include <QLabel>
 #include <QTimer>
 #include <QMessageBox>
 #include <QDateTime>
@@ -42,7 +43,9 @@ AuthenticationPage::AuthenticationPage(ConfigManager *configManager, QWidget *pa
     m_cookiesBrowserCombo = new QComboBox(this);
     m_cookiesBrowserCombo->setToolTip("Choose a web browser to get your login cookies from.");
     m_cookiesBrowserCombo->addItems(orderedBrowsers);
-    authLayout->addRow("Cookies from browser:", m_cookiesBrowserCombo);
+    QLabel *cookiesLabel = new QLabel("Cookies from browser:", this);
+    cookiesLabel->setToolTip(m_cookiesBrowserCombo->toolTip());
+    authLayout->addRow(cookiesLabel, m_cookiesBrowserCombo);
 
     layout->addWidget(authGroup);
     layout->addStretch();

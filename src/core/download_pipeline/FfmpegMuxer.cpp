@@ -9,6 +9,12 @@ FfmpegMuxer::FfmpegMuxer(QObject *parent)
 {
     ProcessUtils::setProcessEnvironment(*m_process);
 
+    connect(m_process, &QProcess::readyReadStandardOutput, this, [this]() {
+        appendProcessOutput(m_process->readAllStandardOutput());
+    });
+    connect(m_process, &QProcess::readyReadStandardError, this, [this]() {
+        appendProcessOutput(m_process->readAllStandardError());
+    });
     connect(m_process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
         if (error == QProcess::FailedToStart) {
             emit mergeFailed("Failed to start ffmpeg. Is the executable missing?");
@@ -16,8 +22,10 @@ FfmpegMuxer::FfmpegMuxer(QObject *parent)
     });
 
     connect(m_process, &QProcess::finished, this, [this](int exitCode, QProcess::ExitStatus exitStatus) {
+        appendProcessOutput(m_process->readAllStandardOutput());
+        appendProcessOutput(m_process->readAllStandardError());
         if (exitStatus == QProcess::CrashExit || exitCode != 0) {
-            QString errorMsg = "FFmpeg process failed. Error: " + m_process->errorString() + "\n" + m_process->readAllStandardError();
+            QString errorMsg = "FFmpeg process failed. Error: " + m_process->errorString() + "\n" + m_processOutputTail;
             emit mergeFailed(errorMsg);
             return;
         }
@@ -54,6 +62,7 @@ void FfmpegMuxer::merge(const QString &ffmpegPath, const QStringList &inputFiles
     m_currentInputFiles = inputFiles;
     m_currentSubtitleFiles = subtitleFiles;
     m_currentOutputFile = outputFile;
+    m_processOutputTail.clear();
     
     bool hasArtwork = !artworkPath.isEmpty() && QFile::exists(artworkPath);
     if (hasArtwork) {
@@ -85,6 +94,7 @@ void FfmpegMuxer::merge(const QString &ffmpegPath, const QStringList &inputFiles
     }
 
     QStringList args;
+    args << "-nostdin";
     
     for (const QString &inputFile : inputFiles) {
         args << "-i" << inputFile;
@@ -150,6 +160,19 @@ void FfmpegMuxer::merge(const QString &ffmpegPath, const QStringList &inputFiles
 
     qInfo() << "[FfmpegMuxer] Starting ffmpeg merge for" << outputFile;
     m_process->start(ffmpegPath, args);
+}
+
+void FfmpegMuxer::appendProcessOutput(const QByteArray &data)
+{
+    if (data.isEmpty()) {
+        return;
+    }
+
+    m_processOutputTail += QString::fromUtf8(data);
+    constexpr qsizetype maxTailLength = 12000;
+    if (m_processOutputTail.size() > maxTailLength) {
+        m_processOutputTail = m_processOutputTail.right(maxTailLength);
+    }
 }
 
 void FfmpegMuxer::cancel() {

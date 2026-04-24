@@ -60,6 +60,12 @@ void StartTabUiBuilder::build(QWidget *parentWidget, QVBoxLayout *mainLayout)
     topLayout->addWidget(m_openDownloadsFolderButton);
     mainLayout->addLayout(topLayout);
 
+    QLabel *cookieWarningLabel = new QLabel("⚠️ Warning: No browser selected for cookies. Video/Audio downloads may fail. We strongly recommend you use firefox cookies.", parentWidget);
+    cookieWarningLabel->setObjectName("cookieWarningLabel");
+    cookieWarningLabel->setStyleSheet("color: #E6A23C; font-weight: bold;");
+    cookieWarningLabel->setWordWrap(true);
+    mainLayout->addWidget(cookieWarningLabel);
+
     QHBoxLayout *inputSectionLayout = new QHBoxLayout();
 
     m_urlInput = new QTextEdit(parentWidget);

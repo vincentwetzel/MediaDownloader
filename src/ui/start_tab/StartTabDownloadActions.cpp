@@ -12,6 +12,7 @@
 #include <QVBoxLayout>
 #include <QPushButton>
 #include <QComboBox>
+#include <QLabel>
 #include "ui/ToggleSwitch.h"
 #include "core/ProcessUtils.h"
 #include <QTimer>
@@ -38,7 +39,7 @@ StartTabDownloadActions::StartTabDownloadActions(ConfigManager *configManager, S
     }
 
     connect(m_configManager, &ConfigManager::settingChanged, this, [this](const QString &group, const QString &/*key*/, const QVariant &/*value*/) {
-        if (group == "Binaries") {
+        if (group == "Binaries" || group == "General") {
             QTimer::singleShot(0, this, &StartTabDownloadActions::updateDynamicUI);
         }
     });
@@ -271,6 +272,13 @@ void StartTabDownloadActions::updateDynamicUI() {
     updateItemText("audio", "Audio Only", hasMissingYt);
     updateItemText("gallery", "Gallery", hasMissingGallery);
     updateItemText("formats", "View Video/Audio Formats", ytDlpOnlyMissing);
+
+    // Update cookie warning label visibility if it exists in the UI
+    QLabel *cookieWarning = m_parentWidget->findChild<QLabel*>("cookieWarningLabel");
+    if (cookieWarning) {
+        QString cookies = m_configManager->get("General", "cookies_from_browser", "None").toString();
+        cookieWarning->setVisible(cookies.compare("None", Qt::CaseInsensitive) == 0 || cookies.trimmed().isEmpty());
+    }
 
     m_uiBuilder->downloadButton()->setStyleSheet("QPushButton { font-size: 16px; font-weight: bold; background-color: #0078d7; color: white; border-radius: 5px; padding: 10px; } QPushButton:hover { background-color: #005a9e; } QPushButton:pressed { background-color: #004578; }");
     m_uiBuilder->downloadButton()->setToolTip("Click to add the URL(s) to the download queue.");

@@ -12,6 +12,12 @@ FfmpegPostProcessor::FfmpegPostProcessor(ConfigManager *configManager, QObject *
     m_process = new QProcess(this);
     ProcessUtils::setProcessEnvironment(*m_process);
 
+    connect(m_process, &QProcess::readyReadStandardOutput, this, [this]() {
+        appendProcessOutput(m_process->readAllStandardOutput());
+    });
+    connect(m_process, &QProcess::readyReadStandardError, this, [this]() {
+        appendProcessOutput(m_process->readAllStandardError());
+    });
     connect(m_process, &QProcess::finished, this, &FfmpegPostProcessor::onProcessFinished);
     connect(m_process, &QProcess::errorOccurred, this, &FfmpegPostProcessor::onProcessError);
 }
@@ -24,10 +30,12 @@ void FfmpegPostProcessor::embedTrackNumber(const QString &filePath, int trackNum
     }
 
     m_originalFile = filePath;
+    m_processOutputTail.clear();
     QFileInfo fileInfo(filePath);
     m_tempFile = fileInfo.path() + "/" + fileInfo.completeBaseName() + "_tagged." + fileInfo.suffix();
 
     QStringList args;
+    args << "-nostdin";
     args << "-i" << m_originalFile;
     args << "-c" << "copy"; // Copy all streams
     args << "-metadata" << QString("track=%1/%2").arg(trackNumber).arg(totalTracks);
@@ -39,8 +47,11 @@ void FfmpegPostProcessor::embedTrackNumber(const QString &filePath, int trackNum
 
 void FfmpegPostProcessor::onProcessFinished(int exitCode, QProcess::ExitStatus exitStatus)
 {
+    appendProcessOutput(m_process->readAllStandardOutput());
+    appendProcessOutput(m_process->readAllStandardError());
+
     if (exitStatus == QProcess::CrashExit || exitCode != 0) {
-        QString stderrOutput = m_process->readAllStandardError();
+        QString stderrOutput = m_processOutputTail;
         qWarning() << "FfmpegPostProcessor failed. Exit code:" << exitCode << "Stderr:" << stderrOutput;
         QFile::remove(m_tempFile); // Clean up temp file
         emit error("FFmpeg post-processing failed: " + stderrOutput);
@@ -70,5 +81,18 @@ void FfmpegPostProcessor::onProcessError(QProcess::ProcessError processError)
     } else {
         qWarning() << "FfmpegPostProcessor process error:" << m_process->errorString();
         emit error("An error occurred with the ffmpeg process: " + m_process->errorString());
+    }
+}
+
+void FfmpegPostProcessor::appendProcessOutput(const QByteArray &data)
+{
+    if (data.isEmpty()) {
+        return;
+    }
+
+    m_processOutputTail += QString::fromUtf8(data);
+    constexpr qsizetype maxTailLength = 12000;
+    if (m_processOutputTail.size() > maxTailLength) {
+        m_processOutputTail = m_processOutputTail.right(maxTailLength);
     }
 }

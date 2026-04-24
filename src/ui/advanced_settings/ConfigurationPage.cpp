@@ -6,8 +6,10 @@
 #include <QGroupBox>
 #include <QFileDialog>
 #include <QLineEdit>
+#include <QLabel>
 #include <QPushButton>
 #include <QComboBox>
+#include <QCheckBox>
 #include <QSignalBlocker>
 
 ConfigurationPage::ConfigurationPage(ConfigManager *configManager, QWidget *parent)
@@ -27,7 +29,9 @@ ConfigurationPage::ConfigurationPage(ConfigManager *configManager, QWidget *pare
     QHBoxLayout *completedLayout = new QHBoxLayout();
     completedLayout->addWidget(m_completedDirInput);
     completedLayout->addWidget(m_browseCompletedBtn);
-    configLayout->addRow("Output folder:", completedLayout);
+    QLabel *completedLabel = new QLabel("Output folder:", this);
+    completedLabel->setToolTip(m_completedDirInput->toolTip());
+    configLayout->addRow(completedLabel, completedLayout);
 
     m_tempDirInput = new QLineEdit(this);
     m_tempDirInput->setReadOnly(true);
@@ -37,12 +41,20 @@ ConfigurationPage::ConfigurationPage(ConfigManager *configManager, QWidget *pare
     QHBoxLayout *tempLayout = new QHBoxLayout();
     tempLayout->addWidget(m_tempDirInput);
     tempLayout->addWidget(m_browseTempBtn);
-    configLayout->addRow("Temporary folder:", tempLayout);
+    QLabel *tempLabel = new QLabel("Temporary folder:", this);
+    tempLabel->setToolTip(m_tempDirInput->toolTip());
+    configLayout->addRow(tempLabel, tempLayout);
 
     m_themeCombo = new QComboBox(this);
     m_themeCombo->setToolTip("Choose the visual style of the application: 'System' (matches your computer's setting), 'Light', or 'Dark'.");
     m_themeCombo->addItems({"System", "Light", "Dark"});
-    configLayout->addRow("Theme:", m_themeCombo);
+    QLabel *themeLabel = new QLabel("Theme:", this);
+    themeLabel->setToolTip(m_themeCombo->toolTip());
+    configLayout->addRow(themeLabel, m_themeCombo);
+
+    m_enableApiServerCheck = new QCheckBox("Enable Local API Server", this);
+    m_enableApiServerCheck->setToolTip("Allows external applications (like a local Discord bot) to send download links directly to this app via port 8765.");
+    configLayout->addRow("", m_enableApiServerCheck);
 
     layout->addWidget(configGroup);
     layout->addStretch();
@@ -50,6 +62,7 @@ ConfigurationPage::ConfigurationPage(ConfigManager *configManager, QWidget *pare
     connect(m_browseCompletedBtn, &QPushButton::clicked, this, &ConfigurationPage::selectCompletedDir);
     connect(m_browseTempBtn, &QPushButton::clicked, this, &ConfigurationPage::selectTempDir);
     connect(m_themeCombo, &QComboBox::currentTextChanged, this, &ConfigurationPage::onThemeChanged);
+    connect(m_enableApiServerCheck, &QCheckBox::stateChanged, this, &ConfigurationPage::onEnableApiServerToggled);
     connect(m_configManager, &ConfigManager::settingChanged, this, &ConfigurationPage::handleConfigSettingChanged);
 }
 
@@ -57,10 +70,12 @@ void ConfigurationPage::loadSettings() {
     QSignalBlocker b1(m_completedDirInput);
     QSignalBlocker b2(m_tempDirInput);
     QSignalBlocker b3(m_themeCombo);
+    QSignalBlocker b4(m_enableApiServerCheck);
 
     m_completedDirInput->setText(m_configManager->get("Paths", "completed_downloads_directory").toString());
     m_tempDirInput->setText(m_configManager->get("Paths", "temporary_downloads_directory").toString());
     m_themeCombo->setCurrentText(m_configManager->get("General", "theme", "System").toString());
+    m_enableApiServerCheck->setChecked(m_configManager->get("General", "enable_local_api", false).toBool());
 }
 
 void ConfigurationPage::selectCompletedDir() {
@@ -85,6 +100,11 @@ void ConfigurationPage::onThemeChanged(const QString &text) {
     emit themeChanged(text);
 }
 
+void ConfigurationPage::onEnableApiServerToggled(int state) {
+    m_configManager->set("General", "enable_local_api", state == Qt::Checked);
+    m_configManager->save();
+}
+
 void ConfigurationPage::handleConfigSettingChanged(const QString &section, const QString &key, const QVariant &value) {
     if (section == "Paths") {
         if (key == "completed_downloads_directory") m_completedDirInput->setText(value.toString());
@@ -93,5 +113,9 @@ void ConfigurationPage::handleConfigSettingChanged(const QString &section, const
         disconnect(m_themeCombo, &QComboBox::currentTextChanged, this, &ConfigurationPage::onThemeChanged);
         m_themeCombo->setCurrentText(value.toString());
         connect(m_themeCombo, &QComboBox::currentTextChanged, this, &ConfigurationPage::onThemeChanged);
+    }
+    else if (section == "General" && key == "enable_local_api") {
+        QSignalBlocker b(m_enableApiServerCheck);
+        m_enableApiServerCheck->setChecked(value.toBool());
     }
 }

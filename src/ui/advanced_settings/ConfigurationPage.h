@@ -6,6 +6,7 @@ class ConfigManager;
 class QLineEdit;
 class QPushButton;
 class QComboBox;
+class QCheckBox;
 
 class ConfigurationPage : public QWidget {
     Q_OBJECT
@@ -23,6 +24,7 @@ private slots:
     void selectTempDir();
     void onThemeChanged(const QString &text);
     void handleConfigSettingChanged(const QString &section, const QString &key, const QVariant &value);
+    void onEnableApiServerToggled(int state);
 
 private:
     ConfigManager *m_configManager;
@@ -31,4 +33,5 @@ private:
     QLineEdit *m_tempDirInput;
     QPushButton *m_browseTempBtn;
     QComboBox *m_themeCombo;
+    QCheckBox *m_enableApiServerCheck;
 };
