@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Supported Sites Dialog**: Added a searchable dialog that lists all supported websites and indicates whether they support Video/Audio (yt-dlp) or Image Galleries (gallery-dl), populated dynamically from the application's extractor lists.
 
 ### Fixed
+- **vcpkg PCRE2 configure warning**: Added a workspace overlay for the transitive `pcre2` dependency and pointed the CMake presets at it so vcpkg treats `PCRE2_STATIC_RUNTIME` as intentionally maybe-unused with newer PCRE2 CMake files.
 - **FFmpeg merge stalls**: FFmpeg-based merge/post-processing wrappers now continuously drain process output and start ffmpeg with `-nostdin`, preventing long merges from hanging when stderr/stdout buffers fill.
 - **Windows OpenSSL runtime deployment**: Release packaging now explicitly copies both `libcrypto-3-x64.dll` and `libssl-3-x64.dll` beside `LzyDownloader.exe` so Qt's `qopensslbackend` can initialize HTTPS correctly on clean installs and the app update checker can reach GitHub Releases.
 - **Application update prompt wiring**: Fixed the app self-updater so startup now actually runs the GitHub release check, shows the update prompt when a newer installer is available, compares dotted versions numerically instead of lexicographically, and prefers the `LzyDownloader-Setup-*.exe` asset when selecting the installer to download.
