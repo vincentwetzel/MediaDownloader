@@ -10,6 +10,7 @@
 #include <QVBoxLayout> // For dialog layout
 #include <QTextEdit> // For dialog text
 #include <QPushButton> // For dialog button
+#include <QStringList>
 
 #include "core/ConfigManager.h"
 #include "ui/StartTabUiBuilder.h"
@@ -37,6 +38,7 @@ public slots:
 signals:
     void downloadRequested(const QString &url, const QVariantMap &options);
     void navigateToExternalBinaries(); // Signal to StartTab to re-emit to MainWindow
+    void missingBinariesDetected(const QStringList &missingBinaries);
     void updateCommandPreview(); // Signal to StartTabCommandPreviewUpdater
 
 private:

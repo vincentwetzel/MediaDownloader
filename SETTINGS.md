@@ -212,6 +212,9 @@ Additional download behavior and UI preferences.
 |-----|------|---------|-------------|
 | `split_chapters` | Boolean | `false` | Split video chapters into separate files during download. |
 | `download_sections_enabled` | Boolean | `false` | If enabled, a dialog will appear before downloading to let you specify time ranges or chapters to download. |
+| `ffmpeg_cut_encoder` | String | `cpu` | Encoder mode used for yt-dlp's accurate FFmpeg cut pass. Options include `cpu`, `nvenc_h264`, `qsv_h264`, `amf_h264`, `videotoolbox_h264`, and `custom`; unavailable hardware options are hidden in the UI after probing FFmpeg and local GPUs. |
+| `ffmpeg_cut_custom_args` | String | *(empty)* | Custom FFmpeg output arguments used only when `ffmpeg_cut_encoder` is set to `custom`. |
+| `prefix_playlist_indices` | Boolean | `false` | Prefix playlist downloads with a padded index such as `01 - `. Audio downloads still default to prefixing unless this setting is explicitly present. |
 | `auto_clear_completed` | Boolean | `false` | Automatically clear completed downloads from the Active Downloads tab. |
 | `geo_verification_proxy` | String | *(empty)* | Proxy URL for geo-restricted content (e.g., `http://proxy.server:port`). |
 
@@ -330,18 +333,16 @@ All other settings are reset to their default values.
 
 | UI Location | Setting Section | Key(s) |
 |-------------|----------------|--------|
-| **Advanced Settings → Configuration** | `Paths` | `completed_downloads_directory`, `temporary_downloads_directory` |
-| **Advanced Settings → Configuration** | `General` | `theme`, `enable_local_api` |
-| **Advanced Settings → Authentication Access** | `General` | `cookies_from_browser`, `gallery_cookies_from_browser` |
-| **Advanced Settings → Output Template** | `General` | `output_template`, `output_template_video`, `output_template_audio`, `gallery_output_template` |
-| **Advanced Settings → Download Options** | `Metadata` | `use_aria2c` |
-| **Advanced Settings → Download Options** | `General` | `sponsorblock`, `auto_paste_mode`, `single_line_preview`, `restrict_filenames`, `embed_chapters` |
-| **Advanced Settings → Download Options** | `DownloadOptions` | `split_chapters`, `download_sections_enabled`, `auto_clear_completed`, `geo_verification_proxy` |
-| **Advanced Settings → Configuration** | `General` | `show_debug_console` |
-| **Advanced Settings → Metadata** | `Metadata` | `embed_metadata`, `embed_thumbnail`, `high_quality_thumbnail`, `convert_thumbnail_to`, `crop_artwork_to_square`, `generate_folder_jpg`, `force_playlist_as_album` |
-| **Advanced Settings → Subtitles** | `Subtitles` | `languages`, `embed_subtitles`, `write_subtitles`, `write_auto_subtitles`, `format` |
-| **Advanced Settings → External Binaries** | *(N/A - runtime only)* | yt-dlp/gallery-dl version display and update buttons |
-| **Advanced Settings → External Binaries** | `Binaries` | `yt-dlp_path`, `ffmpeg_path`, `ffprobe_path`, `gallery-dl_path`, `aria2c_path`, `deno_path` |
+| **Advanced Settings → Essentials** | `Paths` | `completed_downloads_directory`, `temporary_downloads_directory` |
+| **Advanced Settings → Essentials** | `General` | `theme`, `enable_local_api`, `show_debug_console`, `cookies_from_browser`, `gallery_cookies_from_browser` |
+| **Advanced Settings → Files & Tags** | `General` | `output_template`, `output_template_video`, `output_template_audio`, `gallery_output_template` |
+| **Advanced Settings → Download Flow** | `Metadata` | `use_aria2c` |
+| **Advanced Settings → Download Flow** | `General` | `sponsorblock`, `auto_paste_mode`, `single_line_preview`, `restrict_filenames`, `embed_chapters` |
+| **Advanced Settings → Download Flow** | `DownloadOptions` | `split_chapters`, `download_sections_enabled`, `ffmpeg_cut_encoder`, `ffmpeg_cut_custom_args`, `prefix_playlist_indices`, `auto_clear_completed`, `geo_verification_proxy` |
+| **Advanced Settings → Files & Tags** | `Metadata` | `embed_metadata`, `embed_thumbnail`, `high_quality_thumbnail`, `convert_thumbnail_to`, `crop_artwork_to_square`, `generate_folder_jpg`, `force_playlist_as_album` |
+| **Advanced Settings → Files & Tags** | `Subtitles` | `languages`, `embed_subtitles`, `write_subtitles`, `write_auto_subtitles`, `format` |
+| **Advanced Settings → External Tools** | *(N/A - runtime only)* | yt-dlp/gallery-dl version display and update buttons |
+| **Advanced Settings → External Tools** | `Binaries` | `yt-dlp_path`, `ffmpeg_path`, `ffprobe_path`, `gallery-dl_path`, `aria2c_path`, `deno_path` |
 | **Start Tab** | `Video` | `video_quality`, `video_codec`, `video_extension`, `video_audio_codec`, `video_multistreams` |
 | **Start Tab** | `Audio` | `audio_quality`, `audio_codec`, `audio_extension`, `audio_multistreams` |
 | **Sorting Tab** | `SortingRules` | `count`, `1`, `2`, ... |
@@ -360,7 +361,7 @@ If you see a "database is locked" error when selecting a browser for cookies, cl
 
 ### Missing Binaries
 
-If a required binary (`yt-dlp`, `ffmpeg`, `ffprobe`, `deno`) is not found, use the **Install...** button in Advanced Settings → Binaries to launch package-manager or manual-download options.
+If a required binary (`yt-dlp`, `ffmpeg`, `ffprobe`, `deno`) is not found, LzyDownloader opens a guided setup dialog during startup, enqueue, or format checks. The same install and browse actions are also available from Advanced Settings → External Tools.
 
 ---
 

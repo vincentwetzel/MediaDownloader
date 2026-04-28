@@ -20,7 +20,7 @@ void UrlValidator::validate(const QString &url) {
 
     const ProcessUtils::FoundBinary ytDlpBinary = ProcessUtils::findBinary("yt-dlp", m_configManager);
     if (ytDlpBinary.source == "Not Found" || ytDlpBinary.path.isEmpty()) {
-        emit validationFinished(false, "yt-dlp could not be found. Configure it in Advanced Settings -> External Binaries.");
+        emit validationFinished(false, "yt-dlp could not be found. Configure it in Advanced Settings -> External Tools.");
         return;
     }
 

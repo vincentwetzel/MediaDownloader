@@ -21,6 +21,8 @@
 #include "ui/RuntimeSelectionDialog.h"
 #include "ui/FormatSelectionDialog.h"
 #include "ui/DownloadSectionsDialog.h"
+#include "ui/MissingBinariesDialog.h"
+#include "ui/advanced_settings/BinariesPage.h"
 #include "ToggleSwitch.h"
 #include "utils/BinaryFinder.h"
 #include "SupportedSitesDialog.h"
@@ -503,23 +505,8 @@ MainWindow::MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent
     connect(m_startupWorker, &StartupWorker::finished, m_startupThread, &QThread::quit);
     // DO NOT connect deleteLater here. It will be handled manually in the destructor.
     connect(m_startupWorker, &StartupWorker::binariesChecked, this, [this](const QStringList &missingBinaries){
-        if (!missingBinaries.isEmpty()) {
-            QMessageBox msgBox(this);
-            msgBox.setIcon(QMessageBox::Warning);
-            msgBox.setWindowTitle("Missing Required Binaries");
-            msgBox.setText("The following required binaries could not be found:\n" + missingBinaries.join(", "));
-            msgBox.setInformativeText("LzyDownloader requires these tools to function correctly.\n\n"
-                                      "Install them with your preferred package manager or use the 'Advanced Settings -> External Binaries' page "
-                                      "to browse to their installed locations.");
-
-            QPushButton *fixButton = msgBox.addButton("Take Me There", QMessageBox::ActionRole);
-            msgBox.addButton(QMessageBox::Ok);
-            msgBox.exec();
-
-            if (msgBox.clickedButton() == fixButton) {
-                m_uiBuilder->tabWidget()->setCurrentWidget(m_advancedSettingsTab);
-                m_advancedSettingsTab->navigateToCategory("External Binaries");
-            }
+        if (!missingBinaries.isEmpty() && !m_nonInteractiveLaunch) {
+            showMissingBinariesDialog(missingBinaries);
         }
     });
     connect(m_startupWorker, &StartupWorker::ytDlpVersionFetched, this, &MainWindow::setYtDlpVersion);
@@ -535,7 +522,11 @@ MainWindow::MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent
     if (!cliUrl.isEmpty()) {
         QTimer::singleShot(500, this, [this, cliUrl]() {
             QVariantMap options;
-            options["type"] = "video"; // Default to video
+            if (QCoreApplication::arguments().contains("--audio")) {
+                options["type"] = "audio";
+            } else {
+                options["type"] = "video"; // Default to video
+            }
             applyNonInteractiveDownloadDefaults(options);
             onDownloadRequested(cliUrl, options);
         });
@@ -576,6 +567,10 @@ void MainWindow::setupUI() {
     connect(m_startTab, &StartTab::downloadRequested, this, &MainWindow::onDownloadRequested);
     connect(m_startTab, &StartTab::navigateToExternalBinaries, this, [this]() {
         m_uiBuilder->tabWidget()->setCurrentWidget(m_advancedSettingsTab);
+        m_advancedSettingsTab->navigateToCategory("External Binaries");
+    });
+    connect(m_startTab, &StartTab::missingBinariesDetected, this, [this](const QStringList &missingBinaries) {
+        showMissingBinariesDialog(missingBinaries);
     });
     connect(m_advancedSettingsTab, &AdvancedSettingsTab::themeChanged, this, &MainWindow::applyTheme);
 
@@ -809,21 +804,25 @@ void MainWindow::onDownloadRequested(const QString &url, const QVariantMap &opti
             return;
         }
 
-        QMessageBox msgBox(this);
-        msgBox.setIcon(QMessageBox::Warning);
-        msgBox.setWindowTitle("Missing Required Binaries");
-        msgBox.setText("Cannot queue download because the following required binaries are missing:\n" + missingBinaries.join(", "));
-        msgBox.setInformativeText("Please install them or configure their paths in the Advanced Settings.\n\nWould you like to open the External Binaries settings now?");
-
-        QPushButton *fixButton = msgBox.addButton("Take Me There", QMessageBox::ActionRole);
-        msgBox.addButton(QMessageBox::Cancel);
-        msgBox.exec();
-
-        if (msgBox.clickedButton() == fixButton) {
-            m_uiBuilder->tabWidget()->setCurrentWidget(m_advancedSettingsTab);
-            m_advancedSettingsTab->navigateToCategory("External Binaries");
+        if (!showMissingBinariesDialog(missingBinaries)) {
+            return;
         }
-        return;
+
+        missingBinaries.clear();
+        const QStringList requiredAfterSetup = type == "gallery"
+            ? QStringList{"gallery-dl", "ffmpeg", "ffprobe"}
+            : type == "view_formats"
+                ? QStringList{"yt-dlp"}
+                : QStringList{"yt-dlp", "ffmpeg", "ffprobe", "deno"};
+        for (const QString &bin : requiredAfterSetup) {
+            QString source = ProcessUtils::resolveBinary(bin, m_configManager).source;
+            if (source == "Not Found" || source == "Invalid Custom") {
+                missingBinaries << bin;
+            }
+        }
+        if (!missingBinaries.isEmpty()) {
+            return;
+        }
     }
 
     QVariantMap mutableOptions = options;
@@ -999,6 +998,35 @@ void MainWindow::onQueueFinished() {
 
 void MainWindow::startStartupChecks() {
     m_startupThread->start();
+}
+
+bool MainWindow::showMissingBinariesDialog(const QStringList &missingBinaries)
+{
+    if (missingBinaries.isEmpty()) {
+        return true;
+    }
+
+    BinariesPage *binariesPage = m_advancedSettingsTab
+        ? m_advancedSettingsTab->findChild<BinariesPage*>()
+        : nullptr;
+
+    MissingBinariesDialog dialog(missingBinaries, m_configManager, binariesPage, this);
+    const bool accepted = dialog.exec() == QDialog::Accepted;
+    const bool resolved = dialog.allBinariesResolved();
+
+    if (resolved) {
+        ProcessUtils::clearCache();
+        if (m_startTab) {
+            m_startTab->updateDynamicUI();
+        }
+        return true;
+    }
+
+    if (accepted) {
+        qWarning() << "Missing binary setup dialog accepted before all binaries resolved:"
+                   << missingBinaries.join(", ");
+    }
+    return false;
 }
 
 void MainWindow::onVideoQualityWarning(const QString &url, const QString &message) {

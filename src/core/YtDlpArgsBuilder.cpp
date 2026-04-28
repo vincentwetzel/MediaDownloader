@@ -76,6 +76,37 @@ void appendSiteSpecificRefererWorkarounds(QStringList &args, const QString &url)
         args << "--referer" << referer;
     }
 }
+
+QString ffmpegCutEncoderArgs(ConfigManager *configManager)
+{
+    const QString encoder = configManager->get("DownloadOptions", "ffmpeg_cut_encoder", "cpu").toString();
+    if (encoder == "custom") {
+        return configManager->get("DownloadOptions", "ffmpeg_cut_custom_args", "").toString().trimmed();
+    }
+    if (encoder == "nvenc_h264") {
+        return "-c:v h264_nvenc -preset p5 -cq 23";
+    }
+    if (encoder == "qsv_h264") {
+        return "-c:v h264_qsv -global_quality 23";
+    }
+    if (encoder == "amf_h264") {
+        return "-c:v h264_amf -quality balanced -qp_i 23 -qp_p 23";
+    }
+    if (encoder == "videotoolbox_h264") {
+        return "-c:v h264_videotoolbox -q:v 65";
+    }
+    return QString();
+}
+
+void appendForcedKeyframeCutArgs(QStringList &args, ConfigManager *configManager)
+{
+    args << "--force-keyframes-at-cuts";
+
+    const QString encoderArgs = ffmpegCutEncoderArgs(configManager);
+    if (!encoderArgs.isEmpty()) {
+        args << "--ppa" << QString("ModifyChapters+ffmpeg_o:%1").arg(encoderArgs);
+    }
+}
 }
 
 YtDlpArgsBuilder::YtDlpArgsBuilder() {
@@ -150,6 +181,7 @@ QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString 
 
     QString downloadType = options.value("type").toString();
     QString finalOutputExtension;
+    bool forceKeyframesAtCuts = false;
 
     // --- Format Selection ---
     bool isLivestream = options.value("is_live", false).toBool() || options.value("wait_for_video", false).toBool();
@@ -232,10 +264,10 @@ QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString 
         } else if (!runtimeVideoFormat.isEmpty() || !runtimeAudioFormat.isEmpty()) {
             const QString selectedVideoFormat = runtimeVideoFormat.isEmpty() ? videoFormatSelector : runtimeVideoFormat;
             const QString selectedAudioFormat = runtimeAudioFormat.isEmpty() ? audioFormatSelector : runtimeAudioFormat;
-            rawArgs << "-f" << QString("%1+%2/%1/bestvideo+bestaudio/best").arg(selectedVideoFormat, selectedAudioFormat);
+            rawArgs << "-f" << QString("%1+%2/%1+bestaudio/bestvideo+%2/bestvideo+bestaudio/%1/bestvideo/best").arg(selectedVideoFormat, selectedAudioFormat);
             rawArgs << "--merge-output-format" << requestedExtension;
         } else {
-            rawArgs << "-f" << QString("%1+%2/%1/bestvideo+bestaudio/best").arg(videoFormatSelector, audioFormatSelector);
+            rawArgs << "-f" << QString("%1+%2/%1+bestaudio/bestvideo+%2/bestvideo+bestaudio/%1/bestvideo/best").arg(videoFormatSelector, audioFormatSelector);
             rawArgs << "--merge-output-format" << requestedExtension;
         }
 
@@ -285,7 +317,7 @@ QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString 
     if (configManager->get("General", "sponsorblock", false).toBool()) {
         rawArgs << "--sponsorblock-remove" << "all";
         if (downloadType == "video" || isLivestream) {
-            rawArgs << "--force-keyframes-at-cuts";
+            forceKeyframesAtCuts = true;
         }
     }
     const ProcessUtils::FoundBinary aria2Binary = ProcessUtils::findBinary("aria2c", configManager);
@@ -312,6 +344,14 @@ QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString 
     if (configManager->get("Metadata", "embed_chapters", true).toBool()) rawArgs << "--embed-chapters";
     if (configManager->get("DownloadOptions", "split_chapters", false).toBool()) rawArgs << "--split-chapters";
     if (configManager->get("Metadata", "embed_metadata", true).toBool()) rawArgs << "--embed-metadata";
+
+    // Inject LzyDownloader's internal ID into yt-dlp's metadata engine.
+    // This gives users a %(lzy_id)s token for their output templates, guaranteeing
+    // unique filenames for independent URLs from "dumb" sites where autonumber fails.
+    QString internalId = options.value("id").toString();
+    if (!internalId.isEmpty()) {
+        rawArgs << "--parse-metadata" << QString("%1:%(lzy_id)s").arg(internalId);
+    }
 
     bool forceSingleAlbum = (downloadType == "audio" && configManager->get("Metadata", "force_playlist_as_album", false).toBool() && options.value("playlist_index", -1).toInt() > 0);
     if (forceSingleAlbum) {
@@ -360,6 +400,12 @@ QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString 
 
     QString tempPath = configManager->get("Paths", "temporary_downloads_directory").toString();
     if (tempPath.isEmpty()) tempPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/LzyDownloader";
+
+    // Isolate the temporary directory per-download to prevent concurrent corruption
+    // when multiple independent URLs evaluate to the exact same output filename.
+    if (!internalId.isEmpty()) {
+        tempPath = QDir(tempPath).filePath(internalId);
+    }
 
     if (genFolderJpg) {
         rawArgs << "--write-thumbnail";
@@ -423,8 +469,12 @@ QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString 
         // intermediate MKV remux, which can leave clipped MP4s with bogus
         // duration metadata in players like VLC.
         if (downloadType == "video" || isLivestream) {
-            rawArgs << "--force-keyframes-at-cuts";
+            forceKeyframesAtCuts = true;
         }
+    }
+
+    if (forceKeyframesAtCuts) {
+        appendForcedKeyframeCutArgs(rawArgs, configManager);
     }
     // --- Rate Limit ---
     QString rateLimit = options.value("rate_limit", "Unlimited").toString();

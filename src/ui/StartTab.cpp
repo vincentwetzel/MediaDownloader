@@ -61,6 +61,7 @@ StartTab::StartTab(ConfigManager *configManager, ExtractorJsonParser *extractorJ
     connect(m_downloadActions, &StartTabDownloadActions::updateCommandPreview, this, &StartTab::updateCommandPreview); // Download actions might trigger preview update
     connect(m_downloadActions, &StartTabDownloadActions::downloadRequested, this, &StartTab::downloadRequested);
     connect(m_downloadActions, &StartTabDownloadActions::navigateToExternalBinaries, this, &StartTab::navigateToExternalBinaries);
+    connect(m_downloadActions, &StartTabDownloadActions::missingBinariesDetected, this, &StartTab::missingBinariesDetected);
 
     loadSettings();
     if (m_uiBuilder->urlInput()) { // Added null check

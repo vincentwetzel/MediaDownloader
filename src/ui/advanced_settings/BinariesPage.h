@@ -15,6 +15,9 @@ class BinariesPage : public QWidget {
 
 public:
     explicit BinariesPage(ConfigManager *configManager, QWidget *parent = nullptr);
+    void browseBinaryFor(const QString &binaryName);
+    void installBinaryFor(const QString &binaryName);
+    void refreshBinaryStatus(const QString &binaryName);
 
 public slots:
     void loadSettings();
@@ -41,10 +44,7 @@ private:
                   bool optional = false);
     void fetchBinaryVersion(const QString &binaryName, const QString &path);
     QString browseBinary(const QString &title) const;
-    void browseBinaryFor(const QString &binaryName);
-    void installBinaryFor(const QString &binaryName);
     void saveBinaryOverride(const QString &binaryName, const QString &path);
-    void refreshBinaryStatus(const QString &binaryName);
     QString resolvedPathForBinary(const QString &binaryName) const;
     QList<InstallOption> buildInstallOptions(const QString &binaryName) const;
     QString commandPreview(const InstallOption &option) const;

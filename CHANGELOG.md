@@ -5,6 +5,18 @@ All notable changes to LzyDownloader will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- **Advanced Settings restructuring**: Reworked the Advanced Settings navigation into broader beginner-friendly sections: Essentials, Formats, Download Flow, Files & Tags, and External Tools. Single-setting pages like Authentication are now grouped with related basics, and Download Flow is split into smaller labeled groups for downloader, clipboard/queue, chapters/sections/SponsorBlock, and filename/display behavior.
+- **Download isolation and playlist handling**: yt-dlp jobs now download inside per-item temporary subfolders and expose a `%(lzy_id)s` output-template token to reduce filename collisions on sites with weak metadata. One-item playlists now queue directly without prompting, and playlist index prefixing is configurable from Advanced Settings.
+- **CLI audio launches**: Direct URL launches now honor the `--audio` argument instead of always defaulting to video.
+
+### Added
+- **Guided missing-binary setup**: Added a welcome-style setup dialog for missing required binaries. Startup checks, download enqueue checks, and Start-tab format checks now show a checklist with Install, Browse, and Refresh actions instead of only sending users to Advanced Settings.
+- **Binary install refresh**: Successful in-app binary installs now refresh detection in the running app instead of automatically restarting LzyDownloader; restart is only suggested if the new tool is still not visible.
+- **Hardware encoder support for accurate cuts**: Added Advanced Settings controls for yt-dlp's FFmpeg cut encoder so SponsorBlock/section cuts that require `--force-keyframes-at-cuts` can use NVENC, Quick Sync, AMF, VideoToolbox, or custom FFmpeg output arguments. The encoder dropdown now probes FFmpeg and the local GPU list asynchronously, hiding hardware options that do not apply to the current machine.
+
 ## [1.1.13] - 2026-04-24
 
 ### Changed

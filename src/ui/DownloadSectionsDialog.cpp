@@ -35,7 +35,7 @@ void DownloadSectionsDialog::setupUi()
         "Define one or more sections to download. Each section can be a time range or a chapter.\n"
         "yt-dlp will download only these parts of the video. For time ranges, you can leave a field blank "
         "to download from the beginning or to the very end."
-        "\n\nYou can diable Download Sections in Advanced Settings -> Download Options", this);
+        "\n\nYou can disable Download Sections in Advanced Settings -> Download Flow", this);
     descriptionLabel->setWordWrap(true);
     descriptionLabel->setToolTip("Use the 'Add Section' button to define multiple parts to download.");
     mainLayout->addWidget(descriptionLabel);

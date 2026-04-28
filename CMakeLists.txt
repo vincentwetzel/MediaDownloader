@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(LzyDownloader VERSION 1.1.15 LANGUAGES CXX)
+project(LzyDownloader VERSION 1.1.16 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -126,6 +126,7 @@ add_executable(LzyDownloader
     src/ui/RuntimeSelectionDialog.cpp
     src/ui/FormatSelectionDialog.cpp
     src/ui/DownloadSectionsDialog.cpp
+    src/ui/MissingBinariesDialog.cpp
     src/ui/advanced_settings/BinariesPage.cpp
     src/ui/SupportedSitesDialog.cpp
 
@@ -144,6 +145,10 @@ target_link_libraries(LzyDownloader PRIVATE
     Qt6::Core
     Qt6::Concurrent
 )
+
+if(MSVC)
+    target_compile_options(LzyDownloader PRIVATE /FS)
+endif()
 
 # --- Deployment of Resources ---
 # This section ensures that required data files are copied to the build

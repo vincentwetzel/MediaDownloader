@@ -40,6 +40,7 @@ protected:
 signals:
     void downloadRequested(const QString &url, const QVariantMap &options);
     void navigateToExternalBinaries();
+    void missingBinariesDetected(const QStringList &missingBinaries);
     void urlInputTextChanged(const QString &text);
 
 public slots: // Changed from private slots:

@@ -89,8 +89,11 @@ void ConfigManager::initializeDefaultSettings() {
     m_defaultSettings["Subtitles"]["format"] = "srt";
     m_defaultSettings["DownloadOptions"]["split_chapters"] = false;
     m_defaultSettings["DownloadOptions"]["download_sections_enabled"] = false;
+    m_defaultSettings["DownloadOptions"]["ffmpeg_cut_encoder"] = "cpu";
+    m_defaultSettings["DownloadOptions"]["ffmpeg_cut_custom_args"] = "";
     m_defaultSettings["DownloadOptions"]["auto_clear_completed"] = false;
     m_defaultSettings["DownloadOptions"]["geo_verification_proxy"] = "";
+    m_defaultSettings["DownloadOptions"]["prefix_playlist_indices"] = false;
     m_defaultSettings["Livestream"]["live_from_start"] = false;
     m_defaultSettings["Livestream"]["wait_for_video"] = true; // Wait for scheduled streams by default
     m_defaultSettings["Livestream"]["wait_for_video_min"] = 60; // Wait at least 1 minute between checks

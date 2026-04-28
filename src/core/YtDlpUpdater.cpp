@@ -163,7 +163,7 @@ void YtDlpUpdater::onDownloadFinished() {
     // Prevent corruption of package-managed system environments
     if (binary.source != "Custom" && binary.source != "App Directory" && binary.source != "Not Found") {
         emit updateFinished(Updater::UpdateStatus::Error, 
-            QString("yt-dlp is managed by %1. Please update it using your package manager or the External Binaries tab.").arg(binary.source));
+            QString("yt-dlp is managed by %1. Please update it using your package manager or Advanced Settings -> External Tools.").arg(binary.source));
         reply->deleteLater();
         return;
     }

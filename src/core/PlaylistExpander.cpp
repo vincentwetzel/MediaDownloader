@@ -114,7 +114,7 @@ void PlaylistExpander::startExpansion(const QString &playlistLogic) {
     // Find yt-dlp binary
     ProcessUtils::FoundBinary ytDlpBinary = ProcessUtils::findBinary("yt-dlp", m_configManager);
     if (ytDlpBinary.source == "Not Found" || ytDlpBinary.path.isEmpty()) {
-        emit expansionFinished(m_url, {}, "yt-dlp could not be found. Configure it in Advanced Settings -> External Binaries.");
+        emit expansionFinished(m_url, {}, "yt-dlp could not be found. Configure it in Advanced Settings -> External Tools.");
         return;
     }
     

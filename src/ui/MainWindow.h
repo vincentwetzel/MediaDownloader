@@ -8,6 +8,7 @@
 #include <QLabel>
 #include <QCloseEvent>
 #include <QVariant>
+#include <QStringList>
 #include <QThread> // Include QThread
 #include <QClipboard> // Include QClipboard
 
@@ -64,6 +65,7 @@ private:
     void checkBinaries();
     void startStartupChecks();
     void handleClipboardAutoPaste(bool forceEnqueue = false); // Modified to accept forceEnqueue
+    bool showMissingBinariesDialog(const QStringList &missingBinaries);
 
     ConfigManager *m_configManager;
     ArchiveManager *m_archiveManager;

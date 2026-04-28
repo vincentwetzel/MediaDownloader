@@ -177,9 +177,16 @@ void DownloadFinalizer::finalize(const QString &id, DownloadItem item) {
     finalDir = QDir(finalDir).absolutePath();
     QString finalName = fileInfo.fileName();
 
-    if (item.options.value("type").toString() == "audio" && item.playlistIndex > 0) {
+    // Default to true for audio to maintain legacy music sorting, but allow users to toggle it for all types
+    bool isAudio = item.options.value("type").toString() == "audio";
+    bool autoNumber = m_configManager->get("DownloadOptions", "prefix_playlist_indices", isAudio).toBool();
+
+    if (autoNumber && item.playlistIndex > 0) {
         QString paddedIndex = QString("%1").arg(item.playlistIndex, 2, 10, QChar('0'));
-        finalName = QString("%1 - %2").arg(paddedIndex, finalName);
+        // Prevent double-numbering if the user's yt-dlp output template already includes the playlist index
+        if (!finalName.startsWith(paddedIndex + " - ")) {
+            finalName = QString("%1 - %2").arg(paddedIndex, finalName);
+        }
     }
 
     QString destPath = QDir(finalDir).filePath(finalName);
@@ -275,4 +282,10 @@ void DownloadFinalizer::finalize(const QString &id, DownloadItem item) {
 
     // Cleanup must happen after all signals are emitted and operations are complete.
     cleanupTempFiles(item, tempDir, mediaInfoJsonPath);
+
+    // Because yt-dlp downloads are now isolated into their own UUID subfolders
+    // to prevent naming collisions, we must delete the UUID folder afterward.
+    if (item.options.value("type").toString() != "gallery" && tempDir.dirName() == id) {
+        tempDir.removeRecursively();
+    }
 }

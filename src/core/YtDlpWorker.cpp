@@ -50,7 +50,7 @@ void YtDlpWorker::start() {
 
     const ProcessUtils::FoundBinary ytDlpBinary = ProcessUtils::findBinary("yt-dlp", m_configManager);
     if (ytDlpBinary.source == "Not Found" || ytDlpBinary.path.isEmpty()) {
-        const QString message = "Download failed.\nyt-dlp could not be found. Configure it in Advanced Settings -> External Binaries.";
+        const QString message = "Download failed.\nyt-dlp could not be found. Configure it in Advanced Settings -> External Tools.";
         qWarning() << message;
         if (!m_finishEmitted) {
             m_finishEmitted = true;

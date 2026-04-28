@@ -163,20 +163,7 @@ void StartTabDownloadActions::checkFormats(const QString &url) {
             onDownloadTypeChanged(m_uiBuilder->downloadTypeCombo()->currentIndex());
         }
 
-        QMessageBox msgBox(m_parentWidget);
-        msgBox.setIcon(QMessageBox::Warning);
-        msgBox.setWindowTitle("Missing Required Binaries");
-        msgBox.setText("Cannot view formats because the following required binaries are missing:\nyt-dlp");
-        msgBox.setInformativeText("Please install them or configure their paths in the Advanced Settings.\n\nWould you like to open the External Binaries settings now?");
-
-        QPushButton *fixButton = msgBox.addButton("Take Me There", QMessageBox::ActionRole);
-        msgBox.addButton(QMessageBox::Cancel);
-        msgBox.exec();
-
-        if (msgBox.clickedButton() == fixButton) {
-            emit navigateToExternalBinaries();
-        }
-
+        emit missingBinariesDetected({"yt-dlp"});
         process->deleteLater();
         return;
     }

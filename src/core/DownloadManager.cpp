@@ -639,8 +639,12 @@ void DownloadManager::onPlaylistDetected(const QString &url, int itemCount, cons
         expander->deleteLater();
     }
 
-    if (isNonInteractiveRequest(storedOptions)) {
-        qInfo() << "Non-interactive playlist detected; queueing all items without prompting:" << url << "count:" << itemCount;
+    if (itemCount == 1 || isNonInteractiveRequest(storedOptions)) {
+        if (itemCount == 1) {
+            qInfo() << "Playlist contains only 1 item; queueing without prompting:" << url;
+        } else {
+            qInfo() << "Non-interactive playlist detected; queueing all items without prompting:" << url << "count:" << itemCount;
+        }
         QMetaObject::invokeMethod(this, [this, url, storedOptions, expandedItems]() {
             processPlaylistSelection(url, "Download All", storedOptions, expandedItems);
         }, Qt::QueuedConnection);

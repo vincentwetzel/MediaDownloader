@@ -18,15 +18,58 @@
 #include <QPushButton>
 #include <QMessageBox>
 #include <QCheckBox>
+#include <QScrollArea>
+#include <QFrame>
 #include <QPalette>
 #include <QApplication>
 #include <QSizePolicy>
 #include <QEvent>
-#include <array>
+#include <vector>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
 #endif
+
+namespace {
+class SettingsSectionPage : public QWidget {
+    Q_OBJECT
+public:
+    explicit SettingsSectionPage(const QList<QWidget *> &pages, QWidget *parent = nullptr)
+        : QWidget(parent), m_pages(pages) {
+        QVBoxLayout *mainLayout = new QVBoxLayout(this);
+        mainLayout->setContentsMargins(0, 0, 0, 0);
+
+        QScrollArea *scrollArea = new QScrollArea(this);
+        scrollArea->setWidgetResizable(true);
+        scrollArea->setFrameShape(QFrame::NoFrame);
+        scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+
+        QWidget *scrollWidget = new QWidget(scrollArea);
+        QVBoxLayout *contentLayout = new QVBoxLayout(scrollWidget);
+        contentLayout->setContentsMargins(0, 0, 8, 0);
+        contentLayout->setSpacing(12);
+
+        for (QWidget *page : m_pages) {
+            page->setParent(scrollWidget);
+            contentLayout->addWidget(page);
+        }
+        contentLayout->addStretch();
+
+        scrollArea->setWidget(scrollWidget);
+        mainLayout->addWidget(scrollArea);
+    }
+
+public slots:
+    void loadSettings() {
+        for (QWidget *page : m_pages) {
+            QMetaObject::invokeMethod(page, "loadSettings");
+        }
+    }
+
+private:
+    QList<QWidget *> m_pages;
+};
+}
 
 AdvancedSettingsTab::AdvancedSettingsTab(ConfigManager *configManager, QWidget *parent)
     : QWidget(parent), m_configManager(configManager) {
@@ -79,7 +122,7 @@ void AdvancedSettingsTab::setupUI() {
     QHBoxLayout *contentLayout = new QHBoxLayout();
 
     m_categoryList = new QListWidget(this);
-    m_categoryList->setFixedWidth(190);
+    m_categoryList->setFixedWidth(170);
     contentLayout->addWidget(m_categoryList);
 
     m_stackedWidget = new QStackedWidget(this);
@@ -108,18 +151,34 @@ void AdvancedSettingsTab::setupUI() {
         QString tooltip;
     };
 
-    const std::array<PageDescriptor, 10> descriptors = {{
-        { "Configuration", configPage, "General application settings, download locations, and theme." },
-        { "Video Settings", new VideoSettingsPage(m_configManager, this), "Control video codec, resolution, and formats." },
-        { "Audio Settings", new AudioSettingsPage(m_configManager, this), "Adjust audio codecs, quality, and extensions." },
-        { "Authentication", new AuthenticationPage(m_configManager, this), "Manage browser cookies and credential access." },
-        { "Output Templates", new OutputTemplatesPage(m_configManager, this), "Define how downloaded files are named and organized." },
-        { "Download Options", new DownloadOptionsPage(m_configManager, this), "Set concurrency, rate limits, and temporary directory behavior." },
-        { "Metadata", new MetadataPage(m_configManager, this), "Embed metadata, artwork, and thumbnails into media." },
-        { "Subtitles", new SubtitlesPage(m_configManager, this), "Subtitle languages, formats, and embedding behavior." },
-        { "Livestream Settings", new LivestreamSettingsPage(m_configManager, this), "Configure livestream recording, quality, and post-download conversion." },
-        { "External Binaries", new BinariesPage(m_configManager, this), "Manage paths, versions, and updates for external dependencies." }
-    }};
+    const std::vector<PageDescriptor> descriptors = {
+        { "Essentials",
+          new SettingsSectionPage({
+              configPage,
+              new AuthenticationPage(m_configManager, this)
+          }, this),
+          "Start here: folders, theme, local API, and login cookie access." },
+        { "Formats",
+          new SettingsSectionPage({
+              new VideoSettingsPage(m_configManager, this),
+              new AudioSettingsPage(m_configManager, this),
+              new LivestreamSettingsPage(m_configManager, this)
+          }, this),
+          "Default video, audio, and livestream quality/format choices." },
+        { "Download Flow",
+          new DownloadOptionsPage(m_configManager, this),
+          "Downloader engine, automation, clipping, chapters, filenames, and proxy behavior." },
+        { "Files & Tags",
+          new SettingsSectionPage({
+              new OutputTemplatesPage(m_configManager, this),
+              new MetadataPage(m_configManager, this),
+              new SubtitlesPage(m_configManager, this)
+          }, this),
+          "Filename templates, metadata, artwork, and subtitles." },
+        { "External Tools",
+          new BinariesPage(m_configManager, this),
+          "Manage paths, versions, installs, and updates for external dependencies." }
+    };
 
     for (const auto &descriptor : descriptors) {
         addPage(descriptor.title, descriptor.page, descriptor.tooltip);
@@ -213,7 +272,20 @@ void AdvancedSettingsTab::setYtDlpVersion(const QString &version) {
 }
 
 void AdvancedSettingsTab::navigateToCategory(const QString &categoryTitle) {
-    QList<QListWidgetItem *> items = m_categoryList->findItems(categoryTitle, Qt::MatchExactly);
+    QString targetTitle = categoryTitle;
+    if (categoryTitle == "Configuration" || categoryTitle == "Authentication" || categoryTitle == "Authentication Access") {
+        targetTitle = "Essentials";
+    } else if (categoryTitle == "Video Settings" || categoryTitle == "Audio Settings" || categoryTitle == "Livestream Settings") {
+        targetTitle = "Formats";
+    } else if (categoryTitle == "Download Options") {
+        targetTitle = "Download Flow";
+    } else if (categoryTitle == "Output Templates" || categoryTitle == "Output Template" || categoryTitle == "Metadata" || categoryTitle == "Subtitles") {
+        targetTitle = "Files & Tags";
+    } else if (categoryTitle == "External Binaries" || categoryTitle == "Binaries") {
+        targetTitle = "External Tools";
+    }
+
+    QList<QListWidgetItem *> items = m_categoryList->findItems(targetTitle, Qt::MatchExactly);
     if (!items.isEmpty()) {
         m_categoryList->setCurrentItem(items.first());
     }
@@ -222,3 +294,5 @@ void AdvancedSettingsTab::navigateToCategory(const QString &categoryTitle) {
 void AdvancedSettingsTab::onThemeChanged(const QString &themeName) {
     emit themeChanged(themeName);
 }
+
+#include "AdvancedSettingsTab.moc"

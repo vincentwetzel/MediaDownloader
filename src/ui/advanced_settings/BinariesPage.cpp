@@ -4,7 +4,6 @@
 #include "core/ProcessUtils.h"
 
 #include <QComboBox>
-#include <QCoreApplication>
 #include <QDesktopServices>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -51,9 +50,8 @@ BinariesPage::BinariesPage(ConfigManager *configManager, QWidget *parent)
         "<b>OPTIONAL:</b> gallery-dl, aria2c<br><br>"
         "<b>Browse</b> sets a manual path override. <b>Clear Path</b> reverts to auto-detection.<br>"
         "<b>Install</b> opens package-manager or official website download options.<br><br>"
-        "<span style='color: #d97706;'><b>Note:</b> If you install tools via package managers (winget, scoop, chocolatey, etc.), "
-        "you must <b>restart LzyDownloader</b> for it to detect the updated system PATH. "
-        "(The built-in installer will do this automatically.)</span>",
+        "<span style='color: #d97706;'><b>Note:</b> If a package-manager install does not appear after Refresh, "
+        "restart LzyDownloader or use Browse to select the installed executable.</span>",
         scrollWidget);
     introLabel->setWordWrap(true);
     introLabel->setTextFormat(Qt::RichText);
@@ -561,74 +559,20 @@ void BinariesPage::installBinaryFor(const QString &binaryName) {
                 if (binaryName == "ffmpeg") this->refreshBinaryStatus("ffprobe");
                 else if (binaryName == "ffprobe") this->refreshBinaryStatus("ffmpeg");
 
-                QMessageBox::information(&progressDialog, "Install Successful", 
-                    QString("%1 has been installed successfully.\n\n"
-                            "LzyDownloader will now restart to detect your updated system PATH "
-                            "and apply the changes.").arg(displayName(binaryName)));
-
-                // Safely restart the application via the OS shell and avoid a
-                // single-instance lock race by adding a slight delay first.
-                const QString rawAppPath = QDir::toNativeSeparators(QCoreApplication::applicationFilePath());
-                const QFileInfo appInfo(rawAppPath);
-                QString appPath = QDir::toNativeSeparators(appInfo.canonicalFilePath());
-                if (appPath.isEmpty()) {
-                    appPath = QDir::toNativeSeparators(appInfo.absoluteFilePath());
-                }
-#ifdef Q_OS_WIN
-                if (appPath.startsWith("\\\\?\\")) {
-                    appPath.remove(0, 4);
-                }
-#endif
-                if (appPath.isEmpty() || !QFileInfo::exists(appPath)) {
-                    QMessageBox::warning(
+                const ProcessUtils::FoundBinary refreshedBinary = ProcessUtils::resolveBinary(binaryName, m_configManager);
+                if (refreshedBinary.source == "Not Found" || refreshedBinary.source == "Invalid Custom") {
+                    QMessageBox::information(
                         &progressDialog,
-                        "Restart Failed",
-                        QString("The installation finished, but LzyDownloader could not determine a valid restart path.\n\n"
-                                "Expected executable:\n%1\n\n"
-                                "Please restart the app manually.")
-                            .arg(appPath.isEmpty() ? QStringLiteral("(empty path)") : appPath));
-                    qWarning() << "[BinariesPage] Restart aborted: invalid application path. Raw:"
-                               << rawAppPath << "| normalized:" << appPath;
-                    return;
-                }
-
-                qInfo() << "[BinariesPage] Scheduling restart after install. Raw path:"
-                        << rawAppPath << "| normalized:" << appPath;
-
-#ifdef Q_OS_WIN
-                // Ask Windows PowerShell to wait briefly, then ask Explorer to
-                // open the app path. This is more tolerant than `cmd /c start`
-                // and lets the relaunched process come from the shell path
-                // instead of inheriting this process' stale PATH snapshot.
-                QString psAppPath = appPath;
-                psAppPath.replace('\'', "''");
-                const QString restartCommand =
-                    QString("Start-Sleep -Seconds 3; Start-Process explorer.exe -ArgumentList @('%1')")
-                        .arg(psAppPath);
-                const bool restartScheduled = QProcess::startDetached(
-                    "powershell.exe",
-                    {"-NoProfile", "-WindowStyle", "Hidden", "-Command", restartCommand},
-                    QFileInfo(appPath).absolutePath());
-#else
-                const bool restartScheduled = QProcess::startDetached(
-                    "sh",
-                    {"-c", QString("sleep 3 && \"%1\" &").arg(appPath)},
-                    appInfo.absolutePath());
-#endif
-                if (!restartScheduled) {
-                    QMessageBox::warning(
+                        "Install Finished",
+                        QString("%1 finished installing, but LzyDownloader could not detect it yet.\n\n"
+                                "Use Refresh after closing this dialog. If it is still missing, restart LzyDownloader or use Browse to select the executable.")
+                            .arg(displayName(binaryName)));
+                } else {
+                    QMessageBox::information(
                         &progressDialog,
-                        "Restart Failed",
-                        QString("The installation finished, but LzyDownloader could not relaunch itself.\n\n"
-                                "Executable:\n%1\n\n"
-                                "Please restart the app manually.")
-                            .arg(appPath));
-                    qWarning() << "[BinariesPage] Failed to schedule restart for:" << appPath;
-                    return;
+                        "Install Successful",
+                        QString("%1 has been installed and detected successfully.").arg(displayName(binaryName)));
                 }
-
-                progressDialog.accept();
-                QCoreApplication::quit();
             } else {
                 outputEdit->moveCursor(QTextCursor::End);
                 outputEdit->insertPlainText(QString("\n--- Installation failed with exit code %1. ---\n").arg(exitCode));
