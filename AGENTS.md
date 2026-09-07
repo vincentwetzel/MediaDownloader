@@ -98,8 +98,10 @@ platform branches with a tested fallback or a documented release prerequisite.
   changing workflow files. Use the closest available native Windows toolchain
   or WSL with a separate build directory, run the focused test serially with
   verbose output, and expand to the full suite after the focused failure is
-  fixed. Change CI configuration only when local reproduction shows the
-  problem is workflow-specific.
+  fixed. If CTest suppresses output, rerun the target directly with verbose
+  QtTest arguments and capture its native exit/loader diagnostics. Change CI
+  configuration only when local reproduction shows the problem is
+  workflow-specific.
 - Keep documentation token-efficient: prefer one canonical statement,
   concise bullets/tables, and links to detailed references over duplicated
   prose. Remove stale or completed guidance without omitting behavioral

@@ -25,8 +25,8 @@ Older historical changelogs (pre-v1.1.25) can be found in [docs/CHANGELOG_ARCHIV
   consistently deployed JPEG plugin so it is independent of optional PNG
   plugin deployment on Windows.
 - **Headless test diagnostics:** Failed parallel CTest targets are rerun
-  serially with verbose output so QtTest assertion details remain visible in
-  CI logs.
+  serially with verbose output and then invoked directly so QtTest assertion
+  or Windows loader/runtime details remain visible in CI logs.
 - **CI debugging workflow:** Contributor guidance now requires local Windows
   or WSL reproduction with focused serial tests before changing GitHub Actions
   configuration.

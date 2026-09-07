@@ -56,6 +56,19 @@ def run_command(command, cwd, env=None):
     return process.wait(), "\n".join(output)
 
 
+def run_direct_test_diagnostics(build_dir: Path, config: str, names, env) -> None:
+    """Run failed QtTest executables directly to expose loader/runtime errors."""
+    for name in sorted(set(names)):
+        executable = build_dir / config / f"{name}.exe"
+        if not executable.exists():
+            executable = build_dir / name
+        if not executable.exists():
+            log(f"Diagnostic executable not found: {executable}")
+            continue
+        log(f"$ {executable} -v2")
+        run_command([str(executable), "-v2"], build_dir, env)
+
+
 def cmake_build_command(build_dir: Path, config: str):
     """Build with a vcpkg setting that matches the existing CMake configure."""
     command = ["cmake", "--build", ".", "--config", config]
@@ -217,6 +230,8 @@ def main() -> int:
         ]
         log("Rerunning failed tests serially for diagnostics.")
         run_command(diagnostic_ctest, build_dir, env)
+        log("Running failed test executables directly for runtime diagnostics.")
+        run_direct_test_diagnostics(build_dir, args.config, failed, env)
     try:
         save_suspects(cache_path, failed)
     except OSError as error:

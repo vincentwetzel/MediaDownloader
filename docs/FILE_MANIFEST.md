@@ -22,7 +22,7 @@ tasks to the smallest useful reference.
 | `tools/configure_debug.ps1` | Debug configure recovery in `build-debug` |
 | `.github/workflows/tests.yml` | Reusable full headless test workflow for PRs, branches, and releases |
 | `.github/workflows/release.yml` | Release CI matrix, artifact collection, and gated publication |
-| `tests/run_headless_tests.py` | Build-before-CTest runner, failed-test diagnostics, and `--suspects` cache |
+| `tests/run_headless_tests.py` | Build-before-CTest runner, direct failed-test diagnostics, and `--suspects` cache |
 | `extractors_yt-dlp.json`, `extractors_gallery-dl.json` | Bundled extractor data |
 
 Public/project guidance is in `README.md`, `CONTRIBUTING.md`, `SECURITY.md`,

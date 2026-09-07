@@ -43,7 +43,9 @@ When GitHub Actions reports a build or test failure, reproduce it locally
 before editing a workflow. Prefer the closest native Windows toolchain; WSL is
 also suitable for CMake/Qt test debugging when it has the required packages.
 Use a separate build directory, run the failing target serially with `ctest
--V -j 1`, and then run the full suite. Change workflow configuration only when
+-V -j 1`, and then run the full suite. If CTest gives no assertion output,
+invoke the test executable directly with `-v2` to expose native loader/runtime
+errors. Change workflow configuration only when
 the failure cannot be reproduced locally and the evidence points to CI setup,
 runner state, or workflow orchestration.
 

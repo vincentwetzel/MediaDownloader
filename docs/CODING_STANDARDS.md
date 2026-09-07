@@ -107,8 +107,8 @@ Read the relevant section only.
   required Qt platform/runtime DLLs are deployed with Windows test targets.
 - `tests/run_headless_tests.py` builds before CTest, fails on build errors,
   timestamps output, summarizes pass/fail/not-run, reruns failed targets
-  serially with verbose output for actionable QtTest diagnostics, and supports
-  `--suspects`.
+  serially with verbose output, invokes failed executables directly when CTest
+  hides loader/runtime diagnostics, and supports `--suspects`.
   For Visual Studio, preserve the cache-selected vcpkg/MSBuild integration.
 - Before app updates, save resumable state and stop child processes. Release
   packaging must preserve version/tag checks, tag-only publication, and
