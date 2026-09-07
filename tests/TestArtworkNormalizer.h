@@ -9,5 +9,5 @@ private slots:
     void testCropsSymmetricBordersAroundSquareArtwork();
     void testPreservesGenuineLandscapeArtwork();
     void testCropsVerticalBordersAroundSquareArtwork();
-    void testNormalizesPngInPlace();
+    void testNormalizesJpegInPlace();
 };

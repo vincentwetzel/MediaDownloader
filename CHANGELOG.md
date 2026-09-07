@@ -21,7 +21,9 @@ Older historical changelogs (pre-v1.1.25) can be found in [docs/CHANGELOG_ARCHIV
   when a thumbnail cannot be represented as an FFmpeg attached-picture stream.
 - **Artwork test reliability:** Border analysis now samples complete candidate
   edge regions, with regression coverage for both horizontal and vertical
-  borders in the headless test suite.
+  borders in the headless test suite. The file-backed fixture uses the
+  consistently deployed JPEG plugin so it is independent of optional PNG
+  plugin deployment on Windows.
 
 ## [1.2.45] - 2026-09-04
 
