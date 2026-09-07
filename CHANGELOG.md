@@ -23,7 +23,9 @@ Older historical changelogs (pre-v1.1.25) can be found in [docs/CHANGELOG_ARCHIV
   edge regions, with regression coverage for both horizontal and vertical
   borders in the headless test suite. The file-backed fixture uses the
   consistently deployed JPEG plugin so it is independent of optional PNG
-  plugin deployment on Windows.
+  plugin deployment on Windows. Normalized files are encoded through a Qt
+  memory buffer before the atomic replacement, avoiding Windows-specific
+  `QImageWriter`/`QSaveFile` failures.
 - **Headless test diagnostics:** Failed parallel CTest targets are rerun
   serially with verbose output and then invoked directly so QtTest assertion
   or Windows loader/runtime details remain visible in CI logs.

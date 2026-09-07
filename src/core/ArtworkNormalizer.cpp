@@ -1,5 +1,7 @@
 #include "ArtworkNormalizer.h"
 
+#include <QBuffer>
+#include <QDebug>
 #include <QFileInfo>
 #include <QImageReader>
 #include <QImageWriter>
@@ -145,19 +147,26 @@ bool ArtworkNormalizer::normalizeFile(const QString &filePath)
         return false;
     }
 
-    QImageReader reader(filePath);
-    reader.setAutoTransform(true);
-    QImage image = reader.read();
-    if (!isSafeImageSize(image)) {
-        return false;
+    QImage image;
+    QByteArray format;
+    {
+        QImageReader reader(filePath);
+        reader.setAutoTransform(true);
+        image = reader.read();
+        if (!isSafeImageSize(image)) {
+            qWarning() << "ArtworkNormalizer: failed to read image" << filePath
+                       << reader.errorString();
+            return false;
+        }
+        format = reader.format();
     }
 
     const QRect crop = detectSquareArtworkCrop(image);
     if (crop.isEmpty() || crop == QRect(QPoint(0, 0), image.size())) {
+        qWarning() << "ArtworkNormalizer: no normalization crop detected" << filePath;
         return false;
     }
 
-    QByteArray format = reader.format();
     if (format.isEmpty()) {
         format = QFileInfo(filePath).suffix().toLatin1();
     }
@@ -165,16 +174,40 @@ bool ArtworkNormalizer::normalizeFile(const QString &filePath)
         format = "jpeg";
     }
 
-    QSaveFile output(filePath);
-    if (!output.open(QIODevice::WriteOnly)) {
+    QByteArray encodedImage;
+    QBuffer encodedBuffer(&encodedImage);
+    if (!encodedBuffer.open(QIODevice::WriteOnly)) {
+        qWarning() << "ArtworkNormalizer: failed to open image buffer" << filePath
+                   << encodedBuffer.errorString();
         return false;
     }
 
-    QImageWriter writer(&output, format);
+    QImageWriter writer(&encodedBuffer, format);
     if (format.compare("jpeg", Qt::CaseInsensitive) == 0) {
         writer.setQuality(95);
     }
-    if (!writer.write(image.copy(crop)) || !output.commit()) {
+    if (!writer.write(image.copy(crop))) {
+        qWarning() << "ArtworkNormalizer: failed to encode image" << filePath
+                   << format << writer.errorString();
+        return false;
+    }
+
+    QSaveFile output(filePath);
+    if (!output.open(QIODevice::WriteOnly)) {
+        qWarning() << "ArtworkNormalizer: failed to open replacement" << filePath
+                   << output.errorString();
+        output.cancelWriting();
+        return false;
+    }
+    if (output.write(encodedImage) != encodedImage.size()) {
+        qWarning() << "ArtworkNormalizer: failed to write replacement" << filePath
+                   << output.errorString();
+        output.cancelWriting();
+        return false;
+    }
+    if (!output.commit()) {
+        qWarning() << "ArtworkNormalizer: failed to commit replacement" << filePath
+                   << output.errorString();
         output.cancelWriting();
         return false;
     }
