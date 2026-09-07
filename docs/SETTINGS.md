@@ -157,8 +157,9 @@ Settings specific to downloading live broadcasts.
 Settings for embedding metadata, thumbnails, and chapter information into downloaded files.
 
 Audio artwork is preserved by default. During audio finalization, the app
-automatically removes high-confidence symmetric pillarbox/letterbox borders
-when the remaining artwork is square; ambiguous images are left unchanged.
+samples complete candidate border edges and automatically removes
+high-confidence symmetric pillarbox/letterbox borders when the remaining
+artwork is square; ambiguous images are left unchanged.
 The former `crop_artwork_to_square` setting is retired and is no longer read.
 
 | Key | Type | Default | Description |

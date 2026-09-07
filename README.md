@@ -335,7 +335,8 @@ Yes. Audio downloads can extract MP3, M4A, Opus, or another configured format.
 The application can embed title, artist, album, and thumbnail metadata after
 FFmpeg finishes processing the download. Audio artwork is preserved intact;
 obvious symmetric borders around centered square artwork are removed
-automatically when detected.
+automatically when detected. Detection samples complete candidate border
+edges and leaves ambiguous or genuinely landscape artwork unchanged.
 
 ### Can it download playlists?
 

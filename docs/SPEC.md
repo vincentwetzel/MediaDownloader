@@ -185,8 +185,8 @@ only the sections relevant to the change.
   for explicit full batches, not single or partial selections.
 - Audio artwork keeps its source image unless a worker-thread image analysis
   finds substantial, symmetric low-variation borders around a centered square;
-  only those detected borders may be removed. Genuine landscape artwork and
-  ambiguous images remain intact.
+  complete candidate edge regions are sampled before removal. Genuine
+  landscape artwork and ambiguous images remain intact.
 - If yt-dlp leaves a tracked thumbnail sidecar, the existing FFmpeg rewrite
   adds it as a second input mapped as `attached_pic` before cleanup. The
   metadata worker validates that candidate off the GUI thread; if native

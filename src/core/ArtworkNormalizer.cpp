@@ -35,8 +35,10 @@ ColorStats measureRegion(const QImage &image, const QRect &region)
     double greenSquares = 0.0;
     double blueSquares = 0.0;
 
-    for (int y = region.top(); y < region.bottom(); y += step) {
-        for (int x = region.left(); x < region.right(); x += step) {
+    const int right = region.right();
+    const int bottom = region.bottom();
+    for (int y = region.top(); y <= bottom; y += step) {
+        for (int x = region.left(); x <= right; x += step) {
             const QRgb pixel = image.pixel(x, y);
             const double red = qRed(pixel);
             const double green = qGreen(pixel);

@@ -8,5 +8,6 @@ class TestArtworkNormalizer : public BaseTest {
 private slots:
     void testCropsSymmetricBordersAroundSquareArtwork();
     void testPreservesGenuineLandscapeArtwork();
+    void testCropsVerticalBordersAroundSquareArtwork();
     void testNormalizesPngInPlace();
 };

@@ -19,6 +19,9 @@ Older historical changelogs (pre-v1.1.25) can be found in [docs/CHANGELOG_ARCHIV
   ordinary fallback downloads are explicitly limited to one item.
 - **Audio container safety:** Opus, Ogg, AAC, and WAV downloads no longer fail
   when a thumbnail cannot be represented as an FFmpeg attached-picture stream.
+- **Artwork test reliability:** Border analysis now samples complete candidate
+  edge regions, with regression coverage for both horizontal and vertical
+  borders in the headless test suite.
 
 ## [1.2.45] - 2026-09-04
 

@@ -44,6 +44,19 @@ void TestArtworkNormalizer::testPreservesGenuineLandscapeArtwork()
     QVERIFY(ArtworkNormalizer::detectSquareArtworkCrop(genuineLandscapeArtwork()).isEmpty());
 }
 
+void TestArtworkNormalizer::testCropsVerticalBordersAroundSquareArtwork()
+{
+    QImage image(90, 160, QImage::Format_RGB32);
+    image.fill(Qt::black);
+    for (int y = 35; y < 125; ++y) {
+        for (int x = 0; x < 90; ++x) {
+            image.setPixelColor(x, y, QColor(40, 120, 200));
+        }
+    }
+
+    QCOMPARE(ArtworkNormalizer::detectSquareArtworkCrop(image), QRect(0, 35, 90, 90));
+}
+
 void TestArtworkNormalizer::testNormalizesPngInPlace()
 {
     const QString path = QDir(getTempDir()).filePath(QStringLiteral("artwork.png"));
