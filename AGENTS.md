@@ -94,6 +94,12 @@ platform branches with a tested fallback or a documented release prerequisite.
   isolated-temp regression tests with headless Qt (`QT_QPA_PLATFORM=minimal`). Update affected docs and
   changelog/TODO entries as appropriate; synchronize `ARCHITECTURE` and
   `FILE_MANIFEST` when ownership or locations change.
+- When a GitHub Actions build or test fails, reproduce it locally before
+  changing workflow files. Use the closest available native Windows toolchain
+  or WSL with a separate build directory, run the focused test serially with
+  verbose output, and expand to the full suite after the focused failure is
+  fixed. Change CI configuration only when local reproduction shows the
+  problem is workflow-specific.
 - Keep documentation token-efficient: prefer one canonical statement,
   concise bullets/tables, and links to detailed references over duplicated
   prose. Remove stale or completed guidance without omitting behavioral

@@ -296,10 +296,12 @@ only the sections relevant to the change.
   and the end-to-end fixture.
 - `tests/run_headless_tests.py` builds before CTest and stops on build failure;
   it timestamps output, reports pass/fail/not-run totals, keeps CTest exit-code
-  failures failed, and stores failed names for `--suspects`. Visual Studio
-  vcpkg-toolchain caches enable manifest mode; direct-Qt caches disable MSBuild
-  integration. Windows test deployment includes `qminimal.dll` and the Qt
-  runtime DLLs required by deployed test executables.
+  failures failed, reruns failed targets serially with verbose output so
+  QtTest assertion diagnostics remain visible, and stores failed names for
+  `--suspects`. Visual Studio vcpkg-toolchain caches enable manifest mode;
+  direct-Qt caches disable MSBuild integration. Windows test deployment
+  includes `qminimal.dll` and the Qt runtime DLLs required by deployed test
+  executables.
 
 ## 8. Logging and stack
 

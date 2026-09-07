@@ -207,6 +207,16 @@ def main() -> int:
     results = parse_results(test_output)
     failed = [name for name, status in results.items() if status != "Passed"]
     failed.extend(name for name in selected if name not in results)
+    if test_code != 0 and failed:
+        # Parallel CTest can suppress a failed QtTest process's assertion
+        # output. Repeat failed targets serially so CI identifies the exact
+        # test function and diagnostic.
+        diagnostic_ctest = [
+            "ctest", "-C", args.config, "--output-on-failure", "-V", "-j", "1",
+            "-R", "^(" + "|".join(sorted(set(failed))) + ")$",
+        ]
+        log("Rerunning failed tests serially for diagnostics.")
+        run_command(diagnostic_ctest, build_dir, env)
     try:
         save_suspects(cache_path, failed)
     except OSError as error:

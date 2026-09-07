@@ -39,6 +39,14 @@ CMake cache, so direct-Qt and vcpkg-toolchain configurations use their
 corresponding integration mode. Use `--suspects` to rerun only the tests
 recorded as failed by the preceding run.
 
+When GitHub Actions reports a build or test failure, reproduce it locally
+before editing a workflow. Prefer the closest native Windows toolchain; WSL is
+also suitable for CMake/Qt test debugging when it has the required packages.
+Use a separate build directory, run the failing target serially with `ctest
+-V -j 1`, and then run the full suite. Change workflow configuration only when
+the failure cannot be reproduced locally and the evidence points to CI setup,
+runner state, or workflow orchestration.
+
 Tagged releases call the same workflow as a required gate before the
 cross-platform packaging matrix and publish job.
 

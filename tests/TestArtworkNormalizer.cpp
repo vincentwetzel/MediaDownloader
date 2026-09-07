@@ -69,7 +69,9 @@ void TestArtworkNormalizer::testNormalizesJpegInPlace()
 
     const QImage normalized(path);
     QCOMPARE(normalized.size(), QSize(90, 90));
-    QVERIFY(normalized.pixelColor(0, 0).blue() > 150);
+    // Avoid the top-left JPEG boundary, where chroma subsampling may blend
+    // the first pixel while preserving the normalized image dimensions.
+    QVERIFY(normalized.pixelColor(normalized.width() / 2, normalized.height() / 2).blue() > 150);
 }
 
 QTEST_MAIN(TestArtworkNormalizer)
