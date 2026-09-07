@@ -78,6 +78,7 @@ paths/headless Qt. Main focused files are:
 | Concern | Test |
 |---|---|
 | Manager/probe/gallery/playlist | `TestDownloadManager.cpp`, `FakeYtDlp.cpp`, `TestGalleryDlArgsBuilder.cpp`, `TestPlaylistExpansionParser.cpp` |
+| Audio artwork normalization | `TestArtworkNormalizer.cpp` |
 | Queue/archive/temp/replacement | `TestDownloadQueueManager.cpp`, `TestDownloadQueueState.cpp`, `TestDownloadTempCleanup.cpp`, `TestFileReplacement.cpp` |
 | Cross-process worker admission | `TestGlobalDownloadLimiter.cpp` |
 | Worker/tools/power | `TestYtDlpWorker.cpp`, `TestProcessUtils.cpp`, `TestPowerInhibitor.cpp` |

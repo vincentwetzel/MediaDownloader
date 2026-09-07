@@ -289,7 +289,8 @@ only the sections relevant to the change.
   after every test and release build job succeeds.
 - Register tests with `lzy_add_test(...)`; keep them isolated from user files
   and use `QT_QPA_PLATFORM=minimal`. Required coverage includes argument
-  builders, playlist/probe fallback, progress and recovery boundaries,
+  builders, playlist/probe fallback, audio artwork normalization, progress and
+  recovery boundaries,
   persistence/cleanup, archive identity, API/power/binary behavior, sorting,
   UI row layout, completion-save responsiveness, startup/shutdown lifecycle,
   and the end-to-end fixture.

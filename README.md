@@ -182,7 +182,7 @@ python tests/run_headless_tests.py --build-dir build --config Release
 
 Use `python tests/run_headless_tests.py --build-dir build --config Release --suspects` to rerun only tests recorded as failing by the previous run. The default cache is `build/.lzy-test-suspects.json`.
 
-Current coverage includes argument construction (including aria2c retry policy), progress parsing and asynchronous size recovery, browser-cookie recovery, queue-backup status/field persistence and malformed-entry filtering, coalesced completion saves, protected temporary-directory root fallback and ownership cleanup, negative aria2c recovery boundaries, archive normalization, configuration defaults/reset cleanup, Local API auth/enqueue behavior, process binary-resolution caching and explicit/WinGet discovery, URL validation, sorting sanitization, playlist range selection, the single-bar download widget and compact External Binaries scroll layout, and a local end-to-end download fixture.
+Current coverage includes argument construction (including aria2c retry policy), audio artwork normalization, progress parsing and asynchronous size recovery, browser-cookie recovery, queue-backup status/field persistence and malformed-entry filtering, coalesced completion saves, protected temporary-directory root fallback and ownership cleanup, negative aria2c recovery boundaries, archive normalization, configuration defaults/reset cleanup, Local API auth/enqueue behavior, process binary-resolution caching and explicit/WinGet discovery, URL validation, sorting sanitization, playlist range selection, the single-bar download widget and compact External Binaries scroll layout, and a local end-to-end download fixture.
 
 ### Release Checklist
 

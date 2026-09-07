@@ -6,6 +6,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QSize>
+#include <QtTest/QtTest>
 
 namespace {
 QImage borderedSquareArtwork()
