@@ -222,7 +222,8 @@ void DownloadManager::onWorkerFinished(const QString &id, bool success, const QS
     // The embedder validates the thumbnail from its worker thread. Do not
     // probe mapped/removable paths here, while handling the GUI-thread finish
     // signal.
-    const bool hasAbandonedThumb = wantsEmbed && !thumbnailPath.isEmpty();
+    const bool hasAbandonedThumb = wantsEmbed && !thumbnailPath.isEmpty()
+        && MetadataEmbedder::supportsAttachedPicture(item.tempFilePath);
 
     if (needsTrackEmbedding || needsSectionNormalization || hasAbandonedThumb) {
         QVariantMap progressData;

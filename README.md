@@ -58,9 +58,10 @@ playlist behavior, and organizing downloaded media.*
 ## Features
 
 Thumbnail sidecars left by yt-dlp are remuxed as attached artwork by the
-existing FFmpeg post-processing path before temporary cleanup. If no usable
-sidecar remains, the normal metadata rewrite continues without an artwork
-input.
+existing FFmpeg post-processing path before temporary cleanup when the selected
+container supports attached pictures. If the sidecar is missing, unusable, or
+the container cannot carry an attached picture (such as Ogg Opus), the normal
+download remains valid without embedded artwork.
 
 The downloader keeps actionable diagnostics through transfer and
 post-processing. A printed yt-dlp final path is not treated as proof of valid
@@ -69,7 +70,7 @@ input are reported as incomplete-transfer failures before metadata embedding.
 
 - 🎬 **Download Video & Audio** — Support for YouTube, TikTok, Instagram, and 1000+ other sites via yt-dlp
 - 🎵 **Audio Extraction** — Extract audio as MP3, M4A, opus, or other formats
-- 📋 **Playlist Support** - Download entire playlists, only the first item, or a selected range of expanded playlist entries
+- 📋 **Playlist Support** - Download entire playlists, search results, only the first item, or a selected range of expanded playlist entries
 - 🔢 **Playlist Filename Prefixes** - Audio playlist files use zero-padded index prefixes by default (for example, `01 - Title.opus`), with an explicit opt-out in Download Options
 - 🖼️ **Gallery Support** — Download image galleries from supported sites (e.g., Instagram, Twitter) via `gallery-dl`
 - 🎨 **Advanced Settings** — Quality selection, format filtering, SponsorBlock integration, metadata embedding
@@ -332,13 +333,17 @@ current compatibility of the installed yt-dlp version.
 
 Yes. Audio downloads can extract MP3, M4A, Opus, or another configured format.
 The application can embed title, artist, album, and thumbnail metadata after
-FFmpeg finishes processing the download.
+FFmpeg finishes processing the download. Audio artwork is preserved intact;
+obvious symmetric borders around centered square artwork are removed
+automatically when detected.
 
 ### Can it download playlists?
 
-Yes. Playlist downloads can include every item, the first item, or a selected
-range. Audio playlist filenames can include zero-padded playlist indices so the
-result remains ordered in music players and file browsers.
+Yes. Playlist and search-shaped URLs are expanded into separate queue items and
+can include every item, the first item, or a selected range. If an ordinary URL
+has a transient probe failure, its fallback remains a single-item download.
+Audio playlist filenames can include zero-padded playlist indices so the result
+remains ordered in music players and file browsers.
 
 ### Is LzyDownloader available for Windows, Linux, and macOS?
 
@@ -357,11 +362,12 @@ tools without bundling them into the repository.
 
 ### Current download behavior
 
-Playlist probing is asynchronous: ordinary URLs recover from transient probe
-failures, while explicit playlist-shaped URLs and missing tools fail visibly.
-Livestream state comes from extractor metadata or explicit wait options, not
-URL/title words. Incomplete media is rejected before metadata embedding, and
-accurate cuts re-encode audio with bounded post-processing.
+Playlist probing is asynchronous: search-shaped URLs use flat extraction and
+become separate queue rows; ordinary URLs recover from transient probe failures
+through a single-item fallback, while explicit playlist/search URLs and missing
+tools fail visibly. Livestream state comes from extractor metadata or explicit
+wait options, not URL/title words. Incomplete media is rejected before metadata
+embedding, and accurate cuts re-encode audio with bounded post-processing.
 
 See [docs/FILE_MANIFEST.md](docs/FILE_MANIFEST.md) for paths,
 [docs/API_SURFACE.md](docs/API_SURFACE.md) for interfaces,

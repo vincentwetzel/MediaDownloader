@@ -225,7 +225,6 @@ void TestYtDlpArgsBuilder::testAria2RetryPolicyArguments() {
 void TestYtDlpArgsBuilder::testAudioThumbnailEmbedding() {
     ConfigManager *mockConfig = getConfigManager();
     mockConfig->set(QStringLiteral("Metadata"), QStringLiteral("embed_thumbnail"), true);
-    mockConfig->set(QStringLiteral("Metadata"), QStringLiteral("crop_audio_thumbnails"), true);
     mockConfig->set(QStringLiteral("Audio"), QStringLiteral("audio_extension"), QStringLiteral("m4a")); // Use m4a to support thumbnail embedding
 
     YtDlpArgsBuilder builder;
@@ -235,7 +234,26 @@ void TestYtDlpArgsBuilder::testAudioThumbnailEmbedding() {
 
     QStringList args = builder.build(mockConfig, QUrl(TEST_URL).toString(), options);
 
+    QVERIFY(args.contains(QStringLiteral("--write-thumbnail")));
     QVERIFY(args.contains(QStringLiteral("--embed-thumbnail")));
+    for (const QString &arg : args) {
+        QVERIFY(!arg.contains(QStringLiteral("crop=")));
+    }
+}
+
+void TestYtDlpArgsBuilder::testUnsupportedOpusThumbnailEmbedding() {
+    ConfigManager *mockConfig = getConfigManager();
+    mockConfig->set(QStringLiteral("Metadata"), QStringLiteral("embed_thumbnail"), true);
+    mockConfig->set(QStringLiteral("Audio"), QStringLiteral("audio_extension"), QStringLiteral("opus"));
+
+    YtDlpArgsBuilder builder;
+    QVariantMap options;
+    options[QStringLiteral("type")] = QStringLiteral("audio");
+
+    const QStringList args = builder.build(mockConfig, QUrl(TEST_URL).toString(), options);
+
+    QVERIFY(args.contains(QStringLiteral("--write-thumbnail")));
+    QVERIFY(!args.contains(QStringLiteral("--embed-thumbnail")));
 }
 
 void TestYtDlpArgsBuilder::testAudioPlaylistFolderJpg() {

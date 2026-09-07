@@ -23,6 +23,10 @@ Public methods:
 
 - `void enqueueDownload(const QString &url, const QVariantMap &options)` — queue
   a URL and, when configured, start asynchronous playlist expansion. The
+  metadata-only probe uses flat extraction for search-shaped URLs so each
+  result can become its own queue item. Transient probe failures fall back to a
+  single-item worker only for ordinary URLs; explicit playlist/search URLs and
+  missing yt-dlp remain terminal failures. The
   optional `playlist_logic` request value (`Ask`, `Download All (no prompt)`,
   or `Download Single (ignore playlist)`) overrides `General/playlist_logic`;
   invalid values use `Ask`, while non-interactive requests force all items.

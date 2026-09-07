@@ -247,6 +247,7 @@ configure_file(
 add_library(LzyAppLib STATIC
     src/core/AppUpdater.cpp
     src/core/ArchiveManager.cpp
+    src/core/ArtworkNormalizer.cpp
     src/core/BaseBinaryUpdater.cpp
     src/core/ConfigManager.cpp
     src/core/DownloadFinalizer.cpp
@@ -459,6 +460,7 @@ set_target_properties(LzyTestFakeYtDlp PROPERTIES
 )
 
 lzy_add_test(TestYtDlpArgsBuilder tests/TestYtDlpArgsBuilder.cpp)
+lzy_add_test(TestArtworkNormalizer tests/TestArtworkNormalizer.cpp)
 lzy_add_test(TestYtDlpWorker tests/TestYtDlpWorker.cpp)
 lzy_add_test(TestEndToEnd tests/TestEndToEnd.cpp)
 lzy_add_test(TestArchiveManager tests/TestArchiveManager.cpp)

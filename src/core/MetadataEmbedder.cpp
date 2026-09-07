@@ -1,4 +1,5 @@
 #include "MetadataEmbedder.h"
+#include "ArtworkNormalizer.h"
 #include "core/ConfigManager.h"
 #include "core/ProcessUtils.h"
 #include <QDir>
@@ -7,6 +8,33 @@
 #include <QDebug>
 #include <chrono>
 #include <QTimer>
+
+namespace {
+bool isAudioOnlySuffix(const QString &suffix)
+{
+    return suffix == QLatin1String("mp3") ||
+           suffix == QLatin1String("m4a") ||
+           suffix == QLatin1String("mka") ||
+           suffix == QLatin1String("wav") ||
+           suffix == QLatin1String("flac") ||
+           suffix == QLatin1String("opus") ||
+           suffix == QLatin1String("ogg") ||
+           suffix == QLatin1String("aac");
+}
+}
+
+bool MetadataEmbedder::supportsAttachedPicture(const QString &filePath)
+{
+    const QString suffix = QFileInfo(filePath).suffix().toLower();
+    return suffix == QLatin1String("mp3") ||
+           suffix == QLatin1String("m4a") ||
+           suffix == QLatin1String("mka") ||
+           suffix == QLatin1String("mkv") ||
+           suffix == QLatin1String("flac") ||
+           suffix == QLatin1String("mp4") ||
+           suffix == QLatin1String("m4v") ||
+           suffix == QLatin1String("mov");
+}
 
 MetadataEmbedder::MetadataEmbedder(ConfigManager *configManager, QObject *parent)
     : QObject(parent),
@@ -70,8 +98,20 @@ void MetadataEmbedder::processFile(const QString &filePath, int trackNumber, boo
     QFileInfo fileInfo(filePath);
     const QString suffix = fileInfo.suffix().toLower();
     const bool hasThumbnail = !m_thumbnailPath.isEmpty() && QFile::exists(m_thumbnailPath);
+    const bool hasEmbeddableThumbnail = hasThumbnail && supportsAttachedPicture(filePath);
 
-    if (!normalizeContainerTimestamps && m_extraMetadata.isEmpty() && !hasThumbnail &&
+    const bool audioOnly = isAudioOnlySuffix(suffix);
+    if (hasEmbeddableThumbnail && audioOnly) {
+        const bool normalized = ArtworkNormalizer::normalizeFile(m_thumbnailPath);
+        qDebug() << "MetadataEmbedder: automatic artwork border normalization"
+                 << (normalized ? "cropped detected borders in" : "left unchanged")
+                 << m_thumbnailPath;
+    } else if (hasThumbnail && !hasEmbeddableThumbnail) {
+        qInfo() << "MetadataEmbedder: container does not support attached artwork; leaving thumbnail external"
+                << m_thumbnailPath << "for" << filePath;
+    }
+
+    if (!normalizeContainerTimestamps && m_extraMetadata.isEmpty() && !hasEmbeddableThumbnail &&
         ((suffix == QStringLiteral("opus") && trackNumber > 0) || trackNumber == 0)) {
         qDebug() << "Skipping metadata embedding because no metadata rewrite or usable thumbnail is needed.";
         emit finished(true, "");
@@ -126,26 +166,24 @@ void MetadataEmbedder::startRewrite() {
 
     args << QStringLiteral("-nostdin");
     args << QStringLiteral("-i") << m_originalFilePath;
-    const bool hasThumbnail = !m_thumbnailPath.isEmpty() && QFile::exists(m_thumbnailPath);
+    const bool hasThumbnail = !m_thumbnailPath.isEmpty()
+        && QFile::exists(m_thumbnailPath)
+        && supportsAttachedPicture(m_originalFilePath);
     if (hasThumbnail) {
         args << QStringLiteral("-i") << m_thumbnailPath;
     }
-    args << QStringLiteral("-map") << QStringLiteral("0");
+    const QString extension = QFileInfo(m_originalFilePath).suffix().toLower();
+    const bool audioOnly = isAudioOnlySuffix(extension);
+    // For audio, replace any picture stream yt-dlp may already have embedded
+    // rather than leaving the old artwork alongside the normalized sidecar.
+    // Other media keeps the existing all-stream mapping behavior.
+    args << QStringLiteral("-map") << (hasThumbnail && audioOnly ? QStringLiteral("0:a?") : QStringLiteral("0"));
     if (hasThumbnail) {
         args << QStringLiteral("-map") << QStringLiteral("1:0");
     }
     args << QStringLiteral("-c") << QStringLiteral("copy");
 
     if (hasThumbnail) {
-        const QString extension = QFileInfo(m_originalFilePath).suffix().toLower();
-        const bool audioOnly = extension == QLatin1String("mp3") ||
-                               extension == QLatin1String("m4a") ||
-                               extension == QLatin1String("mka") ||
-                               extension == QLatin1String("wav") ||
-                               extension == QLatin1String("flac") ||
-                               extension == QLatin1String("opus") ||
-                               extension == QLatin1String("ogg") ||
-                               extension == QLatin1String("aac");
         const int artworkVideoIndex = audioOnly ? 0 : 1;
         args << QStringLiteral("-disposition:v:%1").arg(artworkVideoIndex) << QStringLiteral("attached_pic");
         qDebug() << "MetadataEmbedder: attaching abandoned thumbnail" << m_thumbnailPath

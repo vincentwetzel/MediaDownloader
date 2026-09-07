@@ -119,9 +119,14 @@ only the sections relevant to the change.
 - `yt-dlp` handles video/audio and `gallery-dl` handles galleries through
   asynchronous `QProcess`. Metadata-only playlist probes are read-only: they
   omit download forcing, cookies, temp-directory creation, and item limits.
-  A probe is bounded by a 45-second watchdog. Transient probe/JSON errors,
-  including that timeout, fall back to the normal worker for ordinary URLs;
-  explicit playlist-shaped URLs and missing yt-dlp remain terminal failures.
+  Search-shaped URLs use flat playlist extraction so search results can become
+  separate queue items without recursively resolving nested playlists during
+  the probe. A probe is bounded by a 45-second watchdog. Transient probe/JSON
+  errors, including that timeout, fall back to the normal worker only for
+  ordinary URLs; explicit playlist- or search-shaped URLs and missing yt-dlp
+  remain terminal failures. An ordinary-URL fallback explicitly disables
+  playlist expansion so one failed probe cannot turn one queue row into an
+  unbounded extractor-level batch.
 - Generic positive item-index hints (`img_index`, `slide`, `item`, `index`,
   `playlist_index`) are stripped for probing and applied as one-based
   `--playlist-items` only to the real download. Preserve thumbnails, playlist
@@ -178,12 +183,19 @@ only the sections relevant to the change.
   `channel`, or `uploader`, never `playlist_uploader`/`playlist_owner`.
   Playlist audio prefixes indices by default and generates `folder.jpg` only
   for explicit full batches, not single or partial selections.
+- Audio artwork keeps its source image unless a worker-thread image analysis
+  finds substantial, symmetric low-variation borders around a centered square;
+  only those detected borders may be removed. Genuine landscape artwork and
+  ambiguous images remain intact.
 - If yt-dlp leaves a tracked thumbnail sidecar, the existing FFmpeg rewrite
   adds it as a second input mapped as `attached_pic` before cleanup. The
   metadata worker validates that candidate off the GUI thread; if native
   yt-dlp post-processing already consumed it, the worker skips a redundant
   rewrite when no track tag, extra metadata, or container normalization is
-  pending. Missing or unreadable sidecars do not block finalization.
+  pending. Missing, unreadable, or unsupported-container sidecars do not block
+  finalization. Ogg/Opus, ADTS AAC, and WAV outputs keep the thumbnail as an
+  auxiliary file when requested instead of attempting an invalid attached-
+  picture remux.
 - Metadata embedding and final destination verification/replacement run off the
   GUI thread. A thumbnail path is a candidate until the worker validates it;
   missing or unreadable artwork does not block finalization. Stopping a job

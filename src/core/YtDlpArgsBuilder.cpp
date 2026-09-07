@@ -507,7 +507,11 @@ QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString 
         rawArgs << QStringLiteral("--parse-metadata") << QStringLiteral("Various Artists:%(album_artist)s");
     }
 
-    const QStringList supportedThumbnailExts = {QStringLiteral("mp3"), QStringLiteral("mkv"), QStringLiteral("mka"), QStringLiteral("ogg"), QStringLiteral("opus"), QStringLiteral("flac"), QStringLiteral("m4a"), QStringLiteral("mp4"), QStringLiteral("m4v"), QStringLiteral("mov")};
+    // FFmpeg's attached-picture stream is supported by these containers. Ogg
+    // Opus/Vorbis, ADTS AAC, and WAV cannot carry that stream, so leave their
+    // thumbnail as an auxiliary file instead of asking either yt-dlp or the
+    // fallback remuxer to perform an invalid container operation.
+    const QStringList supportedThumbnailExts = {QStringLiteral("mp3"), QStringLiteral("mkv"), QStringLiteral("mka"), QStringLiteral("flac"), QStringLiteral("m4a"), QStringLiteral("mp4"), QStringLiteral("m4v"), QStringLiteral("mov")};
     
     bool embedThumb = configManager->get(QStringLiteral("Metadata"), QStringLiteral("embed_thumbnail"), true).toBool();
     bool isFullPlaylistDownload = options.value(QStringLiteral("is_full_playlist_download"), false).toBool();
@@ -520,7 +524,17 @@ QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString 
 
     if (!isPlaylistExpansion) {
         if (canEmbed) {
-            rawArgs << QStringLiteral("--embed-thumbnail");
+            // Audio artwork is normalized by the app after yt-dlp has written
+            // the sidecar. This lets us remove genuine pillarboxing without
+            // center-cropping legitimate landscape artwork.
+            if (downloadType == QLatin1String("audio")) {
+                rawArgs << QStringLiteral("--write-thumbnail");
+                // Keep yt-dlp's native embedding as a fallback for containers
+                // whose attached-picture metadata is more format-sensitive.
+                rawArgs << QStringLiteral("--embed-thumbnail");
+            } else {
+                rawArgs << QStringLiteral("--embed-thumbnail");
+            }
         } else if (shouldWrite) {
             rawArgs << QStringLiteral("--write-thumbnail");
         }
@@ -531,11 +545,6 @@ QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString 
                 ppaArgs << QStringLiteral("-q:v 0");
             }
             
-            // Crop to square if downloading audio
-            if (downloadType == QLatin1String("audio") && configManager->get(QStringLiteral("Metadata"), QStringLiteral("crop_artwork_to_square"), true).toBool()) {
-                ppaArgs << QStringLiteral("-vf crop=(iw+ih-abs(iw-ih))/2:(iw+ih-abs(iw-ih))/2");
-            }
-
             if (!ppaArgs.isEmpty()) {
                 rawArgs << QStringLiteral("--ppa") << QStringLiteral("ThumbnailsConvertor+ffmpeg_o:%1").arg(ppaArgs.join(QLatin1Char(' ')));
             }

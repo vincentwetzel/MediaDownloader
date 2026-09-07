@@ -56,14 +56,18 @@ private slots:
     void cleanup();
 
     void testTransientPlaylistProbeFallback();
+    void testSearchProbeFailureDoesNotFallBackToSingleWorker();
+    void testSearchProbeUsesFlatPlaylistAndReturnsEntries();
     void testExplicitPlaylistFailureClassification();
     void testEnqueueUsesPersistedPlaylistLogic();
     void testSinglePlaylistSettingQueuesOnlyFirstItem();
+    void testDownloadAllCreatesOneQueueItemPerExpandedItem();
     void testNonInteractiveDuplicateUsesFailureSignal();
     void testSlowProbeFallbackAndExplicitPlaylistSmoke();
     void testDownloadWorkerUsesDedicatedThread();
     void testMetadataEmbedderRunsOffGuiThread();
     void testMetadataEmbedderSkipsMissingThumbnailWithoutOtherWork();
+    void testMetadataEmbedderSkipsUnsupportedOpusThumbnailRemux();
     void testFinalizationDoesNotBlockGuiThread();
     void testCompletionStateSaveDoesNotBlockGuiThread();
 

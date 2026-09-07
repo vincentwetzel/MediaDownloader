@@ -16,13 +16,12 @@ private slots:
     void onEmbedMetadataToggled(bool checked);
     void onEmbedThumbnailToggled(bool checked);
     void onHighQualityThumbnailToggled(bool checked);
-    void onCropThumbnailToggled(bool checked);
     void onGenerateFolderJpgToggled(bool checked);
     void onForcePlaylistAsAlbumToggled(bool checked);
     void onConvertThumbnailsChanged(const QString &text);
     void handleConfigSettingChanged(const QString &section, const QString &key, const QVariant &value);
 private:
     ConfigManager *m_configManager;
-    ToggleSwitch *m_embedMetadataCheck, *m_embedThumbnailCheck, *m_highQualityThumbnailCheck, *m_cropThumbnailCheck, *m_generateFolderJpgCheck, *m_forcePlaylistAsAlbumSwitch;
+    ToggleSwitch *m_embedMetadataCheck, *m_embedThumbnailCheck, *m_highQualityThumbnailCheck, *m_generateFolderJpgCheck, *m_forcePlaylistAsAlbumSwitch;
     QComboBox *m_convertThumbnailsCombo;
 };

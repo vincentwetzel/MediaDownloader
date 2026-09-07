@@ -42,6 +42,31 @@ QString cleanUrlForProbe(const QString &urlStr)
     }
     return urlStr;
 }
+
+bool looksLikeSearchUrl(const QString &urlString)
+{
+    const QUrl url(urlString);
+    if (!url.isValid()) {
+        return false;
+    }
+
+    bool hasSearchPath = false;
+    const QStringList pathParts = url.path().split(QLatin1Char('/'), Qt::SkipEmptyParts);
+    for (const QString &part : pathParts) {
+        if (part.compare(QStringLiteral("search"), Qt::CaseInsensitive) == 0) {
+            hasSearchPath = true;
+            break;
+        }
+    }
+    if (!hasSearchPath) {
+        return false;
+    }
+
+    const QUrlQuery query(url);
+    return query.hasQueryItem(QStringLiteral("q"))
+        || query.hasQueryItem(QStringLiteral("query"))
+        || query.hasQueryItem(QStringLiteral("search"));
+}
 }
 
 PlaylistExpansionWorker::PlaylistExpansionWorker(const QString &url, ConfigManager *configManager, QObject *parent)
@@ -155,9 +180,15 @@ QStringList PlaylistExpansionWorker::buildProbeArguments(const QString &playlist
     removeArgWithValue(QStringLiteral("--ffmpeg-location"));
     removeArgWithValue(QStringLiteral("--print"));
 
-    // Do not use --flat-playlist here. Flat entries are fast, but yt-dlp can
-    // omit per-entry thumbnails, leaving queued rows with no preview metadata.
-    // This remains asynchronous and is still metadata-only/no-download work.
+    // Search pages can contain many videos and nested playlists. A full JSON
+    // expansion recursively resolves those entries and can exceed the probe
+    // watchdog before the app has a chance to create individual queue rows.
+    // Flat extraction keeps this metadata-only probe bounded; each queued item
+    // can still obtain its complete metadata during its normal download.
+    if (looksLikeSearchUrl(cleanUrl)) {
+        args << QStringLiteral("--flat-playlist");
+    }
+
     args << QStringLiteral("--dump-single-json")
          << QStringLiteral("--no-download");
 
@@ -189,7 +220,9 @@ void PlaylistExpansionWorker::onProcessFinished(int exitCode, QProcess::ExitStat
             QRegularExpression::CaseInsensitiveOption
         );
 
-        if (bypassRe.match(errorMessage).hasMatch() && !m_url.contains(QStringLiteral("playlist"), Qt::CaseInsensitive)) {
+        if (bypassRe.match(errorMessage).hasMatch()
+                && !m_url.contains(QStringLiteral("playlist"), Qt::CaseInsensitive)
+                && !looksLikeSearchUrl(m_url)) {
             qDebug() << "Playlist expansion hit a known video-level error. Bypassing to let YtDlpWorker handle it. Error:" << errorMessage;
             QVariantMap item;
             item.insert(QStringLiteral("url"), m_url);

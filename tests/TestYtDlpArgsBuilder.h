@@ -15,6 +15,7 @@ private slots:
     void testLivePathIsNotLivestreamEvidence();
     void testAria2RetryPolicyArguments();
     void testAudioThumbnailEmbedding();
+    void testUnsupportedOpusThumbnailEmbedding();
     void testAudioPlaylistFolderJpg();
     void testAudioPlaylistArtistMetadataFallback();
     void testOrphanedTemporaryDirectorySweep();

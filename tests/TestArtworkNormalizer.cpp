@@ -1,0 +1,58 @@
+#include "TestArtworkNormalizer.h"
+
+#include "core/ArtworkNormalizer.h"
+
+#include <QColor>
+#include <QDir>
+#include <QFileInfo>
+#include <QSize>
+
+namespace {
+QImage borderedSquareArtwork()
+{
+    QImage image(160, 90, QImage::Format_RGB32);
+    image.fill(Qt::black);
+    for (int y = 0; y < 90; ++y) {
+        for (int x = 35; x < 125; ++x) {
+            image.setPixelColor(x, y, QColor((x * 3) % 256, (y * 5) % 256, 180));
+        }
+    }
+    return image;
+}
+
+QImage genuineLandscapeArtwork()
+{
+    QImage image(160, 90, QImage::Format_RGB32);
+    for (int y = 0; y < image.height(); ++y) {
+        for (int x = 0; x < image.width(); ++x) {
+            image.setPixelColor(x, y, QColor((x * 7) % 256, (y * 11) % 256, (x + y) % 256));
+        }
+    }
+    return image;
+}
+}
+
+void TestArtworkNormalizer::testCropsSymmetricBordersAroundSquareArtwork()
+{
+    const QImage image = borderedSquareArtwork();
+    QCOMPARE(ArtworkNormalizer::detectSquareArtworkCrop(image), QRect(35, 0, 90, 90));
+}
+
+void TestArtworkNormalizer::testPreservesGenuineLandscapeArtwork()
+{
+    QVERIFY(ArtworkNormalizer::detectSquareArtworkCrop(genuineLandscapeArtwork()).isEmpty());
+}
+
+void TestArtworkNormalizer::testNormalizesPngInPlace()
+{
+    const QString path = QDir(getTempDir()).filePath(QStringLiteral("artwork.png"));
+    QVERIFY(borderedSquareArtwork().save(path, "PNG"));
+    QVERIFY(QFileInfo::exists(path));
+    QVERIFY(ArtworkNormalizer::normalizeFile(path));
+
+    const QImage normalized(path);
+    QCOMPARE(normalized.size(), QSize(90, 90));
+    QCOMPARE(normalized.pixelColor(0, 0), QColor(105, 0, 180));
+}
+
+QTEST_MAIN(TestArtworkNormalizer)

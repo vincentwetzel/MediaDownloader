@@ -9,6 +9,17 @@ Older historical changelogs (pre-v1.1.25) can be found in [docs/CHANGELOG_ARCHIV
 
 ## [Unreleased]
 
+- **Artwork normalization:** Audio downloads now preserve the original
+  thumbnail and automatically remove only high-confidence symmetric borders
+  around centered square artwork. Genuine landscape artwork is no longer
+  unconditionally center-cropped.
+- **Playlist expansion:** Search-shaped URLs now use flat metadata probing so
+  results can be represented as separate queue items. Probe failures no longer
+  silently hand ambiguous search/playlist URLs to one unbounded worker row;
+  ordinary fallback downloads are explicitly limited to one item.
+- **Audio container safety:** Opus, Ogg, AAC, and WAV downloads no longer fail
+  when a thumbnail cannot be represented as an FFmpeg attached-picture stream.
+
 ## [1.2.45] - 2026-09-04
 
 - **Audio post-processing:** Skip redundant FFmpeg metadata rewrites when

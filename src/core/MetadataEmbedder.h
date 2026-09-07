@@ -3,6 +3,7 @@
 #include <QObject>
 #include <QByteArray>
 #include <QProcess>
+#include <QString>
 #include <QVariantMap>
 
 class ConfigManager;
@@ -12,8 +13,9 @@ class MetadataEmbedder : public QObject {
 
 public:
     explicit MetadataEmbedder(ConfigManager *configManager, QObject *parent = nullptr);
+    static bool supportsAttachedPicture(const QString &filePath);
     /**
-     * @brief Sets the local artwork file for the existing abandoned-thumbnail remux path.
+     * @brief Sets the local artwork file for the metadata remux path.
      *
      * @param thumbnailPath Absolute path to the downloaded thumbnail image.
      */

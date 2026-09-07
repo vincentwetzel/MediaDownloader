@@ -79,6 +79,7 @@ replacement. Temp cleanup owns root resolution and guarded UUID-folder removal.
 | `DownloadManager.*`, `DownloadManagerWorkers.cpp` | Scheduling, shutdown/worker-thread lifecycle, terminal classification, power, video quality warnings |
 | `DownloadManagerPlaylist.cpp`, `PlaylistExpansionWorker.*`, `PlaylistExpansionParser.*` | Read-only probing, item selection, placeholders, thumbnails, playlist metadata, fallback |
 | `YtDlpArgsBuilder.*` | Settings/options to yt-dlp/aria2c arguments and replay-safe live classification |
+| `ArtworkNormalizer.*` | Worker-thread detection and removal of high-confidence borders around square audio artwork |
 | `DiagnosticTail.h`, `YtDlpWorker.*`, `YtDlpWorkerProcess.cpp`, `YtDlpWorkerProcessOutput.cpp`, `YtDlpWorkerInfoJson.cpp`, `YtDlpWorkerProcessHelpers.h` | Async yt-dlp process, bounded diagnostics, output/progress parsing, metadata loading, cookies, livestream wait, aria2c recovery |
 | `YtDlpWorkerDiagnostics.cpp` | Fatal/incomplete-media, disk-full, and bounded recovery classification |
 | `YtDlpWorkerTransfers.cpp` | Transfer-stage inference, including combined-source audio |

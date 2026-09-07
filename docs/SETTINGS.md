@@ -156,15 +156,19 @@ Settings specific to downloading live broadcasts.
 
 Settings for embedding metadata, thumbnails, and chapter information into downloaded files.
 
+Audio artwork is preserved by default. During audio finalization, the app
+automatically removes high-confidence symmetric pillarbox/letterbox borders
+when the remaining artwork is square; ambiguous images are left unchanged.
+The former `crop_artwork_to_square` setting is retired and is no longer read.
+
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `use_aria2c` | Boolean | `false` | Use aria2c as an external downloader for segmented, concurrent non-livestream downloads. The generated aria2c options use bounded retry/backoff and a conservative per-server connection limit. Transient exit codes 2, 5, 6, and 29, or yt-dlp reporting that aria2c returned without its expected temporary media `.part` output, may trigger one native yt-dlp fallback while preserving media `.part` files. Livestreams are forced through yt-dlp's native downloader so wait/finish-now behavior remains reliable. |
 | `embed_chapters` | Boolean | `true` | Embed chapter markers into video files when available. |
 | `embed_metadata` | Boolean | `true` | Embed metadata (title, artist, description, etc.) into downloaded files. |
-| `embed_thumbnail` | Boolean | `true` | Embed thumbnail images into downloaded files as cover art. If yt-dlp leaves a tracked, existing thumbnail sidecar, the existing FFmpeg rewrite maps it as attached artwork before cleanup; otherwise the normal metadata rewrite continues without that input. |
+| `embed_thumbnail` | Boolean | `true` | Embed thumbnail images into downloaded files as cover art where the selected container supports attached pictures. If yt-dlp leaves a tracked, existing thumbnail sidecar, the existing FFmpeg rewrite maps it as attached artwork before cleanup; unsupported containers such as Opus remain valid downloads without an attached picture. |
 | `high_quality_thumbnail` | Boolean | `true` | Use a higher-quality thumbnail source when available. |
 | `convert_thumbnail_to` | String | `jpg` | Convert embedded thumbnails to this format. Options: `None`, `jpg`, `png`. |
-| `crop_artwork_to_square` | Boolean | `true` | Crop audio thumbnails to square aspect ratio. |
 | `generate_folder_jpg` | Boolean | `true` | Generate a `folder.jpg` file for audio playlists. This setting strictly applies to explicit full playlist/multi-item batch downloads, bypassing single-item tracks and partial playlist selections. |
 | `force_playlist_as_album` | Boolean | `false` | For audio playlist downloads, force the `album` tag to the playlist title and `album_artist` to `Various Artists`. Playlist detection uses playlist index, playlist title, or explicit playlist flags. Track-level `artist` preservation/fallback is applied independently when metadata embedding is enabled. |
 
@@ -395,7 +399,7 @@ All other settings are reset to their default values.
 | **Advanced Settings → Download Flow** | `Metadata` | `use_aria2c` |
 | **Advanced Settings → Download Flow** | `General` | `sponsorblock`, `auto_paste_mode`, `single_line_preview`, `restrict_filenames`, `embed_chapters` |
 | **Advanced Settings → Download Flow** | `DownloadOptions` | `split_chapters`, `download_sections_enabled`, `ffmpeg_cut_encoder`, `ffmpeg_cut_custom_args`, `prefix_playlist_indices`, `auto_clear_completed`, `geo_verification_proxy` |
-| **Advanced Settings → Files & Tags** | `Metadata` | `embed_metadata`, `embed_thumbnail`, `high_quality_thumbnail`, `convert_thumbnail_to`, `crop_artwork_to_square`, `generate_folder_jpg`, `force_playlist_as_album` |
+| **Advanced Settings → Files & Tags** | `Metadata` | `embed_metadata`, `embed_thumbnail`, `high_quality_thumbnail`, `convert_thumbnail_to`, `generate_folder_jpg`, `force_playlist_as_album` |
 | **Advanced Settings → Files & Tags** | `Subtitles` | `languages`, `embed_subtitles`, `write_subtitles`, `write_auto_subtitles`, `format` |
 | **Advanced Settings → External Tools** | *(N/A - runtime only)* | yt-dlp/gallery-dl version display and update buttons |
 | **Advanced Settings → External Tools** | `Binaries` | `yt-dlp_path`, `ffmpeg_path`, `ffprobe_path`, `gallery-dl_path`, `aria2c_path`, `deno_path` |

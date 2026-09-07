@@ -183,7 +183,6 @@ void ConfigManager::initializeDefaultSettings() {
     m_defaultSettings[QStringLiteral("Metadata")][QStringLiteral("embed_thumbnail")] = true;
     m_defaultSettings[QStringLiteral("Metadata")][QStringLiteral("high_quality_thumbnail")] = true;
     m_defaultSettings[QStringLiteral("Metadata")][QStringLiteral("convert_thumbnail_to")] = QStringLiteral("jpg");
-    m_defaultSettings[QStringLiteral("Metadata")][QStringLiteral("crop_artwork_to_square")] = true;
     m_defaultSettings[QStringLiteral("Metadata")][QStringLiteral("generate_folder_jpg")] = true;
     m_defaultSettings[QStringLiteral("Subtitles")][QStringLiteral("languages")] = QStringLiteral("en");
     m_defaultSettings[QStringLiteral("Subtitles")][QStringLiteral("embed_subtitles")] = true;

@@ -8,6 +8,7 @@
 #include <QFile>
 #include <QDir>
 #include <QFileInfo>
+#include <QImage>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QProcess>
@@ -51,6 +52,49 @@ void TestDownloadManager::testTransientPlaylistProbeFallback() {
     // The key expectation: the manager should create a fallback item for the direct URL
     // So itemCount should be 1 (the single fallback item)
     QCOMPARE(expansionSpy.last().at(1).toInt(), 1);
+}
+
+void TestDownloadManager::testSearchProbeFailureDoesNotFallBackToSingleWorker() {
+    TestableDownloadManager manager(getConfigManager(), this);
+
+    QSignalSpy expansionSpy(&manager, SIGNAL(playlistExpansionFinished(QString,int)));
+    const QString searchUrl = QStringLiteral("https://music.youtube.com/search?q=shout+to+the+lord");
+
+    manager.callOnPlaylistExpanded(searchUrl, {},
+                                   QStringLiteral("Playlist expansion timed out after 45 seconds."));
+
+    QVERIFY(!expansionSpy.isEmpty());
+    QCOMPARE(expansionSpy.last().at(0).toString(), searchUrl);
+    QCOMPARE(expansionSpy.last().at(1).toInt(), 0);
+}
+
+void TestDownloadManager::testSearchProbeUsesFlatPlaylistAndReturnsEntries() {
+    ConfigManager *configManager = getConfigManager();
+    const QString fakeYtDlpName = QStringLiteral("LzyTestFakeYtDlp")
+#ifdef Q_OS_WIN
+        + QStringLiteral(".exe")
+#endif
+        ;
+    const QString fakeYtDlpPath = QDir(QCoreApplication::applicationDirPath()).filePath(fakeYtDlpName);
+    QVERIFY2(QFileInfo::exists(fakeYtDlpPath), qPrintable(QStringLiteral("Fake yt-dlp not found: %1").arg(fakeYtDlpPath)));
+    configManager->set(QStringLiteral("Binaries"), QStringLiteral("yt-dlp_path"), fakeYtDlpPath);
+    configManager->set(QStringLiteral("Binaries"), QStringLiteral("yt-dlp_auto_detected"), false);
+    ProcessUtils::clearCache();
+
+    PlaylistExpansionWorker worker(QStringLiteral("https://media.example/search?q=search-probe"), configManager, this);
+    worker.setProperty("options", QVariantMap{{QStringLiteral("type"), QStringLiteral("video")}});
+    QSignalSpy expansionSpy(&worker, &PlaylistExpansionWorker::expansionFinished);
+
+    worker.startExpansion(QStringLiteral("Download All (no prompt)"));
+
+    QTRY_COMPARE_WITH_TIMEOUT(expansionSpy.count(), 1, 10000);
+    const QList<QVariant> result = expansionSpy.first();
+    QVERIFY2(result.at(2).toString().isEmpty(), qPrintable(result.at(2).toString()));
+    const QList<QVariantMap> items = qvariant_cast<QList<QVariantMap>>(result.at(1));
+    QCOMPARE(items.size(), 3);
+    QCOMPARE(items.at(0).value(QStringLiteral("url")).toString(), QStringLiteral("https://media.example/watch?id=search-1"));
+    QCOMPARE(items.at(2).value(QStringLiteral("playlist_index")).toInt(), 3);
+    ProcessUtils::clearCache();
 }
 
 void TestDownloadManager::testExplicitPlaylistFailureClassification() {
@@ -119,6 +163,38 @@ void TestDownloadManager::testSinglePlaylistSettingQueuesOnlyFirstItem() {
     const QVariantMap queuedItem = addedSpy.first().at(0).toMap();
     QCOMPARE(queuedItem.value(QStringLiteral("url")).toString(),
              QStringLiteral("https://media.example.test/watch?id=first"));
+}
+
+void TestDownloadManager::testDownloadAllCreatesOneQueueItemPerExpandedItem() {
+    TestableDownloadManager manager(getConfigManager(), this);
+    QSignalSpy addedSpy(&manager, &DownloadManager::downloadAddedToQueue);
+
+    QVariantMap options;
+    options.insert(QStringLiteral("type"), QStringLiteral("video"));
+    options.insert(QStringLiteral("playlist_logic"), QStringLiteral("Download All (no prompt)"));
+    const QList<QVariantMap> expandedItems = {
+        {{QStringLiteral("url"), QStringLiteral("https://media.example/watch?id=item-1")},
+         {QStringLiteral("title"), QStringLiteral("Item 1")},
+         {QStringLiteral("is_playlist"), true},
+         {QStringLiteral("playlist_index"), 1}},
+        {{QStringLiteral("url"), QStringLiteral("https://media.example/watch?id=item-2")},
+         {QStringLiteral("title"), QStringLiteral("Item 2")},
+         {QStringLiteral("is_playlist"), true},
+         {QStringLiteral("playlist_index"), 2}},
+        {{QStringLiteral("url"), QStringLiteral("https://media.example/watch?id=item-3")},
+         {QStringLiteral("title"), QStringLiteral("Item 3")},
+         {QStringLiteral("is_playlist"), true},
+         {QStringLiteral("playlist_index"), 3}}
+    };
+
+    manager.emitPlaylistExpansion(QStringLiteral("https://media.example/playlist?id=batch"),
+                                   options, expandedItems);
+
+    QCOMPARE(addedSpy.count(), 3);
+    QCOMPARE(addedSpy.at(0).at(0).toMap().value(QStringLiteral("url")).toString(),
+             QStringLiteral("https://media.example/watch?id=item-1"));
+    QCOMPARE(addedSpy.at(2).at(0).toMap().value(QStringLiteral("url")).toString(),
+             QStringLiteral("https://media.example/watch?id=item-3"));
 }
 
 void TestDownloadManager::testSlowProbeFallbackAndExplicitPlaylistSmoke() {
@@ -325,6 +401,24 @@ void TestDownloadManager::testMetadataEmbedderRunsOffGuiThread()
 void TestDownloadManager::testMetadataEmbedderSkipsMissingThumbnailWithoutOtherWork()
 {
     MetadataEmbedder *embedder = new MetadataEmbedder(getConfigManager());
+    QSignalSpy finishedSpy(embedder, &MetadataEmbedder::finished);
+
+    embedder->processFile(QStringLiteral("missing-test-file.opus"), 0, false);
+
+    QCOMPARE(finishedSpy.count(), 1);
+    QVERIFY(finishedSpy.first().at(0).toBool());
+    delete embedder;
+}
+
+void TestDownloadManager::testMetadataEmbedderSkipsUnsupportedOpusThumbnailRemux()
+{
+    const QString thumbnailPath = QDir(getTempDir()).filePath(QStringLiteral("opus-thumbnail.jpg"));
+    QImage thumbnail(8, 8, QImage::Format_RGB32);
+    thumbnail.fill(Qt::white);
+    QVERIFY(thumbnail.save(thumbnailPath, "JPG"));
+
+    MetadataEmbedder *embedder = new MetadataEmbedder(getConfigManager());
+    embedder->setThumbnailPath(thumbnailPath);
     QSignalSpy finishedSpy(embedder, &MetadataEmbedder::finished);
 
     embedder->processFile(QStringLiteral("missing-test-file.opus"), 0, false);

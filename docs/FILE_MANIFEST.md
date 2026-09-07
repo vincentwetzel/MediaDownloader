@@ -64,7 +64,7 @@ Public/project guidance is in `README.md`, `CONTRIBUTING.md`, `SECURITY.md`,
 | Temp/finalization | `src/core/DownloadFinalizer.*`, `src/core/FileReplacement.*`, `src/core/DownloadTempCleanup.*`, `src/core/DownloadQueueManagerCleanup.cpp` |
 | yt-dlp/gallery pipeline | `src/core/DiagnosticTail.h`, `src/core/YtDlpWorker.*`, `src/core/YtDlpWorkerProcess.cpp`, `src/core/YtDlpWorkerProcessOutput.cpp`, `src/core/YtDlpWorkerInfoJson.cpp`, `src/core/YtDlpWorkerProcessHelpers.h`, `src/core/YtDlpWorkerDiagnostics.cpp`, `src/core/YtDlpWorkerTransfers.cpp`, `src/core/GalleryDlWorker.*` |
 | Probe/arguments/live state | `src/core/PlaylistExpansionWorker.*`, `src/core/PlaylistExpansionParser.*`, `src/core/YtDlpArgsBuilder.*`, `src/core/YtDlpLiveStatus.h` |
-| Metadata/FFmpeg | `src/core/MetadataEmbedder.*`, `src/core/download_pipeline/FfmpegMuxer.*` |
+| Metadata/FFmpeg | `src/core/ArtworkNormalizer.*`, `src/core/MetadataEmbedder.*`, `src/core/download_pipeline/FfmpegMuxer.*` |
 | Tools/processes | `src/core/ProcessUtils.*`, `src/core/SmartBinaryResolver.*`, `src/core/BaseBinaryUpdater.*`, `src/core/StartupWorker.*` |
 | API/update/power/logging | `src/core/LocalApiServer.*`, `src/core/AppUpdater.*`, `src/core/PowerInhibitor.*`, `src/utils/LogManager.*` |
 | Main UI | `src/ui/MainWindow.*`, `src/ui/MainWindowConnections.cpp`, `src/ui/MainWindowDownloadConnections.cpp`, `src/ui/MainWindowUiBuilder.*`, `src/ui/StartTab.*`, `src/ui/ActiveDownloadsTab.*`, `src/ui/DownloadItemWidget.cpp`, `src/ui/DownloadItemWidgetProgress.cpp`, `src/ui/DownloadItemWidgetIcons.h`, `src/ui/DownloadHistoryTab.*` |

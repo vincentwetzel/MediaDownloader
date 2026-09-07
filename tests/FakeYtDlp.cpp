@@ -41,6 +41,18 @@ int main(int argc, char **argv)
     const std::string url = findUrl(arguments);
     const bool isProbe = hasArgument(arguments, "--dump-single-json")
                          && hasArgument(arguments, "--no-download");
+    if (isProbe && url.find("search-probe") != std::string::npos) {
+        if (!hasArgument(arguments, "--flat-playlist")) {
+            std::cerr << "search probe was not flat" << std::endl;
+            return 5;
+        }
+        std::cout << R"({"title":"Search results","entries":[
+            {"webpage_url":"https://media.example/watch?id=search-1","title":"Search result 1","playlist_index":1},
+            {"webpage_url":"https://media.example/watch?id=search-2","title":"Search result 2","playlist_index":2},
+            {"webpage_url":"https://media.example/watch?id=search-3","title":"Search result 3","playlist_index":3}
+        ]})" << std::endl;
+        return 0;
+    }
     if (isProbe && (url.find("slow-probe") != std::string::npos
                     || url.find("playlist") != std::string::npos)) {
         // The production watchdog is 45 seconds. Keep this process alive long

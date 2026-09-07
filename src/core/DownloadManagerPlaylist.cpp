@@ -31,7 +31,21 @@ bool looksLikePlaylistUrl(const QString &urlString)
         }
     }
 
+    bool hasSearchPath = false;
+    for (const QString &part : pathParts) {
+        if (part.compare(QStringLiteral("search"), Qt::CaseInsensitive) == 0) {
+            hasSearchPath = true;
+            break;
+        }
+    }
+
     const QUrlQuery query(url);
+    if (hasSearchPath && (query.hasQueryItem(QStringLiteral("q"))
+                          || query.hasQueryItem(QStringLiteral("query"))
+                          || query.hasQueryItem(QStringLiteral("search")))) {
+        return true;
+    }
+
     static const QStringList playlistQueryKeys = {
         QStringLiteral("list"), QStringLiteral("playlist"), QStringLiteral("collection"), QStringLiteral("album")
     };
@@ -277,7 +291,7 @@ void DownloadManager::onPlaylistExpanded(const QString &originalUrl, const QList
             isKnownVideoError = true;
         }
 
-        if (isKnownVideoError) {
+        if (isKnownVideoError && !looksLikePlaylistUrl(originalUrl)) {
             qDebug() << "Playlist expansion hit a known video-level error. Bypassing to let YtDlpWorker handle it. Error:" << error;
             QVariantMap singleItem;
             singleItem.insert(QStringLiteral("url"), originalUrl);
@@ -292,6 +306,10 @@ void DownloadManager::onPlaylistExpanded(const QString &originalUrl, const QList
             // transient probe timeout must not turn an otherwise downloadable
             // video into a stopped item; let the normal worker validate it.
             qWarning() << "Playlist expansion failed for a non-playlist URL; falling back to direct download:" << error;
+            // A fallback must remain a genuinely single-item worker. In Ask
+            // mode, passing the original URL through unchanged lets yt-dlp
+            // expand an extractor-level playlist inside one GUI row.
+            options.insert(QStringLiteral("playlist_logic"), QStringLiteral("Download Single (ignore playlist)"));
             QVariantMap singleItem;
             singleItem.insert(QStringLiteral("url"), originalUrl);
             singleItem.insert(QStringLiteral("is_playlist"), false);
