@@ -14,11 +14,6 @@
             "35photo.pro"
         ]
     },
-    "3dbooru": {
-        "domains": [
-            "behoimi.org"
-        ]
-    },
     "4archive": {
         "domains": [
             "4archive.org"
@@ -241,7 +236,8 @@
     },
     "dandadan": {
         "domains": [
-            "dandadan.net"
+            "dandadan.net",
+            "w6.dandadan.net"
         ]
     },
     "dankefuerslesen": {
@@ -253,11 +249,6 @@
         "domains": [
             "gall.dcinside.com",
             "gallog.dcinside.com"
-        ]
-    },
-    "desktopography": {
-        "domains": [
-            "desktopography.net"
         ]
     },
     "deviantart": {
@@ -390,11 +381,6 @@
     "furry34": {
         "domains": [
             "furry34.com"
-        ]
-    },
-    "fuskator": {
-        "domains": [
-            "fuskator.com"
         ]
     },
     "ganknow": {
@@ -603,12 +589,6 @@
             "itaku.ee"
         ]
     },
-    "itchio": {
-        "domains": [
-            "itch.io",
-            "user.itch.io"
-        ]
-    },
     "iwara": {
         "domains": [
             "iwara.tv"
@@ -729,7 +709,8 @@
     },
     "mangafreak": {
         "domains": [
-            "ww2.mangafreak.me"
+            "ww2.mangafreak.me",
+            "ww3.mangafreak.me"
         ]
     },
     "mangahere": {

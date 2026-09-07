@@ -9,6 +9,8 @@ Older historical changelogs (pre-v1.1.25) can be found in [docs/CHANGELOG_ARCHIV
 
 ## [Unreleased]
 
+## [1.2.46] - 2026-09-07
+
 - **Artwork normalization:** Audio downloads now preserve the original
   thumbnail and automatically remove only high-confidence symmetric borders
   around centered square artwork. Genuine landscape artwork is no longer
