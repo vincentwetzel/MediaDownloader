@@ -9,6 +9,10 @@ Older historical changelogs (pre-v1.1.25) can be found in [docs/CHANGELOG_ARCHIV
 
 ## [Unreleased]
 
+- **Headless test setup:** The test runner now configures a missing build tree
+  before compiling and reports configuration failures without starting tests.
+- **Thumbnail path parsing:** Accept yt-dlp thumbnail status lines with an
+  optional colon and flexible wording when capturing the generated path.
 - **Audio artwork embedding:** Normalize audio thumbnail sidecars before
   yt-dlp's native embedding for containers that cannot use the app-side
   attached-picture remux, while retaining the app-side normalization path for

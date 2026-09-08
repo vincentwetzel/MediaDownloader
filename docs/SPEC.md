@@ -297,7 +297,8 @@ only the sections relevant to the change.
   persistence/cleanup, archive identity, API/power/binary behavior, sorting,
   UI row layout, completion-save responsiveness, startup/shutdown lifecycle,
   and the end-to-end fixture.
-- `tests/run_headless_tests.py` builds before CTest and stops on build failure;
+- `tests/run_headless_tests.py` configures a missing build tree, builds before
+  CTest, and stops on configuration or build failure;
   it timestamps output, reports pass/fail/not-run totals, keeps CTest exit-code
   failures failed, reruns failed targets serially with verbose output so
   QtTest assertion diagnostics remain visible, and stores failed names for

@@ -519,7 +519,7 @@ void YtDlpWorker::handleOutputLine(const QString &line) {
 
         // Capture raw thumbnail paths (in case they don't need conversion and bypass ThumbnailsConvertor)
         if (normalizedLine.contains(QStringLiteral("thumbnail"))) {
-            static const QRegularExpression rawThumbnailRegex(QStringLiteral("\\[info\\] (?:Writing video thumbnail.* to|Video thumbnail.* is already present in):\\s+(.+)$"));
+            static const QRegularExpression rawThumbnailRegex(QStringLiteral("\\[info\\] (?:Writing video thumbnail.*? to|Video thumbnail.*? is already present in):?\\s+(.+)$"));
             const QRegularExpressionMatch rawThumbnailMatch = rawThumbnailRegex.match(normalizedLine);
             if (rawThumbnailMatch.hasMatch()) {
                 m_thumbnailPath = QDir::fromNativeSeparators(rawThumbnailMatch.captured(1).trimmed());

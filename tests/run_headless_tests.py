@@ -95,6 +95,57 @@ def cmake_build_command(build_dir: Path, config: str):
     return command
 
 
+def configure_build(project_root: Path, build_dir: Path, config: str) -> int:
+    """Configure a missing build tree using the repository's CMake settings."""
+    if build_dir.exists() and not build_dir.is_dir():
+        log(f"ERROR: build path is not a directory: {build_dir}")
+        return 1
+    cache_path = build_dir / "CMakeCache.txt"
+    if cache_path.is_file():
+        try:
+            cache = cache_path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            cache = ""
+        cache_is_configured = (
+            re.search(r"^CMAKE_GENERATOR:INTERNAL=.+$", cache, re.MULTILINE)
+            and re.search(r"^CMAKE_CXX_COMPILER:FILEPATH=.+$", cache, re.MULTILINE)
+            and not re.search(r"^CMAKE_MAKE_PROGRAM:FILEPATH=.*NOTFOUND$", cache, re.MULTILINE)
+        )
+        if cache_is_configured:
+            return 0
+
+    build_dir_name = os.path.relpath(build_dir, project_root).replace("\\", "/")
+    direct_configure = [
+        "cmake",
+        "-S", str(project_root),
+        "-B", str(build_dir),
+        "-DCMAKE_BUILD_TYPE=" + config,
+        "-DVCPKG_MANIFEST_MODE=ON",
+        "-DVCPKG_OVERLAY_PORTS=" + str(project_root / "ports"),
+    ]
+    preset_configure = build_dir_name == "build" and config.lower() == "release"
+    if preset_configure:
+        command = ["cmake", "--preset", "release"]
+    else:
+        command = direct_configure
+    if cache_path.exists():
+        command.insert(1, "--fresh")
+
+    log(f"Build directory is not configured; configuring it now: {build_dir}")
+    configure_code, _ = run_command(command, project_root)
+    if configure_code == 0:
+        return 0
+
+    # A preset may require Ninja even when CMake can use another generator
+    # available on the host. Give local Windows and Unix installations a
+    # portable fallback without changing the checked-in preset.
+    if preset_configure:
+        log("Preset configuration failed; retrying with CMake's default generator.")
+        fallback = ["cmake", "--fresh", *direct_configure[1:]]
+        configure_code, _ = run_command(fallback, project_root)
+    return configure_code
+
+
 def load_suspects(path: Path):
     if not path.exists():
         return []
@@ -172,10 +223,11 @@ def main() -> int:
     build_dir = (project_root / args.build_dir).resolve()
     cache_path = Path(args.suspects_file).resolve() if args.suspects_file else build_dir / ".lzy-test-suspects.json"
 
-    if not build_dir.is_dir():
-        log(f"ERROR: build directory does not exist: {build_dir}")
-        log("Configure the project first, then rerun this command.")
-        return 1
+    configure_code = configure_build(project_root, build_dir, args.config)
+    if configure_code != 0:
+        log(f"CONFIGURE FAILED with exit code {configure_code}; no tests were started.")
+        print_summary({}, [], cache_path, build_failed=True)
+        return configure_code
 
     log(f"Build directory: {build_dir}")
     log(f"Configuration: {args.config}")

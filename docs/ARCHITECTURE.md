@@ -109,7 +109,7 @@ replacement. Temp cleanup owns root resolution and guarded UUID-folder removal.
 
 `tests/` links `LzyAppLib`, registers tests with `lzy_add_test(...)`, and runs
 with Qt's `minimal` platform plugin. `tests/run_headless_tests.py` owns
-build-before-CTest execution, timestamped output, serial and direct-executable
+configure/build-before-CTest execution, timestamped output, serial and direct-executable
 diagnostics for failed targets, summaries, and the failed-test cache.
 `CMakeLists.txt`
 owns the build graph; `CMakePresets.json` owns supported local configure

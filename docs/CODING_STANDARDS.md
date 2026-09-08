@@ -105,7 +105,8 @@ Read the relevant section only.
   paths; never touch real user settings, archives, credentials, or package
   trees. Use `QT_QPA_PLATFORM=minimal` for headless Qt tests and ensure the
   required Qt platform/runtime DLLs are deployed with Windows test targets.
-- `tests/run_headless_tests.py` builds before CTest, fails on build errors,
+- `tests/run_headless_tests.py` configures a missing build tree, builds before
+  CTest, and fails on configuration or build errors,
   timestamps output, summarizes pass/fail/not-run, reruns failed targets
   serially with verbose output, invokes failed executables directly when CTest
   hides loader/runtime diagnostics, and supports `--suspects`.
