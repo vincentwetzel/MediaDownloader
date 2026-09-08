@@ -9,6 +9,8 @@ Older historical changelogs (pre-v1.1.25) can be found in [docs/CHANGELOG_ARCHIV
 
 ## [Unreleased]
 
+## [1.2.47] - 2026-09-08
+
 - **Headless test setup:** The test runner now configures a missing build tree
   before compiling and reports configuration failures without starting tests.
 - **Thumbnail path parsing:** Accept yt-dlp thumbnail status lines with an
