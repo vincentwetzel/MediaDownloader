@@ -320,7 +320,7 @@ void MainWindow::connectDownloadManagerSignals()
                     QVariantMap newOptions = options;
                 newOptions.insert(QStringLiteral("runtime_format_selected"), true);
                     qInfo() << "Skipping runtime format dialog for non-interactive request:" << url;
-                    m_downloadManager->enqueueDownload(url, newOptions);
+                    enqueueDownloadFromUi(url, newOptions);
                     return;
                 }
 
@@ -332,7 +332,7 @@ void MainWindow::connectDownloadManagerSignals()
                             QVariantMap newOptions = options;
                         newOptions.insert(QStringLiteral("runtime_format_selected"), true);
                         newOptions.insert(QStringLiteral("format"), formatId);
-                            m_downloadManager->enqueueDownload(url, newOptions);
+                            enqueueDownloadFromUi(url, newOptions);
                         }
                         m_uiBuilder->tabWidget()->setCurrentWidget(m_activeDownloadsTab);
                     }

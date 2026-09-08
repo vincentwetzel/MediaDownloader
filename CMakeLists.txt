@@ -38,8 +38,19 @@ if(NOT _lzydownloader_using_vcpkg_toolchain)
             "D:/Qt/6.*"
             "${_project_drive}Qt/6.*"
         )
+        # Qt's MSVC and MinGW packages are not link-compatible. Restrict the
+        # automatic search to the kit matching the compiler selected by CMake;
+        # otherwise a MinGW configure can accidentally pick msvc2022_64 first
+        # and fail at link time with hundreds of unresolved Qt symbols.
+        if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+            set(_qt_arch_dirs mingw_64)
+        elseif(MSVC)
+            set(_qt_arch_dirs msvc2022_64 msvc2019_64)
+        else()
+            set(_qt_arch_dirs mingw_64 msvc2022_64 msvc2019_64)
+        endif()
         foreach(_qt_version_dir IN LISTS _qt_version_dirs)
-            foreach(_qt_arch_dir msvc2022_64 msvc2019_64 mingw_64)
+            foreach(_qt_arch_dir IN LISTS _qt_arch_dirs)
                 if(EXISTS "${_qt_version_dir}/${_qt_arch_dir}/lib/cmake/Qt6/Qt6Config.cmake")
                     list(APPEND _qt_search_prefixes "${_qt_version_dir}/${_qt_arch_dir}")
                 endif()

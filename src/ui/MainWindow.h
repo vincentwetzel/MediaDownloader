@@ -67,6 +67,7 @@ private slots:
     void onYtDlpErrorPopup(const QString &id, const QString &errorType, const QString &userMessage, const QString &rawError, const QVariantMap &itemData);
 
 private:
+    void enqueueDownloadFromUi(const QString &url, QVariantMap options);
     void setupUI();
     void setupTrayIcon();
     void checkBinaries();

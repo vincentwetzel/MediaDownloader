@@ -150,7 +150,8 @@ you use vcpkg.
 
 The VS Code task `CMake: Configure Debug` runs
 `tools/configure_debug.ps1`, which checks for incomplete compiler metadata and
-automatically selects a fresh configure when recovery is needed.
+automatically selects a fresh configure when recovery is needed, including
+when the existing cache uses a generator other than Ninja.
 
 ```bash
 cmake --preset debug
@@ -162,7 +163,8 @@ compiler`, the generated `build-debug` directory contains stale or incomplete
 compiler metadata. Run `cmake --fresh --preset debug` once (or use the VS Code
 task **CMake: Fresh Configure Debug**), then run the normal build command again.
 
-Windows builds copy Qt runtime plugins and runtime DLLs through a post-build
+Windows builds copy Qt runtime plugins into their Qt category directories and
+copy runtime DLLs through a post-build
 CMake deployment helper. Vcpkg builds use the locked plugin/OpenSSL helper;
 direct-Qt builds wrap `windeployqt` and add explicit Qt DLL/plugin fallback
 copies when its dependency scan is incomplete. This keeps local application

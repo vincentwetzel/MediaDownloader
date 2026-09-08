@@ -1,4 +1,5 @@
 #include "YtDlpWorker.h"
+#include "core/ArtworkNormalizer.h"
 #include "core/ConfigManager.h"
 #include "core/DownloadTempCleanup.h"
 #include "core/ProcessUtils.h"
@@ -6,6 +7,7 @@
 #include <QDebug>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -18,6 +20,41 @@
 #include <QPointer>
 #include <QUrl>
 #include <chrono>
+
+namespace {
+constexpr int MAX_AUDIO_THUMBNAIL_NORMALIZATION_ATTEMPTS = 40;
+constexpr int AUDIO_THUMBNAIL_NORMALIZATION_INTERVAL_MS = 50;
+}
+
+void YtDlpWorker::normalizeAudioThumbnailWhenReady(const QString &path, qint64 previousSize, int attempts)
+{
+    if (path.isEmpty() || path != m_thumbnailPath || !requestedAudioExtraction()) {
+        return;
+    }
+
+    const QFileInfo thumbnailInfo(path);
+    if (!thumbnailInfo.exists() || thumbnailInfo.size() <= 0) {
+        if (attempts < MAX_AUDIO_THUMBNAIL_NORMALIZATION_ATTEMPTS) {
+            QTimer::singleShot(AUDIO_THUMBNAIL_NORMALIZATION_INTERVAL_MS, this, [this, path, attempts]() {
+                normalizeAudioThumbnailWhenReady(path, -1, attempts + 1);
+            });
+        } else {
+            qWarning() << "[YtDlpWorker] Timed out waiting for converted audio thumbnail:" << path;
+        }
+        return;
+    }
+
+    if (previousSize < 0 || previousSize != thumbnailInfo.size()) {
+        QTimer::singleShot(AUDIO_THUMBNAIL_NORMALIZATION_INTERVAL_MS, this, [this, path, size = thumbnailInfo.size(), attempts]() {
+            normalizeAudioThumbnailWhenReady(path, size, attempts + 1);
+        });
+        return;
+    }
+
+    const bool normalized = ArtworkNormalizer::normalizeFile(path);
+    qDebug() << "[YtDlpWorker] Audio thumbnail border normalization"
+             << (normalized ? "cropped detected borders in" : "left unchanged") << path;
+}
 
 void YtDlpWorker::handleOutputLine(const QString &line) {
     const QString normalizedLine = normalizeConsoleLine(line);
@@ -448,6 +485,12 @@ void YtDlpWorker::handleOutputLine(const QString &line) {
             QVariantMap updateData;
             updateData.insert(QStringLiteral("thumbnail_path"), m_thumbnailPath);
             qDebug() << "[LOG] YtDlpWorker: Found converted thumbnail path for" << m_id << ":" << m_thumbnailPath;
+            // yt-dlp's Opus/Ogg embedder consumes this sidecar immediately
+            // after conversion. Normalize it before that native postprocessor
+            // reads it; MetadataEmbedder handles supported containers later.
+            if (requestedAudioExtraction() && m_args.contains(QStringLiteral("--embed-thumbnail"))) {
+                normalizeAudioThumbnailWhenReady(m_thumbnailPath);
+            }
             emit progressUpdated(m_id, updateData);
         }
         return;
@@ -480,6 +523,14 @@ void YtDlpWorker::handleOutputLine(const QString &line) {
             const QRegularExpressionMatch rawThumbnailMatch = rawThumbnailRegex.match(normalizedLine);
             if (rawThumbnailMatch.hasMatch()) {
                 m_thumbnailPath = QDir::fromNativeSeparators(rawThumbnailMatch.captured(1).trimmed());
+                // For native audio embedding, normalize the downloaded source
+                // before yt-dlp starts ThumbnailsConvertor and EmbedThumbnail.
+                // This avoids racing the native postprocessor after conversion.
+                if (requestedAudioExtraction() && m_args.contains(QStringLiteral("--embed-thumbnail"))) {
+                    const bool normalized = ArtworkNormalizer::normalizeFile(m_thumbnailPath);
+                    qDebug() << "[YtDlpWorker] Source audio thumbnail border normalization"
+                             << (normalized ? "cropped detected borders in" : "left unchanged") << m_thumbnailPath;
+                }
                 QVariantMap updateData;
                 updateData.insert(QStringLiteral("thumbnail_path"), m_thumbnailPath);
                 qDebug() << "[LOG] YtDlpWorker: Found raw thumbnail path for" << m_id << ":" << m_thumbnailPath;

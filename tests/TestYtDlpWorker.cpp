@@ -4,8 +4,10 @@
 #include "core/DiagnosticTail.h"
 
 #include <QtTest/QtTest>
+#include <QColor>
 #include <QDir>
 #include <QFile>
+#include <QImage>
 #include <QSignalSpy>
 
 // Define a testable YtDlpWorker that allows direct access to protected parsing methods
@@ -54,6 +56,7 @@ private slots:
     void testAria2ProgressParsing();
     void testAria2AdvancedProgressParsing();
     void testAudioExtractionUsesAudioTransferStatusForCombinedSource();
+    void testAudioThumbnailIsNormalizedBeforeNativeEmbedding();
     void testTransientAria2FailureFallsBackToNativeDownloader();
     void testMissingAria2OutputFallsBackToNativeDownloader();
     void testAria2RecoveryRejectsUnrelatedFailuresAndRetriesOnce();
@@ -297,6 +300,26 @@ void TestYtDlpWorker::testAria2RecoveryRejectsUnrelatedFailuresAndRetriesOnce() 
     QVERIFY(worker.callRetryWithoutAria2c(QStringLiteral("ERROR: aria2c exited with code 6")));
     QVERIFY(!worker.arguments().contains(QStringLiteral("--external-downloader")));
     QVERIFY(!worker.callRetryWithoutAria2c(QStringLiteral("ERROR: aria2c exited with code 29")));
+}
+
+void TestYtDlpWorker::testAudioThumbnailIsNormalizedBeforeNativeEmbedding() {
+    ConfigManager *config = getConfigManager();
+    const QString thumbnailPath = QDir(getTempDir()).filePath(QStringLiteral("audio-thumbnail.jpg"));
+    QImage image(160, 90, QImage::Format_RGB32);
+    image.fill(Qt::black);
+    for (int y = 0; y < image.height(); ++y) {
+        for (int x = 35; x < 125; ++x) {
+            image.setPixelColor(x, y, QColor(40, 120, 220));
+        }
+    }
+    QVERIFY(image.save(thumbnailPath, "JPEG"));
+
+    TestableYtDlpWorker worker(QStringLiteral("audioThumbnailNormalization"),
+                               {QStringLiteral("-x"), QStringLiteral("--embed-thumbnail")}, config, nullptr);
+    worker.callHandleOutputLine(QStringLiteral(
+        "[info] Writing video thumbnail to %1").arg(thumbnailPath));
+
+    QCOMPARE(QImage(thumbnailPath).size(), QSize(90, 90));
 }
 
 void TestYtDlpWorker::testDiagnosticTailRetainsBoundedNewestLines() {

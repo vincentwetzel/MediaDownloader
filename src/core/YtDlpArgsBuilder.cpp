@@ -507,18 +507,22 @@ QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString 
         rawArgs << QStringLiteral("--parse-metadata") << QStringLiteral("Various Artists:%(album_artist)s");
     }
 
-    // FFmpeg's attached-picture stream is supported by these containers. Ogg
-    // Opus/Vorbis, ADTS AAC, and WAV cannot carry that stream, so leave their
-    // thumbnail as an auxiliary file instead of asking either yt-dlp or the
-    // fallback remuxer to perform an invalid container operation.
+    // The app-side normalizer/remuxer supports these containers. Ogg
+    // Opus/Vorbis, ADTS AAC, and WAV need yt-dlp's native thumbnail handling;
+    // do not route those files through the fallback attached-picture remuxer.
     const QStringList supportedThumbnailExts = {QStringLiteral("mp3"), QStringLiteral("mkv"), QStringLiteral("mka"), QStringLiteral("flac"), QStringLiteral("m4a"), QStringLiteral("mp4"), QStringLiteral("m4v"), QStringLiteral("mov")};
     
     bool embedThumb = configManager->get(QStringLiteral("Metadata"), QStringLiteral("embed_thumbnail"), true).toBool();
     bool isFullPlaylistDownload = options.value(QStringLiteral("is_full_playlist_download"), false).toBool();
     bool genFolderJpg = (downloadType == QLatin1String("audio") && isFullPlaylistDownload && configManager->get(QStringLiteral("Metadata"), QStringLiteral("generate_folder_jpg"), false).toBool());
 
-    bool isAudioDefaultCodec = (downloadType == QLatin1String("audio") && !rawArgs.contains(QStringLiteral("--audio-format")));
-    bool canEmbed = embedThumb && !isLivestream && (isAudioDefaultCodec || supportedThumbnailExts.contains(finalOutputExtension, Qt::CaseInsensitive));
+    const bool isAudioDownload = downloadType == QLatin1String("audio");
+    const bool appCanEmbedThumbnail = supportedThumbnailExts.contains(finalOutputExtension, Qt::CaseInsensitive);
+    // Audio containers outside the app-side list still need artwork. Let
+    // yt-dlp perform its native embedding for those formats (notably Opus),
+    // while supported containers retain the sidecar for normalization.
+    const bool canEmbed = embedThumb && !isLivestream
+        && (isAudioDownload || appCanEmbedThumbnail);
     // We want to write a thumbnail for the UI even if we can't embed it.
     bool shouldWrite = (downloadType == QLatin1String("video") || downloadType == QLatin1String("audio") || isLivestream || genFolderJpg);
 
@@ -527,11 +531,17 @@ QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString 
             // Audio artwork is normalized by the app after yt-dlp has written
             // the sidecar. This lets us remove genuine pillarboxing without
             // center-cropping legitimate landscape artwork.
-            if (downloadType == QLatin1String("audio")) {
+            if (isAudioDownload && appCanEmbedThumbnail) {
                 rawArgs << QStringLiteral("--write-thumbnail");
-                // Keep yt-dlp's native embedding as a fallback for containers
-                // whose attached-picture metadata is more format-sensitive.
+                // Keep the sidecar available until MetadataEmbedder has had a
+                // chance to normalize it. yt-dlp consumes/removes the sidecar
+                // when it performs its own embedding, which bypasses the app's
+                // artwork-border detection entirely.
+            } else if (isAudioDownload) {
+                rawArgs << QStringLiteral("--write-thumbnail");
                 rawArgs << QStringLiteral("--embed-thumbnail");
+                // These containers cannot use the app's attached-picture
+                // remux, so preserve the historical yt-dlp native path.
             } else {
                 rawArgs << QStringLiteral("--embed-thumbnail");
             }

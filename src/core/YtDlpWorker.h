@@ -75,6 +75,7 @@ protected: // Changed from private for testing
     bool retryWithoutAria2cIfTransientFailure(const QString &diagnostic);
     /** Removes only metadata sidecars that can collide with yt-dlp's atomic JSON write on retry. */
     void cleanupMetadataSidecarsForRetry();
+    void normalizeAudioThumbnailWhenReady(const QString &path, qint64 previousSize = -1, int attempts = 0);
     QString inferPrimaryStreamStatusFromPath(const QString &path) const;
     QString inferPrimaryStreamStatusFromMetadata(int index) const;
     void updateInferredTransferStage(double percentage, double downloadedBytes, double totalBytes);

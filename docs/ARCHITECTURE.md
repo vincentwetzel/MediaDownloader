@@ -86,7 +86,7 @@ replacement. Temp cleanup owns root resolution and guarded UUID-folder removal.
 | `YtDlpLiveStatus.h` | Explicit premiere/upcoming diagnostic mapping |
 | `GalleryDlWorker.*` | gallery-dl process and gallery output handling |
 | `DownloadFinalizer.*` | Background verification, sorting, replacement, terminal cleanup, and worker-thread archive update |
-| `MetadataEmbedder.*` | Worker-thread metadata/thumbnail rewrite, cancellation, and tracked `attached_pic` remux |
+| `MetadataEmbedder.*` | Worker-thread metadata/thumbnail rewrite, cancellation, and tracked `attached_pic` remux; audio sidecar normalization is coordinated by the yt-dlp worker before native embedding |
 | `download_pipeline/FfmpegMuxer.*` | Async FFmpeg muxing and progress |
 | `ProcessUtils.*`, `SmartBinaryResolver.*` | Process trees, environments, binary discovery, and ownership tracking |
 
@@ -139,7 +139,7 @@ coalesce while a writer is active; shutdown waits for the writer before the
 final synchronous queue flush. GUI and server/headless/background downloads
 inhibit idle sleep while active, without preventing normal display power-off.
 
-Windows keeps required Qt plugins, SQLite, OpenSSL, Qt runtime, and MinGW
+Windows keeps required Qt category plugins, SQLite, OpenSSL, Qt runtime, and MinGW
 compiler runtime DLLs beside the executable. The deployment helper is also
 used for test executables so headless runs do not depend on the developer shell.
 Linux packaging selects qmake from the Qt SDK used for the release build,

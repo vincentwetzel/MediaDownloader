@@ -33,7 +33,9 @@ if(DEFINED QT_PREFIX AND EXISTS "${QT_PREFIX}")
     endif()
     foreach(_plugin_dir platforms generic imageformats iconengines networkinformation sqldrivers styles tls)
         if(EXISTS "${QT_PREFIX}/plugins/${_plugin_dir}")
-            file(COPY "${QT_PREFIX}/plugins/${_plugin_dir}/" DESTINATION "${TARGET_FILE_DIR}")
+            # Qt resolves plugins relative to the executable using the plugin
+            # category directory (for example platforms/qwindows.dll).
+            file(COPY "${QT_PREFIX}/plugins/${_plugin_dir}/" DESTINATION "${TARGET_FILE_DIR}/${_plugin_dir}")
         endif()
     endforeach()
 endif()

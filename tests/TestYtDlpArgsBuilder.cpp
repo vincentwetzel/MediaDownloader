@@ -235,7 +235,9 @@ void TestYtDlpArgsBuilder::testAudioThumbnailEmbedding() {
     QStringList args = builder.build(mockConfig, QUrl(TEST_URL).toString(), options);
 
     QVERIFY(args.contains(QStringLiteral("--write-thumbnail")));
-    QVERIFY(args.contains(QStringLiteral("--embed-thumbnail")));
+    // Audio artwork must remain as a sidecar until the app normalizes and
+    // remuxes it; yt-dlp embedding would consume the sidecar first.
+    QVERIFY(!args.contains(QStringLiteral("--embed-thumbnail")));
     for (const QString &arg : args) {
         QVERIFY(!arg.contains(QStringLiteral("crop=")));
     }
@@ -253,7 +255,7 @@ void TestYtDlpArgsBuilder::testUnsupportedOpusThumbnailEmbedding() {
     const QStringList args = builder.build(mockConfig, QUrl(TEST_URL).toString(), options);
 
     QVERIFY(args.contains(QStringLiteral("--write-thumbnail")));
-    QVERIFY(!args.contains(QStringLiteral("--embed-thumbnail")));
+    QVERIFY(args.contains(QStringLiteral("--embed-thumbnail")));
 }
 
 void TestYtDlpArgsBuilder::testAudioPlaylistFolderJpg() {

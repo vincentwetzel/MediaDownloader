@@ -9,6 +9,17 @@ Older historical changelogs (pre-v1.1.25) can be found in [docs/CHANGELOG_ARCHIV
 
 ## [Unreleased]
 
+- **Audio artwork embedding:** Normalize audio thumbnail sidecars before
+  yt-dlp's native embedding for containers that cannot use the app-side
+  attached-picture remux, while retaining the app-side normalization path for
+  supported containers. Added worker and argument-builder regression coverage.
+- **Duplicate-download handling:** Centralize archive checks at the UI enqueue
+  boundary so interactive prompts, configured archive overrides, and
+  non-interactive requests consistently reach the queue manager.
+- **Windows/Qt build reliability:** Match direct-Qt discovery to the selected
+  compiler and deploy Qt plugins under their category directories. Debug
+  configuration now refreshes stale caches when the generator is not Ninja.
+
 ## [1.2.46] - 2026-09-07
 
 - **Artwork normalization:** Audio downloads now preserve the original

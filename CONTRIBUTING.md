@@ -21,9 +21,9 @@ LzyDownloader uses C++20, Qt 6, CMake, and the vcpkg manifest. The README
 contains the normal Windows installation and source-build commands.
 
 For Windows debug configuration, use `cmake --preset debug` and the
-`build-debug` tree. If compiler metadata is incomplete, use
-`cmake --fresh --preset debug` or `tools/configure_debug.ps1`; do not create a
-parallel debug build tree.
+`build-debug` tree. If compiler metadata is incomplete or the cache was
+created with a non-Ninja generator, use `cmake --fresh --preset debug` or
+`tools/configure_debug.ps1`; do not create a parallel debug build tree.
 
 Before submitting a pull request, run the focused tests relevant to your
 change. The full headless test workflow is also run by the reusable GitHub

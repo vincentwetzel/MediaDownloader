@@ -75,6 +75,9 @@ only the sections relevant to the change.
   enqueueing. `override_archive=true` may replace only a matching restored
   stopped/failed entry; genuinely paused entries remain protected. Discord/API
   rejection paths preserve the caller job ID and terminal diagnostic.
+- UI enqueueing performs the archive duplicate prompt only for interactive
+  requests. Configured or request-scoped `override_archive` values are carried
+  into the queue manager, while non-interactive requests never open a dialog.
 - Playlist handling uses the request's `playlist_logic` value when present and
   otherwise the persisted `General/playlist_logic` default. Valid values are
   `Ask`, `Download All (no prompt)`, and `Download Single (ignore playlist)`;
@@ -192,10 +195,10 @@ only the sections relevant to the change.
   metadata worker validates that candidate off the GUI thread; if native
   yt-dlp post-processing already consumed it, the worker skips a redundant
   rewrite when no track tag, extra metadata, or container normalization is
-  pending. Missing, unreadable, or unsupported-container sidecars do not block
-  finalization. Ogg/Opus, ADTS AAC, and WAV outputs keep the thumbnail as an
-  auxiliary file when requested instead of attempting an invalid attached-
-  picture remux.
+  pending. Missing or unreadable sidecars do not block finalization. Audio
+  sidecars are normalized before yt-dlp's native embedding consumes them;
+  Ogg/Opus, ADTS AAC, and WAV then use that native embedding because the
+  app-side attached-picture remux is not valid for those containers.
 - Metadata embedding and final destination verification/replacement run off the
   GUI thread. A thumbnail path is a candidate until the worker validates it;
   missing or unreadable artwork does not block finalization. Stopping a job

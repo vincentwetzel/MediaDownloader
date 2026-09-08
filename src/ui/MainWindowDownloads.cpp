@@ -149,19 +149,6 @@ void MainWindow::onDownloadRequested(const QString &url, const QVariantMap &opti
         MainWindowHelpers::applyNonInteractiveDownloadDefaults(mutableOptions);
     }
 
-    const bool overrideArchive = mutableOptions.value(QStringLiteral("override_archive"), m_configManager->get(QStringLiteral("General"), QStringLiteral("override_archive"), false)).toBool();
-
-    if (!overrideArchive && m_archiveManager && m_archiveManager->isInArchive(url)) {
-        QMessageBox::StandardButton reply;
-        reply = QMessageBox::question(this, tr("Duplicate Download"),
-                                      tr("The following URL is already in your download history:\n%1\n\nDo you want to download it again?").arg(url),
-                                      QMessageBox::Yes | QMessageBox::No);
-        if (reply == QMessageBox::No) {
-            return;
-        }
-        mutableOptions.insert(QStringLiteral("override_archive"), true);
-    }
-
     const bool runtimeSubs = m_configManager->get(QStringLiteral("Subtitles"), QStringLiteral("languages"), QStringLiteral("en")).toString().split(QLatin1Char(',')).contains(QStringLiteral("runtime"));
 
     if (runtimeSubs && !nonInteractive) {
@@ -177,7 +164,7 @@ void MainWindow::onDownloadRequested(const QString &url, const QVariantMap &opti
 
     static const QRegularExpression fastTrackRe(QStringLiteral(R"(^(https?://)?(www\.)?(youtube\.com|youtu\.be|music\.youtube\.com|tiktok\.com|instagram\.com|twitter\.com|x\.com)/)"));
     if (fastTrackRe.match(url).hasMatch()) {
-        m_downloadManager->enqueueDownload(url, mutableOptions);
+        enqueueDownloadFromUi(url, mutableOptions);
         m_uiBuilder->tabWidget()->setCurrentWidget(m_activeDownloadsTab);
         if (!nonInteractive) {
             m_activeDownloadsTab->scrollToNewestDownloadItem();
@@ -191,6 +178,31 @@ void MainWindow::onDownloadRequested(const QString &url, const QVariantMap &opti
     m_urlValidator->validate(url);
 }
 
+void MainWindow::enqueueDownloadFromUi(const QString &url, QVariantMap options)
+{
+    const bool nonInteractive = m_nonInteractiveLaunch || MainWindowHelpers::isNonInteractiveRequest(options);
+    const bool configuredOverride = m_configManager->get(QStringLiteral("General"), QStringLiteral("override_archive"), false).toBool();
+    const bool overrideArchive = options.value(QStringLiteral("override_archive"), configuredOverride).toBool();
+
+    if (configuredOverride && !options.contains(QStringLiteral("override_archive"))) {
+        options.insert(QStringLiteral("override_archive"), true);
+    }
+
+    if (!nonInteractive && !overrideArchive && m_archiveManager && m_archiveManager->isInArchive(url)) {
+        const QMessageBox::StandardButton reply = QMessageBox::question(
+            this,
+            tr("Duplicate Download"),
+            tr("The following URL is already in your download history:\n%1\n\nDo you want to download it again?").arg(url),
+            QMessageBox::Yes | QMessageBox::No);
+        if (reply == QMessageBox::No) {
+            return;
+        }
+        options.insert(QStringLiteral("override_archive"), true);
+    }
+
+    m_downloadManager->enqueueDownload(url, options);
+}
+
 void MainWindow::onRuntimeInfoReady(const QVariantMap &info)
 {
     statusBar()->clearMessage();
@@ -198,7 +210,7 @@ void MainWindow::onRuntimeInfoReady(const QVariantMap &info)
         const QString pendingUrl = m_pendingUrl;
         QVariantMap options = m_pendingOptions;
         MainWindowHelpers::applyNonInteractiveDownloadDefaults(options);
-        m_downloadManager->enqueueDownload(pendingUrl, options);
+        enqueueDownloadFromUi(pendingUrl, options);
         m_pendingUrl.clear();
         m_pendingOptions.clear();
         qInfo() << "Skipping runtime selection dialog for non-interactive request:" << pendingUrl;
@@ -214,7 +226,7 @@ void MainWindow::onRuntimeInfoReady(const QVariantMap &info)
             const QStringList subs = dialog.getSelectedSubtitles();
             if (!subs.isEmpty()) opts.insert(QStringLiteral("runtime_subtitles"), subs.join(QLatin1Char(',')));
         }
-        m_downloadManager->enqueueDownload(m_pendingUrl, opts);
+        enqueueDownloadFromUi(m_pendingUrl, opts);
         m_uiBuilder->tabWidget()->setCurrentWidget(m_activeDownloadsTab);
         m_activeDownloadsTab->scrollToNewestDownloadItem();
     }
@@ -244,7 +256,7 @@ void MainWindow::onDownloadSectionsRequested(const QString &url, const QVariantM
         QVariantMap newOptions = options;
         newOptions.insert(QStringLiteral("download_sections_set"), true);
         qInfo() << "Skipping download sections dialog for non-interactive request:" << url;
-        m_downloadManager->enqueueDownload(url, newOptions);
+        enqueueDownloadFromUi(url, newOptions);
         m_uiBuilder->tabWidget()->setCurrentWidget(m_activeDownloadsTab);
         return;
     }
@@ -261,7 +273,7 @@ void MainWindow::onDownloadSectionsRequested(const QString &url, const QVariantM
         if (!sectionLabel.isEmpty()) {
             newOptions.insert(QStringLiteral("download_sections_label"), sectionLabel);
         }
-        m_downloadManager->enqueueDownload(url, newOptions);
+        enqueueDownloadFromUi(url, newOptions);
         m_uiBuilder->tabWidget()->setCurrentWidget(m_activeDownloadsTab);
         m_activeDownloadsTab->scrollToNewestDownloadItem();
     } else {
@@ -272,7 +284,7 @@ void MainWindow::onDownloadSectionsRequested(const QString &url, const QVariantM
 void MainWindow::onValidationFinished(bool isValid, const QString &error)
 {
     if (isValid) {
-        m_downloadManager->enqueueDownload(m_pendingUrl, m_pendingOptions);
+        enqueueDownloadFromUi(m_pendingUrl, m_pendingOptions);
         m_uiBuilder->tabWidget()->setCurrentWidget(m_activeDownloadsTab);
         if (!m_nonInteractiveLaunch && !MainWindowHelpers::isNonInteractiveRequest(m_pendingOptions)) {
             m_activeDownloadsTab->scrollToNewestDownloadItem();
