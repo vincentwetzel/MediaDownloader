@@ -3,6 +3,7 @@
 #include <QtTest/QtTest>
 #include "core/LocalApiServer.h"
 #include "BaseTest.h"
+#include <QUrl>
 
 class TestLocalApiServer : public BaseTest {
     Q_OBJECT
@@ -13,11 +14,13 @@ private slots:
 
     void testStartupAndShutdown();
     void testApiTokenGeneration();
+    void testConfiguredPort();
     void testUnauthorizedAccess();
     void testValidEnqueueRequest();
     void testValidCancelRequest();
     void testClientScopedStatusAndCancellation();
 
 private:
+    QUrl apiUrl(const QString &path) const;
     LocalApiServer *m_apiServer = nullptr;
 };

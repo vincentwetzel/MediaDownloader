@@ -13,6 +13,7 @@ private slots:
 
     void testDefaultValues();
     void testInvalidPlaylistLogicFallsBackToAsk();
+    void testInvalidLocalApiPortFallsBackToDefault();
     void testSetAndGet();
     void testLegacyCleanup();
     void testResetToDefaults();

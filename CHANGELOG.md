@@ -9,6 +9,12 @@ Older historical changelogs (pre-v1.1.25) can be found in [docs/CHANGELOG_ARCHIV
 
 ## [Unreleased]
 
+- **Configurable Local API port:** Added an Advanced Settings port field with a
+  stable `8765` default, immediate server restart on changes, and atomic
+  `api_port.txt` discovery for the Discord bridge and browser companion.
+- **Windows MinGW deployment:** Copy MinGW runtime DLLs beside every Windows
+  target, including Qt-SDK local builds, so headless launches do not fail with
+  a system loader dialog.
 - **Progress accuracy:** Removed temporary `.part`-file size polling. Segmented
   aria2 downloads can expose their final logical file length before all byte
   ranges complete, so progress now relies on native yt-dlp/aria2 output.

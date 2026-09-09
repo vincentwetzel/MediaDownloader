@@ -22,6 +22,10 @@ standalone FFmpeg/FFprobe and aria2c remain manual-replacement cases.
 
 The Discord bridge cancellation route is a runtime Local API feature and does not change release packaging or installer requirements.
 
+Windows MinGW targets must ship `libgcc_s_seh-1.dll`, `libstdc++-6.dll`, and
+`libwinpthread-1.dll` beside the executable. The CMake deployment helper copies
+these from the active compiler directory for both Qt-SDK and vcpkg builds.
+
 Active downloads use native OS sleep inhibition in the GUI and
 headless/server/background builds. Linux builds link Qt D-Bus (enabled by
 qtbase's Linux-only `dbus`

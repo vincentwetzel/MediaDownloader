@@ -1,5 +1,6 @@
 #include "LocalApiServer.h"
 #include "integration/BrowserCookieFile.h"
+#include "integration/LocalApiEndpoint.h"
 #include <QDir>
 #include <QStandardPaths>
 #include <QUuid>
@@ -30,8 +31,19 @@ LocalApiServer::LocalApiServer(ConfigManager *configManager, QObject *parent)
     : QObject(parent), m_configManager(configManager), m_server(new QTcpServer(this))
 {
     generateOrLoadApiKey();
+    publishConfiguredPort();
 
     connect(m_server, &QTcpServer::newConnection, this, &LocalApiServer::onNewConnection);
+    connect(m_configManager, &ConfigManager::settingChanged, this,
+            [this](const QString &section, const QString &key, const QVariant &) {
+                if (section == QStringLiteral("General") && key == QStringLiteral("local_api_port")) {
+                    publishConfiguredPort();
+                    if (m_server->isListening()) {
+                        stop();
+                        start();
+                    }
+                }
+            });
 }
 
 LocalApiServer::~LocalApiServer()
@@ -45,12 +57,12 @@ void LocalApiServer::start()
         return;
     }
 
-    // Port can be configured later, defaulting to 8765
-    constexpr quint16 DEFAULT_PORT = 8765;
+    const quint16 configured = configuredPort();
+    publishConfiguredPort();
 
     // Bind strictly to localhost (127.0.0.1) to prevent external network access
-    if (m_server->listen(QHostAddress::LocalHost, DEFAULT_PORT)) {
-        qInfo() << "Local API Server started on port" << DEFAULT_PORT;
+    if (m_server->listen(QHostAddress::LocalHost, configured)) {
+        qInfo() << "Local API Server started on port" << configured;
     } else {
         qWarning() << "Failed to start Local API Server:" << m_server->errorString();
     }
@@ -69,9 +81,33 @@ bool LocalApiServer::isRunning() const
     return m_server->isListening();
 }
 
+quint16 LocalApiServer::port() const
+{
+    return m_server->isListening() ? m_server->serverPort() : configuredPort();
+}
+
 QString LocalApiServer::getApiKey() const
 {
     return m_apiKey;
+}
+
+quint16 LocalApiServer::configuredPort() const
+{
+    bool ok = false;
+    const int port = m_configManager->get(QStringLiteral("General"), QStringLiteral("local_api_port"),
+                                          static_cast<int>(LocalApiEndpoint::DefaultPort)).toInt(&ok);
+    if (!ok || port < LocalApiEndpoint::MinimumPort || port > LocalApiEndpoint::MaximumPort) {
+        qWarning() << "Invalid local API port setting; using default" << LocalApiEndpoint::DefaultPort;
+        return LocalApiEndpoint::DefaultPort;
+    }
+    return static_cast<quint16>(port);
+}
+
+void LocalApiServer::publishConfiguredPort()
+{
+    if (!LocalApiEndpoint::writePort(m_configManager->getConfigDir(), configuredPort())) {
+        qWarning() << "Failed to publish Local API port discovery file.";
+    }
 }
 
 void LocalApiServer::generateOrLoadApiKey()

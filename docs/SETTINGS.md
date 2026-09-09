@@ -51,7 +51,8 @@ Application-wide settings that control theme, cookie handling, clipboard behavio
 | `override_archive` | Boolean | `false` | Allow intentional re-downloads that would otherwise be blocked by archive/duplicate detection. A matching restored stopped/failed entry may be replaced; genuinely paused entries remain protected. |
 | `exit_after` | Boolean | `false` | Exit the app automatically after the queue fully finishes. Always resets to `false` on application startup. The delayed shutdown re-checks queued and active counts before quitting. |
 | `language` | String | `🇺🇸 English` | UI language selector value stored by the main window. |
-| `enable_local_api` | Boolean | `false` | Enable the localhost API server on `127.0.0.1:8765` for trusted local integrations like Discord bots. |
+| `enable_local_api` | Boolean | `false` | Enable the localhost API server for trusted local integrations like Discord bots. |
+| `local_api_port` | Integer | `8765` | Localhost API port. Valid values are `1024` through `65535`; changing it restarts the server and updates local integration discovery. |
 | `show_debug_console` | Boolean | `true` (Debug) / `false` (Release) | Show or hide the command prompt / debug console window while the application is running. |
 | `warn_stable_yt_dlp` | Boolean | `true` | Controls whether the runtime popup warns when the detected `yt-dlp` build looks like a stable release instead of a nightly build. This preference is currently changed from the popup itself, not a dedicated settings page. |
 
@@ -347,12 +348,18 @@ When `General/enable_local_api` is enabled in GUI mode, or when `--server`, `--h
 - **Linux:** `~/.local/share/LzyDownloader/api_token.txt`
 - **macOS:** `~/Library/Application Support/LzyDownloader/api_token.txt`
 
+The active Local API port is published alongside the token as
+`api_port.txt` in the same app-local data directory. It is a discovery file,
+not an authentication secret.
+
 All launch modes use this same token because they attach to the same Local API
 owner.
 On first use, a legacy `Server/api_token.txt` is moved here when this shared
 token does not already exist.
 
-The server binds only to `127.0.0.1:8765`. Requests must include `Authorization: Bearer <token>`. Supported endpoints are `POST /enqueue` with a JSON `url` field plus optional `type` (`video`, `audio`, or `gallery`), optional caller-provided `id`, and optional boolean `override_archive` (also accepted under `options`) for intentional re-downloads; authenticated `POST /cancel` with `job_id` for tracked jobs; and `GET /status`. If `id` is omitted, LzyDownloader generates a UUID.
+The server binds only to `127.0.0.1:<local_api_port>`, defaulting to `8765`. Requests must include `Authorization: Bearer <token>`. Supported endpoints are `POST /enqueue` with a JSON `url` field plus optional `type` (`video`, `audio`, or `gallery`), optional caller-provided `id`, and optional boolean `override_archive` (also accepted under `options`) for intentional re-downloads; authenticated `POST /cancel` with `job_id` for tracked jobs; and `GET /status`. If `id` is omitted, LzyDownloader generates a UUID.
+
+The active port is published as `api_port.txt` in the app-local data directory. The Discord bridge and browser native-messaging host read this file and fall back to `8765` when it is absent or invalid.
 
 The browser companion adds a bounded `client_id` to scope status and
 cancellation to that browser client. Its enqueue request may contain a JSON
@@ -402,7 +409,7 @@ All other settings are reset to their default values.
 | UI Location | Setting Section | Key(s) |
 |-------------|----------------|--------|
 | **Advanced Settings → Essentials** | `Paths` | `completed_downloads_directory`, `temporary_downloads_directory` |
-| **Advanced Settings → Essentials** | `General` | `theme`, `enable_local_api`, `show_debug_console`, `cookies_from_browser`, `gallery_cookies_from_browser` |
+| **Advanced Settings → Essentials** | `General` | `theme`, `enable_local_api`, `local_api_port`, `show_debug_console`, `cookies_from_browser`, `gallery_cookies_from_browser` |
 | **Advanced Settings → Files & Tags** | `General` | `output_template`, `output_template_video`, `output_template_audio`, `gallery_output_template` |
 | **Advanced Settings → Download Flow** | `Metadata` | `use_aria2c` |
 | **Advanced Settings → Download Flow** | `General` | `sponsorblock`, `auto_paste_mode`, `single_line_preview`, `restrict_filenames`, `embed_chapters` |

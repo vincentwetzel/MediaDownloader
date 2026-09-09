@@ -10,13 +10,21 @@
 #include <QTimer>
 #include <QEventLoop>
 #include <QScopeGuard>
+#include <QTcpServer>
+#include <QDir>
+#include <QFile>
+
+QUrl TestLocalApiServer::apiUrl(const QString &path) const
+{
+    return QUrl(QStringLiteral("http://127.0.0.1:%1%2").arg(m_apiServer->port()).arg(path));
+}
 
 void TestLocalApiServer::init() {
     BaseTest::init();
     m_apiServer = new LocalApiServer(getConfigManager(), this);
     m_apiServer->start();
     if (!m_apiServer->isRunning()) {
-        QSKIP("Port 8765 is already in use (is LzyDownloader already running?). Skipping test.");
+        QSKIP("The configured Local API port is already in use. Skipping test.");
     }
 }
 
@@ -48,9 +56,24 @@ void TestLocalApiServer::testApiTokenGeneration() {
     QCOMPARE(secondServer.getApiKey(), token);
 }
 
+void TestLocalApiServer::testConfiguredPort() {
+    QTcpServer probe;
+    QVERIFY(probe.listen(QHostAddress::LocalHost, 0));
+    const quint16 requestedPort = probe.serverPort();
+    probe.close();
+
+    QVERIFY(getConfigManager()->set(QStringLiteral("General"), QStringLiteral("local_api_port"), requestedPort));
+    QTRY_VERIFY_WITH_TIMEOUT(m_apiServer->isRunning(), 3000);
+    QCOMPARE(m_apiServer->port(), requestedPort);
+
+    QFile portFile(QDir(getConfigManager()->getConfigDir()).filePath(QStringLiteral("api_port.txt")));
+    QVERIFY(portFile.open(QIODevice::ReadOnly | QIODevice::Text));
+    QCOMPARE(QString::fromUtf8(portFile.readAll()).trimmed(), QString::number(requestedPort));
+}
+
 void TestLocalApiServer::testUnauthorizedAccess() {
     QNetworkAccessManager manager;
-    QNetworkRequest request(QUrl(QStringLiteral("http://127.0.0.1:8765/status")));
+    QNetworkRequest request(apiUrl(QStringLiteral("/status")));
     
     QNetworkReply *reply = manager.get(request);
     auto replyGuard = qScopeGuard([reply]() {
@@ -73,7 +96,7 @@ void TestLocalApiServer::testValidEnqueueRequest() {
     QSignalSpy spy(m_apiServer, &LocalApiServer::enqueueRequested);
     
     QNetworkAccessManager manager;
-    QNetworkRequest request(QUrl(QStringLiteral("http://127.0.0.1:8765/enqueue")));
+    QNetworkRequest request(apiUrl(QStringLiteral("/enqueue")));
     request.setRawHeader(QByteArrayLiteral("Authorization"), QStringLiteral("Bearer %1").arg(m_apiServer->getApiKey()).toUtf8());
     request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
     
@@ -119,7 +142,7 @@ void TestLocalApiServer::testValidCancelRequest() {
     QSignalSpy spy(m_apiServer, &LocalApiServer::cancelRequested);
 
     QNetworkAccessManager manager;
-    QNetworkRequest request(QUrl(QStringLiteral("http://127.0.0.1:8765/cancel")));
+    QNetworkRequest request(apiUrl(QStringLiteral("/cancel")));
     request.setRawHeader(QByteArrayLiteral("Authorization"), QStringLiteral("Bearer %1").arg(m_apiServer->getApiKey()).toUtf8());
     request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
 
@@ -152,7 +175,7 @@ void TestLocalApiServer::testClientScopedStatusAndCancellation() {
     QNetworkAccessManager manager;
 
     auto enqueue = [&](const QString &jobId, const QString &clientId) {
-        QNetworkRequest request(QUrl(QStringLiteral("http://127.0.0.1:8765/enqueue")));
+        QNetworkRequest request(apiUrl(QStringLiteral("/enqueue")));
         request.setRawHeader(QByteArrayLiteral("Authorization"), QStringLiteral("Bearer %1").arg(m_apiServer->getApiKey()).toUtf8());
         request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
         QJsonObject json;
@@ -178,7 +201,7 @@ void TestLocalApiServer::testClientScopedStatusAndCancellation() {
     enqueue(firstJobId, firstClientId);
     enqueue(secondJobId, secondClientId);
 
-    QUrl statusUrl(QStringLiteral("http://127.0.0.1:8765/status"));
+    QUrl statusUrl = apiUrl(QStringLiteral("/status"));
     QUrlQuery query;
     query.addQueryItem(QStringLiteral("client_id"), firstClientId);
     statusUrl.setQuery(query);
@@ -196,7 +219,7 @@ void TestLocalApiServer::testClientScopedStatusAndCancellation() {
     QCOMPARE(jobs.first().toObject().value(QStringLiteral("id")).toString(), firstJobId);
     statusReply->deleteLater();
 
-    QNetworkRequest wrongCancel(QUrl(QStringLiteral("http://127.0.0.1:8765/cancel")));
+    QNetworkRequest wrongCancel(apiUrl(QStringLiteral("/cancel")));
     wrongCancel.setRawHeader(QByteArrayLiteral("Authorization"), QStringLiteral("Bearer %1").arg(m_apiServer->getApiKey()).toUtf8());
     wrongCancel.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
     QJsonObject wrongBody;

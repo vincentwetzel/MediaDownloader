@@ -50,6 +50,8 @@ Public/project guidance is in `README.md`, `CONTRIBUTING.md`, `SECURITY.md`,
   Chrome/Chromium native-host registration and Linux AppImage wrapper setup.
 - `src/integration/BrowserCookieFile.h/cpp`: validates browser cookie bundles
   and owns short-lived Netscape-format cookie files.
+- `src/integration/LocalApiEndpoint.h`: shared default/validation and atomic
+  app-local discovery-file helpers for the configurable Local API port.
 - `src/core/download_pipeline/`: FFmpeg pipeline helpers.
 - `src/ui/`: Qt Widgets, tabs, dialogs, and presentation builders.
 - `src/utils/`: logging, discovery, parsing, and platform helpers.

@@ -39,6 +39,18 @@ void TestConfigManager::testInvalidPlaylistLogicFallsBackToAsk() {
     QCOMPARE(manager.get(QStringLiteral("General"), QStringLiteral("playlist_logic")).toString(), QStringLiteral("Ask"));
 }
 
+void TestConfigManager::testInvalidLocalApiPortFallsBackToDefault() {
+    const QString settingsPath = QDir(getTempDir()).filePath(QStringLiteral("invalid_local_api_port.ini"));
+    {
+        QSettings settings(settingsPath, QSettings::IniFormat);
+        settings.setValue(QStringLiteral("General/local_api_port"), 80);
+        settings.sync();
+    }
+
+    ConfigManager manager(settingsPath, true, nullptr);
+    QCOMPARE(manager.get(QStringLiteral("General"), QStringLiteral("local_api_port")).toInt(), 8765);
+}
+
 void TestConfigManager::testSetAndGet() {
     // Set a value and get it back
     QSignalSpy spy(m_configManager, &ConfigManager::settingChanged);
@@ -99,6 +111,7 @@ void TestConfigManager::testResetToDefaults() {
     
     // Max threads should be back to 4
     QCOMPARE(m_configManager->get(QStringLiteral("General"), QStringLiteral("max_threads")).toString(), QStringLiteral("4"));
+    QCOMPARE(m_configManager->get(QStringLiteral("General"), QStringLiteral("local_api_port")).toInt(), 8765);
 }
 
 void TestConfigManager::testConcurrentReadsAndWrites()

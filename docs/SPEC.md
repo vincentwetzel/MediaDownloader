@@ -225,7 +225,7 @@ only the sections relevant to the change.
 
 ## 6. API, updates, and deployment
 
-- The Local API binds only to `127.0.0.1:8765`, requires a Bearer token, bounds
+- The Local API binds only to `127.0.0.1:<local_api_port>` (default `8765`), requires a Bearer token, bounds
   payloads, validates Host/Origin, and grants CORS only to localhost/trusted
   extension origins. `POST /enqueue` accepts URL, type, optional ID, and
   explicit `override_archive`; `GET /status` returns snapshots; authenticated

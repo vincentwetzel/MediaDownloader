@@ -10,6 +10,7 @@
 #include <QPushButton>
 #include <QComboBox>
 #include <QCheckBox>
+#include <QSpinBox>
 #include <QSignalBlocker>
 #include <QtGlobal>
 
@@ -54,8 +55,15 @@ ConfigurationPage::ConfigurationPage(ConfigManager *configManager, QWidget *pare
     configLayout->addRow(themeLabel, m_themeCombo);
 
     m_enableApiServerCheck = new QCheckBox(tr("Enable Local API Server"), this);
-    m_enableApiServerCheck->setToolTip(tr("Allow trusted local apps to enqueue downloads through 127.0.0.1:8765 using the app's API token."));
+    m_enableApiServerCheck->setToolTip(tr("Allow trusted local apps to enqueue downloads through the localhost API using the app's API token."));
     configLayout->addRow("", m_enableApiServerCheck);
+
+    m_localApiPortInput = new QSpinBox(this);
+    m_localApiPortInput->setRange(1024, 65535);
+    m_localApiPortInput->setToolTip(tr("Localhost port used by the API. The default is 8765; changing it restarts the API server and updates local integrations."));
+    QLabel *apiPortLabel = new QLabel(tr("Local API port:"), this);
+    apiPortLabel->setToolTip(m_localApiPortInput->toolTip());
+    configLayout->addRow(apiPortLabel, m_localApiPortInput);
 
     layout->addWidget(configGroup);
     layout->addStretch();
@@ -70,6 +78,7 @@ ConfigurationPage::ConfigurationPage(ConfigManager *configManager, QWidget *pare
 #else
     connect(m_enableApiServerCheck, &QCheckBox::stateChanged, this, &ConfigurationPage::onEnableApiServerToggled);
 #endif
+    connect(m_localApiPortInput, qOverload<int>(&QSpinBox::valueChanged), this, &ConfigurationPage::onLocalApiPortChanged);
     connect(m_configManager, &ConfigManager::settingChanged, this, &ConfigurationPage::handleConfigSettingChanged);
 }
 
@@ -78,11 +87,13 @@ void ConfigurationPage::loadSettings() {
     QSignalBlocker b2(m_tempDirInput);
     QSignalBlocker b3(m_themeCombo);
     QSignalBlocker b4(m_enableApiServerCheck);
+    QSignalBlocker b5(m_localApiPortInput);
 
     m_completedDirInput->setText(m_configManager->get(QStringLiteral("Paths"), QStringLiteral("completed_downloads_directory")).toString());
     m_tempDirInput->setText(m_configManager->get(QStringLiteral("Paths"), QStringLiteral("temporary_downloads_directory")).toString());
     m_themeCombo->setCurrentText(m_configManager->get(QStringLiteral("General"), QStringLiteral("theme"), tr("System")).toString());
     m_enableApiServerCheck->setChecked(m_configManager->get(QStringLiteral("General"), QStringLiteral("enable_local_api"), false).toBool());
+    m_localApiPortInput->setValue(m_configManager->get(QStringLiteral("General"), QStringLiteral("local_api_port"), 8765).toInt());
 }
 
 void ConfigurationPage::selectCompletedDir() {
@@ -112,6 +123,11 @@ void ConfigurationPage::onEnableApiServerToggled(int state) {
     m_configManager->save();
 }
 
+void ConfigurationPage::onLocalApiPortChanged(int value) {
+    m_configManager->set(QStringLiteral("General"), QStringLiteral("local_api_port"), value);
+    m_configManager->save();
+}
+
 void ConfigurationPage::handleConfigSettingChanged(const QString &section, const QString &key, const QVariant &value) {
     if (section == QStringLiteral("Paths")) {
         if (key == QStringLiteral("completed_downloads_directory")) m_completedDirInput->setText(value.toString());
@@ -126,5 +142,9 @@ void ConfigurationPage::handleConfigSettingChanged(const QString &section, const
     else if (section == QStringLiteral("General") && key == QStringLiteral("enable_local_api")) {
         QSignalBlocker b(m_enableApiServerCheck);
         m_enableApiServerCheck->setChecked(value.toBool());
+    }
+    else if (section == QStringLiteral("General") && key == QStringLiteral("local_api_port")) {
+        QSignalBlocker b(m_localApiPortInput);
+        m_localApiPortInput->setValue(value.toInt());
     }
 }

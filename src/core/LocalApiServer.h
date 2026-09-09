@@ -18,6 +18,7 @@ public:
     void stop();
 
     bool isRunning() const;
+    quint16 port() const;
     QString getApiKey() const;
 
 signals:
@@ -47,6 +48,8 @@ private:
     QHash<QString, QString> m_jobCookieFiles;
 
     void generateOrLoadApiKey();
+    quint16 configuredPort() const;
+    void publishConfiguredPort();
     void removeOwnedCookieFile(const QString &jobId);
     void handleRequest(QTcpSocket *socket, const QByteArray &requestData);
     void sendHttpResponse(QTcpSocket *socket, int statusCode, const QString &statusText, const QByteArray &body);

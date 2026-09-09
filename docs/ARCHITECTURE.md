@@ -101,7 +101,7 @@ replacement. Temp cleanup owns root resolution and guarded UUID-folder removal.
 | `ActiveDownloadsTab.*`, `DownloadItemWidget.cpp`, `DownloadItemWidgetProgress.cpp`, `DownloadItemWidgetIcons.h` | Download rows, thumbnails, async owned-temp checks, compact layout, one focused progress bar, actions, and newest-row visibility |
 | `DownloadHistoryTab.*` | `download_history.json` display cache, atomic coalesced saves, and off-thread local thumbnail decoding |
 | `advanced_settings/*`, `MissingBinariesDialog.*` | Settings pages, templates, and consolidated binary setup/provisioning |
-| `LocalApiServer.*` | Authenticated localhost enqueue/status/cancel, aggregate progress, and tracked-job signals |
+| `LocalApiServer.*`, `integration/LocalApiEndpoint.h` | Authenticated localhost enqueue/status/cancel, aggregate progress, tracked-job signals, and app-local port discovery |
 | `integration/BrowserNativeMessagingHost.cpp`, `integration/BrowserNativeHostRegistration.*`, `integration/BrowserCookieFile.*` | Bounded cross-platform Chrome native-messaging bridge and registration, plus request-scoped cookie-file ownership; requests the coordinator's Local API and relays allowlisted operations |
 | `AppUpdater.*`, `LzyDownloader.nsi` | Release lookup/handoff and Windows silent-install relaunch |
 | `PowerInhibitor.*` | Platform idle-sleep inhibition |

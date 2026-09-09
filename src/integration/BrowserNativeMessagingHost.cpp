@@ -1,4 +1,5 @@
 #include "BrowserCookieFile.h"
+#include "LocalApiEndpoint.h"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -162,7 +163,8 @@ HttpResult requestApi(const QString &method, const QUrl &url, const QString &tok
     QNetworkAccessManager manager;
     QNetworkRequest request(url);
     request.setRawHeader(QByteArrayLiteral("Authorization"), QByteArrayLiteral("Bearer ") + token.toUtf8());
-    request.setRawHeader(QByteArrayLiteral("Host"), QByteArrayLiteral("127.0.0.1:8765"));
+    request.setRawHeader(QByteArrayLiteral("Host"), QByteArrayLiteral("127.0.0.1:")
+                         + QByteArray::number(url.port(LocalApiEndpoint::DefaultPort)));
     if (!body.isEmpty()) {
         request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
     }
@@ -206,7 +208,8 @@ bool serverIsHealthy(const QString &token)
         return false;
     }
     const HttpResult result = requestApi(QStringLiteral("GET"),
-                                         QUrl(QStringLiteral("http://127.0.0.1:8765/status")), token,
+                                         QUrl(QStringLiteral("http://127.0.0.1:%1/status")
+                                                  .arg(LocalApiEndpoint::readDefaultPort())), token,
                                          {}, 1500);
     return result.completed && result.statusCode == 200;
 }
@@ -370,7 +373,8 @@ QJsonObject handleRequest(const QJsonObject &request)
             body[QStringLiteral("cookie_file")] = cookieFile;
         }
         const HttpResult result = requestApi(QStringLiteral("POST"),
-                                             QUrl(QStringLiteral("http://127.0.0.1:8765/enqueue")), token,
+                                             QUrl(QStringLiteral("http://127.0.0.1:%1/enqueue")
+                                                      .arg(LocalApiEndpoint::readDefaultPort())), token,
                                              QJsonDocument(body).toJson(QJsonDocument::Compact));
         if (!result.completed || result.statusCode < 200 || result.statusCode >= 300) {
             BrowserCookieFile::remove(cookieFile);
@@ -395,7 +399,8 @@ QJsonObject handleRequest(const QJsonObject &request)
         body[QStringLiteral("job_id")] = jobId;
         body[QStringLiteral("client_id")] = clientId;
         const HttpResult result = requestApi(QStringLiteral("POST"),
-                                             QUrl(QStringLiteral("http://127.0.0.1:8765/cancel")), token,
+                                             QUrl(QStringLiteral("http://127.0.0.1:%1/cancel")
+                                                      .arg(LocalApiEndpoint::readDefaultPort())), token,
                                              QJsonDocument(body).toJson(QJsonDocument::Compact));
         if (result.statusCode == 404) {
             return errorResponse(requestId, QStringLiteral("UNKNOWN_JOB"),
@@ -412,7 +417,8 @@ QJsonObject handleRequest(const QJsonObject &request)
     }
 
     if (operation == QStringLiteral("status")) {
-        QUrl statusUrl(QStringLiteral("http://127.0.0.1:8765/status"));
+        QUrl statusUrl(QStringLiteral("http://127.0.0.1:%1/status")
+                           .arg(LocalApiEndpoint::readDefaultPort()));
         QUrlQuery query;
         query.addQueryItem(QStringLiteral("client_id"), clientId);
         statusUrl.setQuery(query);

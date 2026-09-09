@@ -183,9 +183,10 @@ not delete unrelated files.
 
 ### [LocalApiServer](../src/core/LocalApiServer.h)
 
-Serves authenticated automation on `127.0.0.1:8765`.
+Serves authenticated automation on `127.0.0.1:<local_api_port>`; the default
+port is `8765` and the active value is published in `api_port.txt`.
 
-- `void start()`, `void stop()`, `bool isRunning() const`, and
+- `void start()`, `void stop()`, `bool isRunning() const`, `quint16 port() const`, and
   `QString getApiKey() const` manage the server and coordinator-wide
   `api_token.txt`.
 - `void enqueueRequested(const QString &url, const QString &type,

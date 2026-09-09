@@ -141,6 +141,14 @@ void ConfigManager::commonInitialization() {
     if (changedWait) {
         m_settings->sync();
     }
+
+    bool apiPortOk = false;
+    const int apiPort = m_settings->value(QStringLiteral("General/local_api_port"), 8765).toInt(&apiPortOk);
+    if (!apiPortOk || apiPort < 1024 || apiPort > 65535) {
+        qWarning() << "Discarding invalid local API port:" << apiPort;
+        m_settings->setValue(QStringLiteral("General/local_api_port"), 8765);
+        m_settings->sync();
+    }
 }
 
 void ConfigManager::initializeDefaultSettings() {
@@ -164,6 +172,7 @@ void ConfigManager::initializeDefaultSettings() {
     m_defaultSettings[QStringLiteral("General")][QStringLiteral("show_debug_console")] = false;
     m_defaultSettings[QStringLiteral("General")][QStringLiteral("warn_stable_yt_dlp")] = true;
     m_defaultSettings[QStringLiteral("General")][QStringLiteral("enable_local_api")] = false;
+    m_defaultSettings[QStringLiteral("General")][QStringLiteral("local_api_port")] = 8765;
     m_defaultSettings[QStringLiteral("General")][QStringLiteral("enable_local_api_server")] = false; // Fallback for UI naming differences
     m_defaultSettings[QStringLiteral("Binaries")][QStringLiteral("setup_completed")] = false;
     m_defaultSettings[QStringLiteral("Binaries")][QStringLiteral("prefer_app_managed")] = false;

@@ -297,7 +297,7 @@ queue snapshot before exit.
 
 ### Local API
 
-When enabled in the GUI, or when launched with `--server`, `--headless`, or `--background`, LzyDownloader listens only on `127.0.0.1:8765`. All launch modes attach to one coordinator and use its app-local `api_token.txt`. Requests must send the token as a Bearer token.
+When enabled in the GUI, or when launched with `--server`, `--headless`, or `--background`, LzyDownloader listens only on `127.0.0.1:<local_api_port>` (default `8765`). The port is configurable from Advanced Settings → Configuration and is published in the app-local `api_port.txt` discovery file. All launch modes attach to one coordinator and use its app-local `api_token.txt`. Requests must send the token as a Bearer token.
 
 Equivalent URLs are deduplicated using normalized media identity across queued, active, paused, retried, and archived states. Disk-full diagnostics are terminal failures, and explicit replacement of an existing destination preserves the old file until the new verified output is in place.
 

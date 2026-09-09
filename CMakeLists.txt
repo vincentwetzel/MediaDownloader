@@ -82,8 +82,30 @@ endif()
 
 option(LZY_SKIP_QT_DEPLOY "Skip Qt runtime deployment post-build steps for local developer builds." OFF)
 
+if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    function(lzy_add_mingw_runtime_deploy target_name)
+        get_filename_component(_mingw_runtime_dir "${CMAKE_CXX_COMPILER}" DIRECTORY)
+        foreach(_mingw_runtime_dll libgcc_s_seh-1.dll libstdc++-6.dll libwinpthread-1.dll)
+            if(EXISTS "${_mingw_runtime_dir}/${_mingw_runtime_dll}")
+                add_custom_command(TARGET ${target_name} POST_BUILD
+                    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                        "${_mingw_runtime_dir}/${_mingw_runtime_dll}"
+                        "$<TARGET_FILE_DIR:${target_name}>"
+                    VERBATIM
+                )
+            else()
+                message(WARNING "MinGW runtime DLL not found: ${_mingw_runtime_dir}/${_mingw_runtime_dll}")
+            endif()
+        endforeach()
+    endfunction()
+else()
+    function(lzy_add_mingw_runtime_deploy target_name)
+    endfunction()
+endif()
+
 if(WIN32)
     function(lzy_add_qt_windows_deploy target_name)
+        lzy_add_mingw_runtime_deploy(${target_name})
         if(LZY_SKIP_QT_DEPLOY)
             if(DEFINED Qt6_DIR)
                 get_filename_component(_qt_prefix "${Qt6_DIR}/../../.." ABSOLUTE)
@@ -97,9 +119,6 @@ if(WIN32)
                     Qt6Sql.dll
                     Qt6Concurrent.dll
                     Qt6Test.dll
-                    libgcc_s_seh-1.dll
-                    libstdc++-6.dll
-                    libwinpthread-1.dll
                 )
                     if(EXISTS "${_qt_bin_dir}/${_runtime_dll}")
                         add_custom_command(TARGET ${target_name} POST_BUILD
@@ -153,17 +172,6 @@ if(WIN32)
                 VERBATIM
             )
 
-            get_filename_component(_mingw_runtime_dir "${CMAKE_CXX_COMPILER}" DIRECTORY)
-            foreach(_mingw_runtime_dll libgcc_s_seh-1.dll libstdc++-6.dll libwinpthread-1.dll)
-                if(EXISTS "${_mingw_runtime_dir}/${_mingw_runtime_dll}")
-                    add_custom_command(TARGET ${target_name} POST_BUILD
-                        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-                            "${_mingw_runtime_dir}/${_mingw_runtime_dll}"
-                            "$<TARGET_FILE_DIR:${target_name}>"
-                        VERBATIM
-                    )
-                endif()
-            endforeach()
         else()
             find_program(WINDEPLOYQT_EXECUTABLE NAMES windeployqt windeployqt6)
         endif()
@@ -300,6 +308,7 @@ add_library(LzyAppLib STATIC
     src/core/YtDlpWorkerProgress.cpp
     src/core/YtDlpWorkerTransfers.cpp
     src/integration/BrowserCookieFile.cpp
+    src/integration/LocalApiEndpoint.h
     src/integration/BrowserNativeHostRegistration.cpp
     src/core/download_pipeline/Aria2DownloadWorker.cpp
     src/core/download_pipeline/Aria2RpcClient.cpp

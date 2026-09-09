@@ -286,6 +286,12 @@ bool MainWindow::showMissingBinariesDialog(const QStringList &binaryNames,
         return true;
     }
 
+    if (m_nonInteractiveLaunch) {
+        qWarning() << "Skipping missing-binaries dialog during non-interactive launch:"
+                   << binaryNames.join(QStringLiteral(", "));
+        return false;
+    }
+
     BinariesPage *binariesPage = m_advancedSettingsTab
         ? m_advancedSettingsTab->findChild<BinariesPage*>()
         : nullptr;

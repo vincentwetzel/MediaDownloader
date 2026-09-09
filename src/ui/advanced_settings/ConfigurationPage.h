@@ -7,6 +7,7 @@ class QLineEdit;
 class QPushButton;
 class QComboBox;
 class QCheckBox;
+class QSpinBox;
 
 class ConfigurationPage : public QWidget {
     Q_OBJECT
@@ -25,6 +26,7 @@ private slots:
     void onThemeChanged(const QString &text);
     void handleConfigSettingChanged(const QString &section, const QString &key, const QVariant &value);
     void onEnableApiServerToggled(int state);
+    void onLocalApiPortChanged(int value);
 
 private:
     ConfigManager *m_configManager;
@@ -34,4 +36,5 @@ private:
     QPushButton *m_browseTempBtn;
     QComboBox *m_themeCombo;
     QCheckBox *m_enableApiServerCheck;
+    QSpinBox *m_localApiPortInput;
 };
