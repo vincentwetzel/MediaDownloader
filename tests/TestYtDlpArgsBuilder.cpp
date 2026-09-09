@@ -309,6 +309,26 @@ void TestYtDlpArgsBuilder::testAudioPlaylistArtistMetadataFallback()
     QVERIFY(!probeArgs.contains(QStringLiteral("%(artist,artists,creator,channel,uploader)s:%(artist)s")));
 }
 
+void TestYtDlpArgsBuilder::testAudioPlaylistIndexBecomesTrackMetadata()
+{
+    ConfigManager *mockConfig = getConfigManager();
+    mockConfig->set(QStringLiteral("Metadata"), QStringLiteral("embed_metadata"), true);
+
+    YtDlpArgsBuilder builder;
+    QVariantMap options;
+    options[QStringLiteral("type")] = QStringLiteral("audio");
+    options[QStringLiteral("is_playlist")] = true;
+    options[QStringLiteral("playlist_index")] = 5;
+
+    const QStringList args = builder.build(mockConfig, QUrl(TEST_URL).toString(), options);
+    const QString trackMapping = QStringLiteral("5:%(meta_track)s");
+    QVERIFY(args.contains(trackMapping));
+
+    options[QStringLiteral("is_playlist_expansion")] = true;
+    const QStringList probeArgs = builder.build(mockConfig, QUrl(TEST_URL).toString(), options);
+    QVERIFY(!probeArgs.contains(trackMapping));
+}
+
 void TestYtDlpArgsBuilder::testOrphanedTemporaryDirectorySweep()
 {
     const QString root = QDir(getTempDir()).filePath(QStringLiteral("temp_downloads"));

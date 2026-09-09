@@ -56,7 +56,6 @@ void MainWindow::connectDownloadManagerSignals()
         }
     });
 
-    // Download History tracking
     QSharedPointer<QMap<QString, HistoryItemData>> historyStates = QSharedPointer<QMap<QString, HistoryItemData>>::create();
     QSharedPointer<QHash<QString, QString>> cachedThumbnailPaths = QSharedPointer<QHash<QString, QString>>::create();
     QSharedPointer<QSet<QString>> thumbnailCopyAttempts = QSharedPointer<QSet<QString>>::create();
@@ -77,37 +76,46 @@ void MainWindow::connectDownloadManagerSignals()
         const QString cachedPath = QDir(cacheDir).filePath(QStringLiteral("%1_%2").arg(id, QFileInfo(originalPath).fileName()));
         thumbnailCopyAttempts->insert(cacheKey);
 
-        // Copying from the download drive is deliberately off the GUI thread.
         auto *watcher = new QFutureWatcher<bool>(this);
         connect(watcher, &QFutureWatcher<bool>::finished, this,
-                [this, watcher, id, cachedPath, cacheKey, historyStates, cachedThumbnailPaths]() {
+                [this, watcher, id, cachedPath, cacheKey, historyStates, cachedThumbnailPaths, thumbnailCopyAttempts]() {
             const bool copied = watcher->result();
             watcher->deleteLater();
+            thumbnailCopyAttempts->remove(cacheKey);
             if (!copied) {
                 return;
             }
 
             cachedThumbnailPaths->insert(cacheKey, cachedPath);
-            if (!historyStates->contains(id)) {
-                return;
+            if (historyStates->contains(id)) {
+                (*historyStates)[id].thumbnailPath = cachedPath;
+                if (m_activeDownloadsTab) {
+                    m_activeDownloadsTab->updateDownloadProgress(id, {
+                        {QStringLiteral("thumbnail_path"), cachedPath}
+                    });
+                }
             }
-            (*historyStates)[id].thumbnailPath = cachedPath;
-            if (m_activeDownloadsTab) {
-                m_activeDownloadsTab->updateDownloadProgress(id, {
-                    {QStringLiteral("thumbnail_path"), cachedPath}
-                });
+            if (auto *historyTab = findChild<DownloadHistoryTab *>(QStringLiteral("downloadHistoryTab"))) {
+                historyTab->updateThumbnail(id, cachedPath);
             }
         });
         watcher->setFuture(QtConcurrent::run([cacheDir, originalPath, cachedPath]() {
-            if (QFile::exists(cachedPath)) {
-                return true;
+            for (int attempt = 0; attempt < 10; ++attempt) {
+                const QFileInfo cachedInfo(cachedPath);
+                const QFileInfo sourceInfo(originalPath);
+                if (cachedInfo.isFile() && cachedInfo.size() > 0) {
+                    return true;
+                }
+                if (sourceInfo.isFile() && sourceInfo.size() > 0 && QDir().mkpath(cacheDir)
+                    && QFile::copy(originalPath, cachedPath)) {
+                    return true;
+                }
+                QThread::msleep(100);
             }
-            if (!QDir().mkpath(cacheDir) || !QFile::exists(originalPath)) {
-                return false;
-            }
-            return QFile::copy(originalPath, cachedPath);
+            const QFileInfo cachedInfo(cachedPath);
+            return cachedInfo.isFile() && cachedInfo.size() > 0;
         }));
-        return originalPath;
+        return QString();
     };
 
     connect(m_downloadManager, &DownloadManager::downloadAddedToQueue, this, [this, historyStates, cacheThumbnail](const QVariantMap &itemData) {
@@ -206,16 +214,17 @@ void MainWindow::connectDownloadManagerSignals()
         }
     });
 
-    connect(m_downloadManager, &DownloadManager::downloadFinished, this, [this, historyStates](const QString &id, bool success, const QString &message) {
+    connect(m_downloadManager, &DownloadManager::downloadFinished, this, [this, historyStates, cacheThumbnail](const QString &id, bool success, const QString &message) {
         Q_UNUSED(message);
         if (success && historyStates->contains(id)) {
+            HistoryItemData &historyData = (*historyStates)[id];
+            historyData.thumbnailPath = cacheThumbnail(id, historyData.thumbnailPath);
             if (auto *historyTab = findChild<DownloadHistoryTab*>(QStringLiteral("downloadHistoryTab"))) {
-                historyTab->addHistoryItem((*historyStates)[id]);
+                historyTab->addHistoryItem(historyData);
             }
         }
         historyStates->remove(id);
     });
-    
     connect(m_downloadManager, &DownloadManager::downloadCancelled, this, [historyStates](const QString &id) {
         historyStates->remove(id);
     });

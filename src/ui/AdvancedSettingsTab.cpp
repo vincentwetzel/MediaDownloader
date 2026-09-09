@@ -51,6 +51,12 @@ public:
 
         for (QWidget *page : m_pages) {
             page->setParent(scrollWidget);
+            // The individual pages use a trailing stretch so they also work
+            // when shown on their own.  Do not let that stretch consume the
+            // scroll viewport when pages are stacked here; sections should
+            // stay directly below one another and the document should grow
+            // only when its contents require it.
+            page->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
             contentLayout->addWidget(page);
         }
         contentLayout->addStretch();

@@ -4,6 +4,8 @@
 #include "ui/StartTab.h"
 #include "ui/MissingBinariesDialog.h"
 #include "ui/advanced_settings/BinariesPage.h"
+#include "ui/AdvancedSettingsTab.h"
+#include "ui/DownloadHistoryTab.h"
 #include <QSignalSpy>
 #include <QVariantMap>
 #include <QPushButton>
@@ -13,6 +15,38 @@
 #include <QComboBox>
 #include <QDialog>
 #include <QTimer>
+#include <QTemporaryDir>
+#include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QImage>
+#include <QLabel>
+#include <QPair>
+
+void TestUIWidgets::testAdvancedSettingsSectionsUseNaturalSpacing() {
+    AdvancedSettingsTab tab(getConfigManager());
+    tab.resize(900, 700);
+    tab.show();
+    QCoreApplication::processEvents();
+
+    const QList<QGroupBox *> groups = tab.findChildren<QGroupBox *>();
+    QGroupBox *configuration = nullptr;
+    QGroupBox *authentication = nullptr;
+    for (QGroupBox *group : groups) {
+        if (group->title() == QStringLiteral("Configuration")) {
+            configuration = group;
+        } else if (group->title() == QStringLiteral("Authentication Access")) {
+            authentication = group;
+        }
+    }
+
+    QVERIFY(configuration != nullptr);
+    QVERIFY(authentication != nullptr);
+    const int configurationBottom = configuration->mapTo(&tab, QPoint(0, configuration->height())).y();
+    const int authenticationTop = authentication->mapTo(&tab, QPoint(0, 0)).y();
+    QVERIFY(authenticationTop - configurationBottom < 40);
+}
 
 void TestUIWidgets::testStartTabCarriesPlaylistLogicIntoRequest() {
     ConfigManager *config = getConfigManager();
@@ -175,6 +209,78 @@ void TestUIWidgets::testDownloadItemWidgetKeepsActionsVisibleWhenNarrow() {
     QVERIFY(cancelButton != nullptr);
     QVERIFY(cancelButton->isVisible());
     QVERIFY(cancelButton->geometry().right() <= widget.rect().right());
+}
+
+void TestUIWidgets::testDownloadItemWidgetShowsMediaTypeIcon()
+{
+    const QList<QPair<QString, QString>> mediaTypes = {
+        {QStringLiteral("video"), QStringLiteral("Video")},
+        {QStringLiteral("audio"), QStringLiteral("Audio")},
+        {QStringLiteral("gallery"), QStringLiteral("Gallery")}
+    };
+
+    for (const auto &[type, label] : mediaTypes) {
+        QVariantMap itemData;
+        itemData[QStringLiteral("id")] = type;
+        itemData[QStringLiteral("options")] = QVariantMap{{QStringLiteral("type"), type}};
+
+        DownloadItemWidget widget(itemData);
+        QLabel *typeIcon = widget.findChild<QLabel *>(QStringLiteral("downloadTypeIcon"));
+
+        QVERIFY(typeIcon != nullptr);
+        QVERIFY(!typeIcon->pixmap(Qt::ReturnByValue).isNull());
+        QCOMPARE(typeIcon->toolTip(), QObject::tr("Download type: %1").arg(label));
+        QVERIFY(typeIcon->accessibleName().contains(label));
+    }
+}
+
+void TestUIWidgets::testDownloadHistoryUpdatesThumbnailAfterAsyncCacheCopy()
+{
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+
+    const QString historyPath = QDir(tempDir.path()).filePath(QStringLiteral("history.json"));
+    const QString thumbnailPath = QDir(tempDir.path()).filePath(QStringLiteral("cached.jpg"));
+    QImage image(24, 16, QImage::Format_RGB32);
+    image.fill(Qt::green);
+    QVERIFY(image.save(thumbnailPath, "JPG"));
+
+    QJsonObject history;
+    history[QStringLiteral("id")] = QStringLiteral("completed-id");
+    history[QStringLiteral("title")] = QStringLiteral("Completed item");
+    history[QStringLiteral("thumbnailPath")] = QStringLiteral("missing-thumbnail.jpg");
+    QFile historyFile(historyPath);
+    QVERIFY(historyFile.open(QIODevice::WriteOnly));
+    QVERIFY(historyFile.write(QJsonDocument(QJsonArray{history}).toJson()) > 0);
+    historyFile.close();
+
+    DownloadHistoryTab tab;
+    tab.setObjectName(QStringLiteral("downloadHistoryTab"));
+    tab.loadHistory(historyPath);
+    tab.updateThumbnail(QStringLiteral("completed-id"), thumbnailPath);
+
+    QLabel *thumbnailLabel = nullptr;
+    for (QLabel *label : tab.findChildren<QLabel *>()) {
+        if (label->size() == QSize(120, 68)) {
+            thumbnailLabel = label;
+            break;
+        }
+    }
+    QVERIFY(thumbnailLabel != nullptr);
+    QTRY_VERIFY_WITH_TIMEOUT(!thumbnailLabel->pixmap(Qt::ReturnByValue).isNull(), 2000);
+
+    bool savedThumbnail = false;
+    QTRY_VERIFY_WITH_TIMEOUT(([&savedThumbnail, &historyPath, &thumbnailPath]() {
+        QFile savedHistory(historyPath);
+        if (!savedHistory.open(QIODevice::ReadOnly)) {
+            return false;
+        }
+        const QJsonArray saved = QJsonDocument::fromJson(savedHistory.readAll()).array();
+        savedThumbnail = saved.size() == 1
+            && saved.first().toObject().value(QStringLiteral("thumbnailPath")).toString() == thumbnailPath;
+        return savedThumbnail;
+    })(), 2000);
+    QVERIFY(savedThumbnail);
 }
 
 void TestUIWidgets::testBinariesPageUsesNaturalScrollDocument() {

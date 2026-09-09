@@ -482,10 +482,21 @@ QStringList YtDlpArgsBuilder::build(ConfigManager *configManager, const QString 
     // information, and deliberately exclude playlist_uploader/playlist_owner.
     // The expression is only applied to playlist audio items and remains
     // metadata-only safe because playlist expansion returns before this path.
-    if (embedMetadata && isAudioPlaylist && !isLivestream && !isPlaylistExpansion) {
+    if (embedMetadata && isAudioPlaylist && optionPlaylistIndex > 0 && !isLivestream && !isPlaylistExpansion) {
         qInfo() << "YtDlpArgsBuilder: preserving item-level artist metadata for audio playlist item";
         rawArgs << QStringLiteral("--parse-metadata")
                 << QStringLiteral("%(artist,artists,creator,channel,uploader)s:%(artist)s");
+
+        // The playlist index is also the track number.  This must be applied
+        // in yt-dlp's native metadata pass because the app-side FFmpeg
+        // rewrite is intentionally skipped for containers such as Opus/Ogg.
+        // Keep the filename prefix and embedded track tag sourced from the
+        // same per-item value. The meta_ prefix is required: without it,
+        // yt-dlp treats the destination as an ordinary extractor field and
+        // its metadata fallback can replace the title instead of writing a
+        // track tag.
+        rawArgs << QStringLiteral("--parse-metadata")
+                << QStringLiteral("%1:%(meta_track)s").arg(optionPlaylistIndex);
     }
 
     // Inject LzyDownloader's internal ID into yt-dlp's metadata engine.

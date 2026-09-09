@@ -102,9 +102,11 @@ the manager thread.
 ### [DownloadHistoryTab](../src/ui/DownloadHistoryTab.h)
 
 Owns the `download_history.json` display cache and history-row presentation.
-`addHistoryItem()` and `clearHistory()` coalesce atomic background saves;
-destruction waits for the active save and writes any pending snapshot. Local
-thumbnail decoding is performed off the GUI thread and returned through a
+`addHistoryItem()`, `updateThumbnail()`, and `clearHistory()` coalesce atomic
+background saves; `updateThumbnail(id, thumbnailPath)` updates a matching
+completed row after its cached image becomes available. Destruction waits for
+the active save and writes any pending snapshot. Local thumbnail decoding is
+performed off the GUI thread and returned through a
 guarded queued callback.
 
 ### [PowerInhibitor](../src/core/PowerInhibitor.h)

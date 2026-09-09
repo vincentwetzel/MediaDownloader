@@ -88,7 +88,7 @@ DownloadOptionsPage::DownloadOptionsPage(ConfigManager *configManager, QWidget *
     m_restrictFilenamesCheck->setToolTip(tr("Ask yt-dlp to use simpler ASCII-only filenames with fewer special characters. Helpful for older tools and network drives."));
 
     m_prefixPlaylistIndicesCheck = new ToggleSwitch(this);
-    m_prefixPlaylistIndicesCheck->setToolTip(tr("Add a playlist number prefix such as '01 - ' so downloaded playlist files stay in source order."));
+    m_prefixPlaylistIndicesCheck->setToolTip(tr("Add a playlist number prefix such as '01 - ' so downloaded playlist files stay in source order. This controls the automatic numbering shown in names such as '05 - Soppy Love Song.mp3'."));
 
     m_autoClearCompletedCheck = new ToggleSwitch(this);
     m_autoClearCompletedCheck->setToolTip(tr("Remove successful downloads from the Active Downloads list automatically. Download History still keeps completed entries."));
@@ -143,7 +143,7 @@ DownloadOptionsPage::DownloadOptionsPage(ConfigManager *configManager, QWidget *
     QFormLayout *filenameLayout = new QFormLayout(filenameGroup);
     addFormRow(filenameLayout, tr("Single-line command preview"), m_singleLineCommandPreviewCheck);
     addFormRow(filenameLayout, tr("Restrict filenames"), m_restrictFilenamesCheck);
-    addFormRow(filenameLayout, tr("Prefix playlist indices"), m_prefixPlaylistIndicesCheck);
+    addFormRow(filenameLayout, tr("Number playlist filenames"), m_prefixPlaylistIndicesCheck);
     contentLayout->addWidget(filenameGroup);
 
     contentLayout->addStretch();

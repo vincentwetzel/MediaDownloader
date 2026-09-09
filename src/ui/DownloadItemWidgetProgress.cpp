@@ -25,6 +25,33 @@
 #include <QtMath>
 
 using DownloadItemWidgetIcons::createColoredIcon;
+using DownloadItemWidgetIcons::createMediaTypeIcon;
+
+namespace {
+struct MediaTypePresentation {
+    QString key;
+    QString label;
+    QColor color;
+};
+
+MediaTypePresentation mediaTypePresentation(const QVariantMap &itemData)
+{
+    const QString requestedType = itemData.value(QStringLiteral("options")).toMap()
+        .value(QStringLiteral("type"), QStringLiteral("video")).toString().trimmed().toLower();
+    const bool lightTheme = QApplication::palette().color(QPalette::Window).lightness() > 128;
+    if (requestedType == QStringLiteral("audio")) {
+        return {QStringLiteral("audio"), DownloadItemWidget::tr("Audio"),
+                QColor(lightTheme ? QStringLiteral("#7e22ce") : QStringLiteral("#c084fc"))};
+    }
+    if (requestedType == QStringLiteral("gallery")) {
+        return {QStringLiteral("gallery"), DownloadItemWidget::tr("Gallery"),
+                QColor(lightTheme ? QStringLiteral("#b45309") : QStringLiteral("#fbbf24"))};
+    }
+    return {QStringLiteral("video"), DownloadItemWidget::tr("Video"),
+            QColor(lightTheme ? QStringLiteral("#2563eb") : QStringLiteral("#60a5fa"))};
+}
+}
+
 void DownloadItemWidget::setupUi() {
     QHBoxLayout *mainLayout = new QHBoxLayout(this);
 
@@ -48,6 +75,16 @@ void DownloadItemWidget::setupUi() {
     m_titleLabel->setMinimumWidth(0);
     m_titleLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     m_titleLabel->setToolTip(tr("The URL or title of the media being downloaded."));
+
+    const MediaTypePresentation mediaType = mediaTypePresentation(m_itemData);
+    QLabel *typeIconLabel = new QLabel(this);
+    typeIconLabel->setObjectName(QStringLiteral("downloadTypeIcon"));
+    typeIconLabel->setPixmap(createMediaTypeIcon(mediaType.key, mediaType.color).pixmap(18, 18));
+    typeIconLabel->setFixedSize(20, 20);
+    typeIconLabel->setAlignment(Qt::AlignCenter);
+    typeIconLabel->setToolTip(tr("Download type: %1").arg(mediaType.label));
+    typeIconLabel->setAccessibleName(typeIconLabel->toolTip());
+    typeIconLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
 
     QString displayTitle = initialTitle.isEmpty() ? url : initialTitle;
     QString escapedTitle = displayTitle.toHtmlEscaped();
@@ -86,6 +123,8 @@ void DownloadItemWidget::setupUi() {
 
     QVBoxLayout *infoLayout = new QVBoxLayout();
     QHBoxLayout *titleLayout = new QHBoxLayout();
+    titleLayout->setSpacing(4);
+    titleLayout->addWidget(typeIconLabel);
     titleLayout->addWidget(m_titleLabel);
     titleLayout->addWidget(m_clearButton);
     infoLayout->addLayout(titleLayout);

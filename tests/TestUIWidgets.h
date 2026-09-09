@@ -15,9 +15,12 @@ private slots:
     void testDownloadItemWidgetUsesAggregateProgressAcrossStreams();
     void testDownloadItemWidgetCoalescesHighFrequencyProgress();
     void testDownloadItemWidgetKeepsActionsVisibleWhenNarrow();
+    void testDownloadItemWidgetShowsMediaTypeIcon();
+    void testAdvancedSettingsSectionsUseNaturalSpacing();
     void testBinariesPageUsesNaturalScrollDocument();
     void testDenoAppManagedInstallIsRecommended();
     void testRequiredToolsDialogDistinguishesExistingUpdates();
+    void testDownloadHistoryUpdatesThumbnailAfterAsyncCacheCopy();
 
 private slots:
     void init() {

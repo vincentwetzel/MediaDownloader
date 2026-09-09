@@ -101,7 +101,12 @@ only the sections relevant to the change.
   Rows shrink to the viewport, wrap long titles, keep actions visible, and
   disable horizontal scrolling. Newly queued rows are revealed when the
   request is interactive. Queued thumbnail URLs start bounded async requests
-  immediately; playlist transitions preserve them.
+  immediately; playlist transitions preserve them. Each row shows a compact,
+  palette-aware video, audio, or gallery type icon beside its title.
+- Download History rows display cached thumbnails when available. A thumbnail
+  copied after the row is created updates that row and the persisted history
+  record asynchronously; local image decoding and cache copies never block
+  the GUI thread.
 - Every row has one detailed `ProgressLabelBar` for the active transfer or
   processing stage. Use default palette styling for queued/indeterminate,
   light blue for transfer, teal for processing, and green for completed. Paint
@@ -184,8 +189,11 @@ only the sections relevant to the change.
 - Preserve metadata, thumbnails, subtitles, chapters, and audio playlist tags.
   Track-level `artist` wins; fallback only to item `artists`, `creator`,
   `channel`, or `uploader`, never `playlist_uploader`/`playlist_owner`.
-  Playlist audio prefixes indices by default and generates `folder.jpg` only
-  for explicit full batches, not single or partial selections.
+  Playlist audio prefixes indices by default and writes the one-based playlist
+  index as the embedded track number when metadata embedding is enabled.
+  Metadata-only playlist expansion does not write track tags. Playlist audio
+  generates `folder.jpg` only for explicit full batches, not single or partial
+  selections.
 - Audio artwork keeps its source image unless a worker-thread image analysis
   finds substantial, symmetric low-variation borders around a centered square;
   complete candidate edge regions are sampled before removal. Genuine

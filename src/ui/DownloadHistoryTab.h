@@ -27,6 +27,7 @@ public:
 
     void loadHistory(const QString &filePath);
     void saveHistory() const;
+    void updateThumbnail(const QString &id, const QString &thumbnailPath);
 
 public slots:
     void addHistoryItem(const HistoryItemData &data);

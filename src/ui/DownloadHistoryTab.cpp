@@ -64,6 +64,7 @@ class DownloadHistoryItemWidget : public QFrame {
 public:
     explicit DownloadHistoryItemWidget(const HistoryItemData &data, QWidget *parent = nullptr)
         : QFrame(parent) {
+        setProperty("historyId", data.id);
         setFrameShape(QFrame::StyledPanel);
         setFrameShadow(QFrame::Raised);
         setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
@@ -211,6 +212,41 @@ public:
         
         mainLayout->addLayout(actionLayout);
     }
+
+    void updateThumbnail(const QString &thumbnailPath)
+    {
+        if (thumbnailPath.isEmpty()) {
+            return;
+        }
+
+        QLabel *thumbnailLabel = findChild<QLabel *>();
+        if (!thumbnailLabel) {
+            return;
+        }
+
+        QPointer<QLabel> label(thumbnailLabel);
+        QCoreApplication *application = QCoreApplication::instance();
+        QThread *thread = QThread::create([thumbnailPath, label, application]() {
+            QImageReader reader(thumbnailPath);
+            reader.setAutoTransform(true);
+            const QImage image = reader.read();
+            if (!application) {
+                return;
+            }
+            QMetaObject::invokeMethod(application, [label, image]() {
+                if (!label) {
+                    return;
+                }
+                if (!image.isNull()) {
+                    label->setPixmap(QPixmap::fromImage(image).scaled(120, 68, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+                } else {
+                    label->setText(QObject::tr("No Image"));
+                }
+            }, Qt::QueuedConnection);
+        });
+        QObject::connect(thread, &QThread::finished, thread, &QObject::deleteLater);
+        thread->start();
+    }
 };
 
 DownloadHistoryTab::DownloadHistoryTab(QWidget *parent) : QWidget(parent) {
@@ -339,6 +375,24 @@ void DownloadHistoryTab::loadHistory(const QString &filePath) {
 
 void DownloadHistoryTab::saveHistory() const {
     saveHistoryToPath(m_historyFilePath, m_historyItems);
+}
+
+void DownloadHistoryTab::updateThumbnail(const QString &id, const QString &thumbnailPath)
+{
+    for (HistoryItemData &item : m_historyItems) {
+        if (item.id == id) {
+            item.thumbnailPath = thumbnailPath;
+            saveHistoryAsync();
+            break;
+        }
+    }
+
+    for (QFrame *frame : m_scrollWidget->findChildren<QFrame *>()) {
+        if (frame->property("historyId").toString() == id) {
+            static_cast<DownloadHistoryItemWidget *>(frame)->updateThumbnail(thumbnailPath);
+            break;
+        }
+    }
 }
 
 void DownloadHistoryTab::saveHistoryAsync()

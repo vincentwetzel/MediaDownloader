@@ -9,6 +9,21 @@ Older historical changelogs (pre-v1.1.25) can be found in [docs/CHANGELOG_ARCHIV
 
 ## [Unreleased]
 
+- **Active download type icons:** Show compact video, audio, and gallery icons
+  beside active-download titles for quicker visual identification.
+- **Playlist audio track metadata:** When metadata embedding is enabled, each
+  expanded audio playlist item receives its one-based playlist index as the
+  embedded track number while metadata-only expansion remains unchanged.
+- **Download History thumbnails:** Cache completed-download thumbnails after
+  the source file becomes available and refresh the existing history row
+  asynchronously, including entries that were already displayed.
+- **Advanced Settings layout:** Keep stacked settings sections at their
+  natural heights so the scroll document does not insert large gaps between
+  sections; clarify that playlist numbering controls both filenames and audio
+  track ordering.
+- **Extractor catalog:** Replace the configured generic Nitter domain with
+  `nitter.hostux.net`.
+
 ## [1.2.47] - 2026-09-08
 
 - **Headless test setup:** The test runner now configures a missing build tree
