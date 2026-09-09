@@ -20,7 +20,7 @@ controls, and clear progress diagnostics without working at a command prompt.
 [Report a bug](https://github.com/vincentwetzel/lzy-downloader/issues/new/choose)
 
 The current C++ release line is 1.2.x. See [CHANGELOG.md](CHANGELOG.md) for
-unreleased changes and [UPDATE_AND_RELEASE.md](UPDATE_AND_RELEASE.md) for the
+recent changes and [UPDATE_AND_RELEASE.md](UPDATE_AND_RELEASE.md) for the
 maintainer release workflow.
 
 ## What is LzyDownloader?

@@ -9,6 +9,10 @@ Older historical changelogs (pre-v1.1.25) can be found in [docs/CHANGELOG_ARCHIV
 
 ## [Unreleased]
 
+No unreleased changes.
+
+## [1.2.48] - 2026-09-09
+
 - **Configurable Local API port:** Added an Advanced Settings port field with a
   stable `8765` default, immediate server restart on changes, and atomic
   `api_port.txt` discovery for the Discord bridge and browser companion.
@@ -35,7 +39,8 @@ Older historical changelogs (pre-v1.1.25) can be found in [docs/CHANGELOG_ARCHIV
   sections; clarify that playlist numbering controls both filenames and audio
   track ordering.
 - **Extractor catalog:** Replace the configured generic Nitter domain with
-  `nitter.hostux.net`.
+  the current domain discovered from yt-dlp, and refresh both extractor
+  catalogs.
 
 ## [1.2.47] - 2026-09-08
 
