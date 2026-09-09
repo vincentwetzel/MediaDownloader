@@ -34,10 +34,11 @@ GUI thread.
 
 ### Startup and modes
 
-`main.cpp` enforces instances with `QSystemSemaphore` and `QSharedMemory`.
-GUI, `--server`, `--headless`, and `--background` share preferences but use
-separate runtime markers and `Server/` runtime state where applicable. A
-second GUI launch forwards a direct URL through `QLocalSocket`.
+`main.cpp` uses a per-user `QLocalServer` coordinator. The owning process
+contains the `DownloadManager`, queue backup, workers, and Local API. GUI,
+`--server`, `--headless`, and `--background` launches attach to that one
+owner: GUI activation reveals an existing headless owner, and background
+activation asks an existing GUI owner to start its Local API.
 `StartupWorker` emits its completion signal once after all tool and extractor
 checks reach a terminal result, including probe failures.
 
@@ -53,8 +54,8 @@ playlist policy, then expands a playlist or starts a dedicated worker thread.
 `DownloadQueueManager` owns ordering, local concurrency, duplicate identity,
 retry/resume snapshots, restored-item recovery, and the single coalescing
 background writer for `downloads_backup.json`;
-`GlobalDownloadLimiter` coordinates worker-slot admission across separate
-GUI/server processes. Non-interactive
+`GlobalDownloadLimiter` remains a defensive per-user worker-slot guard.
+Non-interactive
 validation, duplicate, binary, runtime, and terminal errors are emitted as
 `nonInteractiveRequestFailed` for bridge/webhook consumers rather than shown in
 modal dialogs. `ArchiveManager` owns normalized identity and the
@@ -72,6 +73,7 @@ replacement. Temp cleanup owns root resolution and guarded UUID-folder removal.
 | `ArchiveManager.*` | Schema-compatible SQLite completed-media archive and media identity |
 | `DownloadQueueManager.*` | Ordering, concurrency, duplicate checks, retry/resume, and coalesced queue-backup writes |
 | `GlobalDownloadLimiter.*` | Locked per-user process registry for cross-process worker-slot admission and stale-holder cleanup |
+| `RuntimeCoordinator.*` | Per-user local-socket ownership, GUI activation, API activation, and direct-URL forwarding |
 | `DownloadQueueManagerRecovery.cpp` | Restored stopped/failed replacement recovery |
 | `DownloadQueueState.*` | Atomic `downloads_backup.json` save/load/restore, including path-based worker saves |
 | `DownloadQueueManagerCleanup.cpp`, `DownloadTempCleanup.*` | Async orphan reconciliation and guarded temp cleanup |
@@ -100,7 +102,7 @@ replacement. Temp cleanup owns root resolution and guarded UUID-folder removal.
 | `DownloadHistoryTab.*` | `download_history.json` display cache, atomic coalesced saves, and off-thread local thumbnail decoding |
 | `advanced_settings/*`, `MissingBinariesDialog.*` | Settings pages, templates, and consolidated binary setup/provisioning |
 | `LocalApiServer.*` | Authenticated localhost enqueue/status/cancel, aggregate progress, and tracked-job signals |
-| `integration/BrowserNativeMessagingHost.cpp`, `integration/BrowserNativeHostRegistration.*`, `integration/BrowserCookieFile.*` | Bounded cross-platform Chrome native-messaging bridge and registration, plus request-scoped cookie-file ownership; starts the validated headless server and relays allowlisted Local API operations |
+| `integration/BrowserNativeMessagingHost.cpp`, `integration/BrowserNativeHostRegistration.*`, `integration/BrowserCookieFile.*` | Bounded cross-platform Chrome native-messaging bridge and registration, plus request-scoped cookie-file ownership; requests the coordinator's Local API and relays allowlisted operations |
 | `AppUpdater.*`, `LzyDownloader.nsi` | Release lookup/handoff and Windows silent-install relaunch |
 | `PowerInhibitor.*` | Platform idle-sleep inhibition |
 | `LogManager.*` | Per-run logs and five-file startup retention |

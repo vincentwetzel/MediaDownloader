@@ -77,12 +77,13 @@ QString LocalApiServer::getApiKey() const
 void LocalApiServer::generateOrLoadApiKey()
 {
     QString dataPath = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
-    const QStringList args = QCoreApplication::arguments();
-    if (args.contains(QStringLiteral("--headless")) || args.contains(QStringLiteral("--server")) || args.contains(QStringLiteral("--background"))) {
-        dataPath = QDir(dataPath).filePath(QStringLiteral("Server"));
-    }
     QDir().mkpath(dataPath);
     QString keyPath = QDir(dataPath).filePath(QStringLiteral("api_token.txt"));
+    const QString legacyKeyPath = QDir(dataPath).filePath(QStringLiteral("Server/api_token.txt"));
+    if (!QFile::exists(keyPath) && QFile::exists(legacyKeyPath)
+        && !QFile::rename(legacyKeyPath, keyPath)) {
+        qWarning() << "Failed to migrate legacy server API token:" << legacyKeyPath;
+    }
 
     QFile file(keyPath);
     // Atomic open prevents Time-of-Check to Time-of-Use (TOCTOU) race conditions

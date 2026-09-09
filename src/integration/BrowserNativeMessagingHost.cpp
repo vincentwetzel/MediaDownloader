@@ -140,7 +140,7 @@ QString apiTokenPath()
     if (localData.isEmpty()) {
         return {};
     }
-    return QDir(localData).filePath(QStringLiteral("Server/api_token.txt"));
+    return QDir(localData).filePath(QStringLiteral("api_token.txt"));
 }
 
 QString readApiToken()

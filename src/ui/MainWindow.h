@@ -38,6 +38,11 @@ public:
 
     QString appVersion() const;
 
+public slots:
+    void activateCoordinatorUi();
+    void ensureCoordinatorApi();
+    void enqueueCoordinatorDownload(const QString &url, const QString &type);
+
 signals:
     void nonInteractiveRequestFailed(const QString &jobId, const QString &url, const QString &error);
 
@@ -124,6 +129,7 @@ private:
     QHash<QString, QString> m_startupUpdateDetails;
     QString m_lastAutoPastedUrl; // Track last auto-pasted URL to prevent duplicates
     qint64 m_lastAutoPasteTimestamp; // Timestamp of last auto-paste to enforce cooldown
+    bool m_skipInitialFocusAutoEnqueue;
 };
 
 

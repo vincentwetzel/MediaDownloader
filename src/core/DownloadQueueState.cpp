@@ -15,11 +15,14 @@ DownloadQueueState::DownloadQueueState(QObject *parent)
 {
     BrowserCookieFile::cleanupExpired();
     QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
-    if (QCoreApplication::arguments().contains(QStringLiteral("--headless")) || QCoreApplication::arguments().contains(QStringLiteral("--server")) || QCoreApplication::arguments().contains(QStringLiteral("--background"))) {
-        configDir = QDir(configDir).filePath(QStringLiteral("Server"));
-    }
     QDir().mkpath(configDir);
     m_backupPath = QDir(configDir).filePath(QStringLiteral("downloads_backup.json"));
+    const QString legacyBackupPath = QDir(configDir).filePath(
+        QStringLiteral("Server/downloads_backup.json"));
+    if (!QFile::exists(m_backupPath) && QFile::exists(legacyBackupPath)
+        && !QFile::rename(legacyBackupPath, m_backupPath)) {
+        qWarning() << "Failed to migrate legacy server queue backup:" << legacyBackupPath;
+    }
 }
 
 QJsonArray DownloadQueueState::load()

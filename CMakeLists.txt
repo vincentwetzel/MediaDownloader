@@ -285,6 +285,7 @@ add_library(LzyAppLib STATIC
     src/core/PlaylistRangeDialog.cpp
     src/core/ProcessUtils.cpp
     src/core/PowerInhibitor.cpp
+    src/core/RuntimeCoordinator.cpp
     src/core/SortingManager.cpp
     src/core/StartupWorker.cpp
     src/core/UrlValidator.cpp
@@ -477,6 +478,7 @@ lzy_add_test(TestEndToEnd tests/TestEndToEnd.cpp)
 lzy_add_test(TestArchiveManager tests/TestArchiveManager.cpp)
 lzy_add_test(TestConfigManager tests/TestConfigManager.cpp)
 lzy_add_test(TestLocalApiServer tests/TestLocalApiServer.cpp)
+lzy_add_test(TestRuntimeCoordinator tests/TestRuntimeCoordinator.cpp)
 lzy_add_test(TestBrowserCookieFile tests/TestBrowserCookieFile.cpp)
 lzy_add_test(TestUrlValidator tests/TestUrlValidator.cpp)
 lzy_add_test(TestSortingManager tests/TestSortingManager.cpp)

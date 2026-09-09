@@ -36,7 +36,7 @@ void YtDlpWorker::onReadyReadStandardError() {
     parseStandardError(data);
 }
 
-void YtDlpWorker::parseProcessBuffer(QByteArray &buffer, const QByteArray &newData) {
+void YtDlpWorker::parseProcessBuffer(QByteArray &buffer, const QByteArray &newData, const QString &channelName) {
     buffer.append(newData);
 
     const qsizetype lastDelimiter = qMax(buffer.lastIndexOf('\n'), buffer.lastIndexOf('\r'));
@@ -52,6 +52,9 @@ void YtDlpWorker::parseProcessBuffer(QByteArray &buffer, const QByteArray &newDa
                 const QByteArrayView chunk(buffer.constData() + start, i - start);
                 const QString trimmedLine = QString::fromUtf8(chunk).trimmed();
                 if (!trimmedLine.isEmpty()) {
+                    if (m_args.contains(QStringLiteral("--external-downloader"))) {
+                        qDebug().noquote() << "[YtDlpWorker][raw " + channelName + "]" << trimmedLine;
+                    }
                     handleOutputLine(trimmedLine);
                 }
             }
@@ -63,11 +66,10 @@ void YtDlpWorker::parseProcessBuffer(QByteArray &buffer, const QByteArray &newDa
 }
 
 void YtDlpWorker::parseStandardOutput(const QByteArray &output) {
-    parseProcessBuffer(m_outputBuffer, output);
+    parseProcessBuffer(m_outputBuffer, output, QStringLiteral("stdout"));
 }
 
 void YtDlpWorker::parseStandardError(const QByteArray &output) {
-    parseProcessBuffer(m_errorBuffer, output);
+    parseProcessBuffer(m_errorBuffer, output, QStringLiteral("stderr"));
 }
-
 

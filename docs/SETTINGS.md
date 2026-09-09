@@ -62,7 +62,7 @@ Application-wide settings that control theme, cookie handling, clipboard behavio
 | `0` | Disabled | No automatic pasting. |
 | `1` | Auto-paste on app focus or hover | Pastes clipboard content when the application gains focus or the URL field is hovered. |
 | `2` | Auto-paste on new URL in clipboard | Pastes when a new URL is detected in the clipboard. |
-| `3` | Auto-paste & enqueue on app focus | Pastes and immediately adds to the download queue when the app gains focus. |
+| `3` | Auto-paste & enqueue on app hover | Pastes and immediately adds to the download queue when the pointer enters the application window. It does not also enqueue on `WindowActivate`, preventing one focus transition from submitting the URL twice. |
 | `4` | Auto-paste & enqueue on new URL in clipboard | Pastes and enqueues when a new URL is detected in the clipboard. |
 
 Internally, clipboard-triggered auto-paste uses a short debounce window of roughly 500 ms plus queue-level duplicate detection, so rapid clipboard notifications do not enqueue the same URL multiple times while still allowing quick successive copies.
@@ -227,7 +227,7 @@ The External Tools page marks an installer as **(Recommended)** only when it wri
 
 Startup presents one **Set Up Required Tools** checklist for missing tools and available updates. Missing rows display the recommended installer label and install an app-managed copy; detected rows display **Update existing** and retain the resolved path's ownership. **Update All** runs all supported installs and upgrades in sequence, while manual-only updates remain explicitly labeled in the same checklist.
 
-Transfer progress recovery is automatic and is not a persisted setting: when yt-dlp omits `requested_downloads`, the worker uses matching format sizes and a bounded poll of the active temporary `.part` file.
+Transfer progress recovery is automatic and is not a persisted setting: when yt-dlp omits `requested_downloads`, the worker uses matching format sizes. Progress bytes, speed, and ETA are taken from yt-dlp or aria2 output; the worker does not infer progress from temporary `.part` file length.
 
 Active download rows display one detailed progress bar for the current transfer
 or processing stage; there is no user setting for an aggregate secondary bar.
@@ -323,7 +323,11 @@ Active, paused, and stopped downloads are automatically serialized to a JSON fil
 - **Linux:** `~/.local/share/LzyDownloader/downloads_backup.json`
 - **macOS:** `~/Library/Application Support/LzyDownloader/downloads_backup.json`
 
-When launched with `--server`, `--headless`, or `--background`, queue runtime state is isolated under `Server/`, for example `%LOCALAPPDATA%\LzyDownloader\Server\downloads_backup.json` on Windows.
+All launch modes attach to one coordinator, so they use this same queue backup.
+Opening the GUI while headless work is active reveals the coordinator's current
+Active Downloads queue rather than restoring a separate copy.
+On first use, a legacy `Server/downloads_backup.json` is moved here when this
+shared file does not already exist.
 
 Stopped and failed entries also retain the latest known temporary file paths needed for resume and cleanup workflows. This allows the Active Downloads tab's `Clear Temp` action to appear only when associated temporary files still exist and to remove tracked partial media, sidecar metadata, thumbnails, and downloader state files even after an app restart. Queue rows can begin a bounded asynchronous thumbnail request immediately when persisted or newly queued metadata contains a remote thumbnail URL; local thumbnail decoding, owned-temp checks, queue-backup writes, and history-cache copies are also performed off the GUI thread. Queue and history writes are coalesced so a slow filesystem cannot block progress or start concurrent atomic replacements; shutdown waits for the final queue snapshot.
 
@@ -343,7 +347,10 @@ When `General/enable_local_api` is enabled in GUI mode, or when `--server`, `--h
 - **Linux:** `~/.local/share/LzyDownloader/api_token.txt`
 - **macOS:** `~/Library/Application Support/LzyDownloader/api_token.txt`
 
-Server/headless/background mode isolates this runtime token under `Server/`, for example `%LOCALAPPDATA%\LzyDownloader\Server\api_token.txt` on Windows.
+All launch modes use this same token because they attach to the same Local API
+owner.
+On first use, a legacy `Server/api_token.txt` is moved here when this shared
+token does not already exist.
 
 The server binds only to `127.0.0.1:8765`. Requests must include `Authorization: Bearer <token>`. Supported endpoints are `POST /enqueue` with a JSON `url` field plus optional `type` (`video`, `audio`, or `gallery`), optional caller-provided `id`, and optional boolean `override_archive` (also accepted under `options`) for intentional re-downloads; authenticated `POST /cancel` with `job_id` for tracked jobs; and `GET /status`. If `id` is omitted, LzyDownloader generates a UUID.
 

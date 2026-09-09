@@ -18,9 +18,6 @@ void YtDlpWorker::updateTransferTarget(const QString &path) {
     m_currentTransferTarget = QDir::fromNativeSeparators(path);
     m_currentTransferIsAuxiliary = isAuxiliaryTransferTarget(m_currentTransferTarget);
     if (m_currentTransferTarget != previousTarget) {
-        m_lastPolledTransferBytes = -1;
-        m_lastPolledProgress = -1.0;
-        m_fileProgressClock.invalidate();
     }
 
     if (m_currentTransferIsAuxiliary) {

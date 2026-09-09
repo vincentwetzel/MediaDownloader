@@ -14,6 +14,24 @@ points and their API-specific constraints.
 
 ## Core classes
 
+### [RuntimeCoordinator](../src/core/RuntimeCoordinator.h)
+
+Owns the per-user local-socket handoff that keeps GUI, server, headless, and
+background launches on one queue owner.
+
+- `StartResult startOrNotify(const QString &command)` — become the coordinator
+  owner or forward one validated command to the existing owner. Accepted
+  commands are `show-ui`, `ensure-api`, and a bounded `enqueue:<type>:<url>`
+  payload; invalid commands are rejected.
+- `void dispatchPendingCommands()` — deliver commands received during startup
+  through `commandReceived`.
+- `void commandReceived(const QString &command)` — emitted asynchronously for
+  validated commands received from another process.
+
+The coordinator uses a per-user `QLocalServer`. A failed client connection may
+recover only when Qt reports that no server exists; a busy owner is never
+replaced because a short notification timeout elapsed.
+
 ### [DownloadManager](../src/core/DownloadManager.h)
 
 Coordinates queueing, playlist validation, format selection, workers, and
@@ -48,10 +66,9 @@ Public methods:
 - `void shutdown()` — stop admission and workers, disconnect queued worker
   starts, wait for owned threads, flush queue state, and terminate pools.
 
-Worker admission is coordinated by `GlobalDownloadLimiter` across separate
-GUI and server/headless/background processes. A manager retries admission when
-the shared limit is full and releases its reservations on worker completion or
-shutdown; this does not merge the processes' queue state.
+One per-user coordinator process owns the manager. GUI and
+server/headless/background launches attach to that process, so they observe and
+control the same queue state rather than merging queue backups.
 
 yt-dlp/gallery-dl workers own their `QProcess` in dedicated `QThread` event
 loops. Metadata embedding and finalization likewise run off the GUI thread;
@@ -169,8 +186,8 @@ not delete unrelated files.
 Serves authenticated automation on `127.0.0.1:8765`.
 
 - `void start()`, `void stop()`, `bool isRunning() const`, and
-  `QString getApiKey() const` manage the server and
-  token (`api_token.txt`; server/headless/background mode uses `Server/`).
+  `QString getApiKey() const` manage the server and coordinator-wide
+  `api_token.txt`.
 - `void enqueueRequested(const QString &url, const QString &type,
   const QString &jobId, bool overrideArchive)` fires for an authorized
   valid enqueue. `jobId` is generated when omitted; the override is explicit.

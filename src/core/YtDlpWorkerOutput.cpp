@@ -597,8 +597,26 @@ void YtDlpWorker::handleOutputLine(const QString &line) {
         }
     }
 
-    if (!parseYtDlpProgressLine(normalizedLine)) {
-        parseAria2ProgressLine(normalizedLine);
+    // yt-dlp can concatenate the final aria2 summary and its own completion
+    // line without a separator, for example:
+    // [#id 11MiB/12MiB(94%) ...][download] 100% of 12.52MiB ...
+    // Parse the yt-dlp suffix first so completion is not hidden by the aria2
+    // prefix's stale percentage.
+    QString ytDlpProgressLine = normalizedLine;
+    const qsizetype downloadMarker = normalizedLine.contains(QStringLiteral("[#"))
+        ? normalizedLine.indexOf(QStringLiteral("[download]"))
+        : -1;
+    if (downloadMarker > 0) {
+        ytDlpProgressLine = normalizedLine.mid(downloadMarker);
+    }
+    const bool parsedYtDlpProgress = parseYtDlpProgressLine(ytDlpProgressLine);
+    if (!parsedYtDlpProgress) {
+        const bool parsedAria2Progress = parseAria2ProgressLine(normalizedLine);
+        if (m_args.contains(QStringLiteral("--external-downloader"))
+            && normalizedLine.contains(QStringLiteral("[#"))) {
+            qDebug() << "[YtDlpWorker][aria2 diagnostic] parsed=" << parsedAria2Progress
+                     << "line=" << normalizedLine;
+        }
     }
 }
 

@@ -53,6 +53,18 @@ int main(int argc, char **argv)
         ]})" << std::endl;
         return 0;
     }
+    if (isProbe && url.find("list=playlist-probe") != std::string::npos) {
+        if (!hasArgument(arguments, "--yes-playlist")) {
+            std::cerr << "explicit playlist probe was not enabled" << std::endl;
+            return 6;
+        }
+        std::cout << R"({"title":"Playlist results","entries":[
+            {"webpage_url":"https://media.example/watch?id=playlist-1","title":"Playlist item 1","playlist_index":1},
+            {"webpage_url":"https://media.example/watch?id=playlist-2","title":"Playlist item 2","playlist_index":2},
+            {"webpage_url":"https://media.example/watch?id=playlist-3","title":"Playlist item 3","playlist_index":3}
+        ]})" << std::endl;
+        return 0;
+    }
     if (isProbe && (url.find("slow-probe") != std::string::npos
                     || url.find("playlist") != std::string::npos)) {
         // The production watchdog is 45 seconds. Keep this process alive long

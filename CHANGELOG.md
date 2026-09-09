@@ -9,6 +9,13 @@ Older historical changelogs (pre-v1.1.25) can be found in [docs/CHANGELOG_ARCHIV
 
 ## [Unreleased]
 
+- **Progress accuracy:** Removed temporary `.part`-file size polling. Segmented
+  aria2 downloads can expose their final logical file length before all byte
+  ranges complete, so progress now relies on native yt-dlp/aria2 output.
+- **Single download coordinator:** GUI and server/headless/background launches
+  now attach to one per-user queue owner. Opening the GUI reveals active
+  automation downloads, while automation can ask an already-running GUI owner
+  to expose the authenticated Local API.
 - **Active download type icons:** Show compact video, audio, and gallery icons
   beside active-download titles for quicker visual identification.
 - **Playlist audio track metadata:** When metadata embedding is enabled, each
@@ -95,7 +102,8 @@ Older historical changelogs (pre-v1.1.25) can be found in [docs/CHANGELOG_ARCHIV
   request, honor persisted defaults for manager callers, and apply single-item
   handling to expanded playlists.
 - **Resume and progress recovery:** Preserve playlist indices for resumed audio
-  filenames and asynchronously recover transfer sizes from owned `.part` files.
+  filenames and recover transfer sizes from yt-dlp format metadata without
+  treating the logical size of an owned `.part` file as completed progress.
 - **Windows test deployment:** Add a direct-Qt `windeployqt` fallback, deploy
   `qminimal`, serialize Visual Studio test builds, and bound loopback fixture
   timeouts.

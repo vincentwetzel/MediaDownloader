@@ -25,10 +25,6 @@ void YtDlpWorker::onProcessFinished(int exitCode, QProcess::ExitStatus exitStatu
         return;
     }
 
-    if (m_progressPollTimer) {
-        m_progressPollTimer->stop();
-    }
-
     if (m_process) {
         // Process any remaining output. This is crucial for capturing the final file path.
         parseStandardOutput(m_process->readAllStandardOutput());
@@ -38,13 +34,13 @@ void YtDlpWorker::onProcessFinished(int exitCode, QProcess::ExitStatus exitStatu
 
     // Force processing of any remaining buffered output by appending a newline.
     // This ensures the final partial line is processed safely without corrupting UTF-8 characters.
-    auto flushBuffer = [this](QByteArray& buffer) {
+    auto flushBuffer = [this](QByteArray& buffer, const QString &channelName) {
         if (!buffer.isEmpty()) {
-            parseProcessBuffer(buffer, QByteArrayLiteral("\n"));
+            parseProcessBuffer(buffer, QByteArrayLiteral("\n"), channelName);
         }
     };
-    flushBuffer(m_outputBuffer);
-    flushBuffer(m_errorBuffer);
+    flushBuffer(m_outputBuffer, QStringLiteral("stdout"));
+    flushBuffer(m_errorBuffer, QStringLiteral("stderr"));
 
     m_finishEmitted = true;
     const bool normalExit = (exitStatus == QProcess::NormalExit);

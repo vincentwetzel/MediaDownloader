@@ -58,6 +58,7 @@ private slots:
     void testTransientPlaylistProbeFallback();
     void testSearchProbeFailureDoesNotFallBackToSingleWorker();
     void testSearchProbeUsesFlatPlaylistAndReturnsEntries();
+    void testWatchUrlWithPlaylistQueryIsExpanded();
     void testExplicitPlaylistFailureClassification();
     void testEnqueueUsesPersistedPlaylistLogic();
     void testSinglePlaylistSettingQueuesOnlyFirstItem();

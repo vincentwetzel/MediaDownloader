@@ -97,7 +97,7 @@ DownloadOptionsPage::DownloadOptionsPage(ConfigManager *configManager, QWidget *
         tr("Disabled"),
         tr("Auto-paste on app focus (no enqueue)"),
         tr("Auto-paste on new URL in clipboard (no enqueue)"),
-        tr("Auto-paste & enqueue on app focus"),
+        tr("Auto-paste & enqueue on app hover"),
         tr("Auto-paste & enqueue on new URL in clipboard")
     });
     m_autoPasteModeCombo->setToolTip(tr("Choose when clipboard URLs are copied into the Start tab.\n"

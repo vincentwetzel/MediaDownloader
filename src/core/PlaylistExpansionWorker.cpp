@@ -67,6 +67,35 @@ bool looksLikeSearchUrl(const QString &urlString)
         || query.hasQueryItem(QStringLiteral("query"))
         || query.hasQueryItem(QStringLiteral("search"));
 }
+
+bool looksLikePlaylistUrl(const QString &urlString)
+{
+    const QUrl url(urlString);
+    if (!url.isValid()) {
+        return false;
+    }
+
+    static const QStringList playlistPathMarkers = {
+        QStringLiteral("playlist"), QStringLiteral("collection"), QStringLiteral("album")
+    };
+    const QStringList pathParts = url.path().split(QLatin1Char('/'), Qt::SkipEmptyParts);
+    for (const QString &part : pathParts) {
+        if (playlistPathMarkers.contains(part, Qt::CaseInsensitive)) {
+            return true;
+        }
+    }
+
+    static const QStringList playlistQueryKeys = {
+        QStringLiteral("list"), QStringLiteral("playlist"), QStringLiteral("collection"), QStringLiteral("album")
+    };
+    const QUrlQuery query(url);
+    for (const QString &key : playlistQueryKeys) {
+        if (query.hasQueryItem(key)) {
+            return true;
+        }
+    }
+    return false;
+}
 }
 
 PlaylistExpansionWorker::PlaylistExpansionWorker(const QString &url, ConfigManager *configManager, QObject *parent)
@@ -187,6 +216,16 @@ QStringList PlaylistExpansionWorker::buildProbeArguments(const QString &playlist
     // can still obtain its complete metadata during its normal download.
     if (looksLikeSearchUrl(cleanUrl)) {
         args << QStringLiteral("--flat-playlist");
+    }
+
+    // A video-shaped URL carrying a playlist identifier (for example a
+    // YouTube /watch URL with ?list=...) is otherwise commonly interpreted by
+    // yt-dlp as a request for only the selected video. Make the metadata probe
+    // explicit so Ask can actually detect the playlist. The single-item
+    // policy remains authoritative because the builder already adds
+    // --no-playlist for that setting.
+    if (playlistLogic == QStringLiteral("Ask") && looksLikePlaylistUrl(cleanUrl)) {
+        args << QStringLiteral("--yes-playlist");
     }
 
     args << QStringLiteral("--dump-single-json")

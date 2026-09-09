@@ -7,6 +7,7 @@
 #include "core/AppUpdater.h"
 #include "core/ConfigManager.h"
 #include "core/DownloadManager.h"
+#include "core/LocalApiServer.h"
 #include "core/StartupWorker.h"
 #include "core/UrlValidator.h"
 #include "core/download_pipeline/YtDlpDownloadInfoExtractor.h"
@@ -29,7 +30,7 @@ MainWindow::MainWindow(ExtractorJsonParser *extractorJsonParser, QWidget *parent
       m_silentUpdateCheck(false), m_appUpdateCheckPending(false), m_appUpdateInstalling(false),
       m_startupChecksFinished(false), m_startupSetupPresented(false),
       m_nonInteractiveLaunch(MainWindowHelpers::hasNonInteractiveLaunchArgument()),
-      m_lastAutoPasteTimestamp(0)
+      m_lastAutoPasteTimestamp(0), m_skipInitialFocusAutoEnqueue(true)
 {
     // Intercept window creation BEFORE it can be shown by main.cpp
     if (m_nonInteractiveLaunch) {
@@ -119,4 +120,39 @@ MainWindow::~MainWindow() {
         m_startupThread->quit();
         m_startupThread->wait();
     }
+}
+
+void MainWindow::activateCoordinatorUi()
+{
+    if (!m_nonInteractiveLaunch) {
+        showNormal();
+        raise();
+        activateWindow();
+        return;
+    }
+
+    // Keep the existing queue and workers; this process has simply gained an
+    // interactive surface after starting as an automation coordinator.
+    m_nonInteractiveLaunch = false;
+    setAttribute(Qt::WA_DontShowOnScreen, false);
+    m_configManager->set(QStringLiteral("General"), QStringLiteral("exit_after"), false);
+    m_configManager->save();
+    showNormal();
+    raise();
+    activateWindow();
+}
+
+void MainWindow::ensureCoordinatorApi()
+{
+    if (m_localApiServer) {
+        m_localApiServer->start();
+    }
+}
+
+void MainWindow::enqueueCoordinatorDownload(const QString &url, const QString &type)
+{
+    QVariantMap options;
+    options.insert(QStringLiteral("type"), type);
+    MainWindowHelpers::applyNonInteractiveDownloadDefaults(options);
+    onDownloadRequested(url, options);
 }

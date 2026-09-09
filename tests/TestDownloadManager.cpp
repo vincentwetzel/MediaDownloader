@@ -97,6 +97,35 @@ void TestDownloadManager::testSearchProbeUsesFlatPlaylistAndReturnsEntries() {
     ProcessUtils::clearCache();
 }
 
+void TestDownloadManager::testWatchUrlWithPlaylistQueryIsExpanded() {
+    ConfigManager *configManager = getConfigManager();
+    const QString fakeYtDlpName = QStringLiteral("LzyTestFakeYtDlp")
+#ifdef Q_OS_WIN
+        + QStringLiteral(".exe")
+#endif
+        ;
+    const QString fakeYtDlpPath = QDir(QCoreApplication::applicationDirPath()).filePath(fakeYtDlpName);
+    QVERIFY2(QFileInfo::exists(fakeYtDlpPath), qPrintable(QStringLiteral("Fake yt-dlp not found: %1").arg(fakeYtDlpPath)));
+    configManager->set(QStringLiteral("Binaries"), QStringLiteral("yt-dlp_path"), fakeYtDlpPath);
+    configManager->set(QStringLiteral("Binaries"), QStringLiteral("yt-dlp_auto_detected"), false);
+    ProcessUtils::clearCache();
+
+    PlaylistExpansionWorker worker(QStringLiteral("https://youtube.com/watch?v=j0dr1SnyR9c&list=playlist-probe&index=3"), configManager, this);
+    worker.setProperty("options", QVariantMap{{QStringLiteral("type"), QStringLiteral("video")}});
+    QSignalSpy expansionSpy(&worker, &PlaylistExpansionWorker::expansionFinished);
+
+    worker.startExpansion(QStringLiteral("Ask"));
+
+    QTRY_COMPARE_WITH_TIMEOUT(expansionSpy.count(), 1, 10000);
+    const QList<QVariant> result = expansionSpy.first();
+    QVERIFY2(result.at(2).toString().isEmpty(), qPrintable(result.at(2).toString()));
+    const QList<QVariantMap> items = qvariant_cast<QList<QVariantMap>>(result.at(1));
+    QCOMPARE(items.size(), 1);
+    QCOMPARE(items.first().value(QStringLiteral("url")).toString(), QStringLiteral("https://media.example/watch?id=playlist-3"));
+    QCOMPARE(items.first().value(QStringLiteral("playlist_index")).toInt(), 3);
+    ProcessUtils::clearCache();
+}
+
 void TestDownloadManager::testExplicitPlaylistFailureClassification() {
     TestableDownloadManager manager(getConfigManager(), this);
     

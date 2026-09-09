@@ -94,7 +94,7 @@ input are reported as incomplete-transfer failures before metadata embedding.
 - 📂 **Smart Sorting** — Automatically organize downloads into subfolders based on uploader, playlist, date, or custom patterns
 - 🛡️ **Duplicate-safe retries** — Equivalent source URLs share a normalized media identity, preventing duplicate queue/retry jobs without adding site-specific downloader behavior
 - 🔁 **Terminal retry recovery** — Explicit API re-downloads can replace matching restored stopped/failed jobs, while genuinely paused downloads remain protected
-- 📈 **Transfer progress recovery** — Native downloads recover stream sizes from yt-dlp format metadata and bounded `.part`-file polling keeps progress moving when yt-dlp temporarily emits no progress line
+- 📈 **Transfer progress recovery** — Downloads recover stream sizes from yt-dlp format metadata and use native yt-dlp/aria2 progress output without trusting misleading logical `.part`-file lengths
 - ⚡ **Responsive processing** — Downloader workers, metadata embedding, finalization, thumbnail loading, temporary-file checks, and history/queue-backup writes stay off the GUI thread; row rendering coalesces high-frequency progress updates
 - 📊 **Single-bar progress display** — Active download rows keep progress focused on the current transfer or processing stage without a secondary aggregate bar
 - 🤖 **Stable Discord progress** — The bridge uses backend aggregate progress for multi-stream jobs so Discord percentages do not reset during video/audio handoff
@@ -290,14 +290,14 @@ queue snapshot before exit.
 - **Livestream replays** - Completed livestreams are detected from yt-dlp `live_status` metadata and downloaded as archived media; active/upcoming streams keep native wait and Finish Now behavior
 - **Download History links** - Valid HTTP/HTTPS source URLs are keyboard-accessible links; malformed or incomplete values remain plain text
 - **Queue previews** - Queued rows begin loading supplied remote thumbnails immediately, newly queued interactive rows are revealed in Active Downloads, and long titles wrap within narrow windows so row actions remain reachable
-- **Shared concurrency** - The `max_threads` worker limit is coordinated across GUI and server/headless/background processes for the same user
+- **Single download coordinator** - GUI and server/headless/background launches share one queue, worker owner, and Active Downloads view
 - **Playlist audio filenames** - Playlist audio downloads are prefixed with zero-padded indices by default; change `Download Options -> Prefix playlist indices` to disable this behavior
 - **Local API** - Enable a localhost-only API server from Advanced Settings -> Configuration
 - **Binary management** - Choose app-managed-first or system-first resolution and configure launch, daily, or weekly automatic updates for app-managed tools in Advanced Settings -> External Tools. Options marked **(Recommended)** install a private copy in the platform app-data `bin` folder; package-manager choices remain explicit alternatives and update through their manager. Explicit Browse selections and completed local installs remain selected regardless of preference. Windows FFmpeg updates install and retain both `ffmpeg.exe` and `ffprobe.exe` together. If startup finds missing or outdated tools, one **Set Up Required Tools** checklist distinguishes fresh installs from existing-binary upgrades and offers **Update All** for supported automatic actions.
 
 ### Local API
 
-When enabled in the GUI, or when launched with `--server`, `--headless`, or `--background`, LzyDownloader listens only on `127.0.0.1:8765`. The API token is stored in the app-local data directory as `api_token.txt`; server/headless/background mode keeps its runtime token under `Server/api_token.txt`. Requests must send the token as a Bearer token.
+When enabled in the GUI, or when launched with `--server`, `--headless`, or `--background`, LzyDownloader listens only on `127.0.0.1:8765`. All launch modes attach to one coordinator and use its app-local `api_token.txt`. Requests must send the token as a Bearer token.
 
 Equivalent URLs are deduplicated using normalized media identity across queued, active, paused, retried, and archived states. Disk-full diagnostics are terminal failures, and explicit replacement of an existing destination preserves the old file until the new verified output is in place.
 
@@ -313,8 +313,8 @@ Equivalent URLs are deduplicated using normalized media identity across queued, 
 Automation can also launch the platform-native executable (`LzyDownloader.exe`
 on Windows) with `--background <url>`, `--server <url>`, or `--headless <url>`
 to enqueue a direct URL without showing blocking prompt dialogs.
-Server/headless/background queue backups, API tokens, and logs are isolated
-under `Server/`, but user preferences still come from the main `settings.ini`.
+GUI and server/headless/background launches share the coordinator's queue backup
+and API token; user preferences remain in the main `settings.ini`.
 
 The Chrome companion is a separate project. Local development requires
 registering its native host with the companion project's cross-platform helper.
@@ -398,6 +398,7 @@ LzyDownloader/
 │   ├── core/                   # Core Business Logic
 │   │   ├── ConfigManager.h/cpp   # Settings persistence (INI)
 │   │   ├── ArchiveManager.h/cpp  # Duplicate archive (SQLite)
+│   │   ├── RuntimeCoordinator.h/cpp # One per-user owner for GUI/API launches
 │   │   ├── DownloadQueueState.h/cpp # Atomic persistence of download queue state
 │   │   ├── DownloadManager.h/cpp # Queue & Lifecycle Management
 │   │   ├── LocalApiServer.h/cpp  # localhost API for local integrations

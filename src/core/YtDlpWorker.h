@@ -4,12 +4,10 @@
 #include <QVariantMap>
 #include <QStringList>
 #include <QProcess>
-#include <QElapsedTimer>
 
 #include "core/DiagnosticTail.h"
 
 class ConfigManager;
-class QTimer;
 
 class YtDlpWorker : public QObject {
     Q_OBJECT
@@ -33,10 +31,9 @@ private slots:
     void onReadyReadStandardOutput();
     void onReadyReadStandardError();
     void readInfoJsonWithRetry(); // New slot for retry mechanism
-    void pollTransferProgress();
 
 protected: // Changed from private for testing
-    void parseProcessBuffer(QByteArray &buffer, const QByteArray &newData);
+    void parseProcessBuffer(QByteArray &buffer, const QByteArray &newData, const QString &channelName);
     void parseStandardOutput(const QByteArray &output);
     void parseStandardError(const QByteArray &output);
     void handleOutputLine(const QString &line);
@@ -115,12 +112,6 @@ protected: // Changed from private for testing
     int m_inferredTransferIndex = -1;
     double m_lastPrimaryProgress = -1.0;
     double m_lastPrimaryTotalBytes = 0.0;
-    QTimer *m_progressPollTimer = nullptr;
-    bool m_transferProgressPollActive = false;
-    quint64 m_transferProgressPollGeneration = 0;
-    qint64 m_lastPolledTransferBytes = -1;
-    double m_lastPolledProgress = -1.0;
-    QElapsedTimer m_fileProgressClock;
 
     static constexpr int RECOVERY_RETRY_DELAY_MS = 1000;
 };

@@ -162,12 +162,13 @@ bool MainWindow::event(QEvent *event)
 
     const int autoPasteMode = m_configManager->get(QStringLiteral("General"), QStringLiteral("auto_paste_mode"), 0).toInt();
 
-    if (event->type() == QEvent::WindowActivate || event->type() == QEvent::Enter) {
-        if (autoPasteMode == 1) {
-            handleClipboardAutoPaste(false);
-        } else if (autoPasteMode == 3) {
-            handleClipboardAutoPaste(true);
-        }
+    if ((event->type() == QEvent::WindowActivate || event->type() == QEvent::Enter) && autoPasteMode == 1) {
+        handleClipboardAutoPaste(false);
+    } else if (event->type() == QEvent::Enter && autoPasteMode == 3) {
+        // Hovering into the app is the trigger for this mode. Do not also
+        // handle WindowActivate: a normal pointer entry can deliver both
+        // events, which would enqueue the same clipboard URL twice.
+        handleClipboardAutoPaste(true);
     }
     return handled;
 }

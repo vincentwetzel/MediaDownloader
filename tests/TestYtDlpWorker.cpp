@@ -221,6 +221,18 @@ void TestYtDlpWorker::testAria2AdvancedProgressParsing() {
     QVariantMap progressData = progressSpy.takeFirst().at(1).toMap();
     QCOMPARE(progressData[QStringLiteral("progress")].toInt(), 96);
     QCOMPARE(progressData[QStringLiteral("speed")].toString(), QStringLiteral("2.50 MiB/s"));
+
+    // yt-dlp may append its completion line directly to the final aria2
+    // summary. The completion suffix must win over aria2's stale percentage.
+    worker.callHandleOutputLine(QStringLiteral(
+        "[#987654 5.0MiB/5.0MiB(99%) CN:1 DL:1.0MiB/s]"
+        "[download] 100% of 5.0MiB in 00:00:05 at 1.0MiB/s"));
+    QCOMPARE(progressSpy.count(), 1);
+    progressData = progressSpy.takeLast().at(1).toMap();
+    QCOMPARE(progressData[QStringLiteral("progress")].toInt(), 100);
+    QCOMPARE(progressData[QStringLiteral("downloaded_size")].toString(), QStringLiteral("5.00 MiB"));
+    QCOMPARE(progressData[QStringLiteral("total_size")].toString(), QStringLiteral("5.00 MiB"));
+    QCOMPARE(progressData[QStringLiteral("eta")].toString(), QStringLiteral("0:00"));
 }
 
 void TestYtDlpWorker::testAudioExtractionUsesAudioTransferStatusForCombinedSource() {

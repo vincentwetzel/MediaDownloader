@@ -50,19 +50,19 @@ only the sections relevant to the change.
 
 ### 2.2 Instances, settings, and archive
 
-- One GUI instance and one independent `--server`/`--headless`/`--background`
-  instance may run. Startup clears stale shared memory before creating the
-  marker and releases the startup semaphore on every path.
+- One per-user coordinator owns the queue, workers, resumable state, and Local
+  API. GUI and `--server`/`--headless`/`--background` launches attach to that
+  coordinator rather than creating independent queues; a GUI launch reveals an
+  existing headless coordinator and a background launch ensures its API runs.
 - Settings are Qt-native `QSettings` in the app-local `settings.ini`. Python
   `configparser` compatibility is not required. Invalid/legacy values are
   discarded and replaced with documented defaults; see `docs/SETTINGS.md`.
 - `download_archive.db` remains schema-compatible with the Python version.
   SQLite connections are Qt thread-local. Queue, active, paused, retry, and
   archive checks use shared normalized media identity, not raw URL equality.
-- Startup concurrency is 4; users may increase it to 8 during a session.
-  Download-worker admission is coordinated across concurrent GUI and
-  server/headless/background processes, while each process keeps its own
-  queue. Playlist audio filenames use zero-padded indices by default and can
+- Startup concurrency is 4; users may increase it to 8 during a session. The
+  coordinator owns one queue across GUI and server/headless/background entry
+  points. Playlist audio filenames use zero-padded indices by default and can
   be disabled with `DownloadOptions/prefix_playlist_indices`.
 
 ### 2.3 Queue, retry, and replacement
@@ -167,9 +167,10 @@ only the sections relevant to the change.
   status, and active-stream labels. Prefer format IDs, announced formats,
   `FILE:`/URL metadata, and matching `formats` sizes over ambiguous extensions.
 - If `info.json` lacks `requested_downloads`, recover the active stream total
-  from matching formats and bounded asynchronous polling of its owned `.part`
-  file. Polling is generation-checked so cancellation, process exit, or a new
-  transfer target cannot apply stale results. Do not invent totals for
+  from matching formats. Progress bytes, speed, and ETA come from the native
+  yt-dlp or aria2 output; never infer download completion from the logical size
+  of a `.part` file, because segmented/random-access downloads can expose a
+  full logical length before all ranges are complete. Do not invent totals for
   auxiliary files or unknown-size livestreams; auxiliary
   thumbnails/subtitles/metadata must not replace main-media progress.
 - Buffer process bytes until complete UTF-8 lines and retain a bounded

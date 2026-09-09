@@ -1,14 +1,7 @@
 #include "YtDlpWorker.h"
 
 #include <QDebug>
-#include <QDir>
-#include <QFutureWatcher>
-#include <QFileInfo>
-#include <QPair>
-#include <QHash>
 #include <QRegularExpression>
-#include <QtConcurrent/QtConcurrentRun>
-#include <cmath>
 #include <numeric>
 #include <array>
 
@@ -34,114 +27,6 @@ namespace {
         }
     }
 
-    QString formatPolledEta(double remainingBytes, double speedBytes) {
-        if (remainingBytes <= 0.0 || speedBytes <= 0.0) {
-            return QObject::tr("Unknown");
-        }
-
-        const qint64 totalSeconds = qMax<qint64>(0, qRound64(remainingBytes / speedBytes));
-        const qint64 hours = totalSeconds / 3600;
-        const qint64 minutes = (totalSeconds % 3600) / 60;
-        const qint64 seconds = totalSeconds % 60;
-        if (hours > 0) {
-            return QStringLiteral("%1:%2:%3").arg(hours).arg(minutes, 2, 10, QLatin1Char('0')).arg(seconds, 2, 10, QLatin1Char('0'));
-        }
-        return QStringLiteral("%1:%2").arg(minutes).arg(seconds, 2, 10, QLatin1Char('0'));
-    }
-}
-void YtDlpWorker::pollTransferProgress() {
-    if (!m_process || m_process->state() == QProcess::NotRunning
-        || m_currentTransferTarget.isEmpty() || m_currentTransferIsAuxiliary
-        || m_inferredTransferIndex < 0 || m_inferredTransferIndex >= m_requestedTransferSizes.size()) {
-        return;
-    }
-
-    const QString liveStatus = m_fullMetadata.value(QStringLiteral("live_status")).toString();
-    if (m_fullMetadata.value(QStringLiteral("is_live")).toBool()
-        || liveStatus == QStringLiteral("is_live")
-        || liveStatus == QStringLiteral("is_upcoming")) {
-        return;
-    }
-
-    if (m_transferProgressPollActive) {
-        return;
-    }
-
-    const double totalBytes = m_requestedTransferSizes.at(m_inferredTransferIndex);
-    if (totalBytes <= 0.0) {
-        return;
-    }
-
-    const QString targetPath = m_currentTransferTarget;
-    const quint64 requestGeneration = ++m_transferProgressPollGeneration;
-    m_transferProgressPollActive = true;
-
-    auto *watcher = new QFutureWatcher<QPair<bool, qint64>>(this);
-    connect(watcher, &QFutureWatcher<QPair<bool, qint64>>::finished, this,
-            [this, watcher, targetPath, totalBytes, requestGeneration]() {
-        const QPair<bool, qint64> fileSnapshot = watcher->result();
-        watcher->deleteLater();
-        m_transferProgressPollActive = false;
-
-        if (requestGeneration != m_transferProgressPollGeneration
-            || !m_process
-            || m_process->state() == QProcess::NotRunning
-            || m_currentTransferTarget != targetPath
-            || !fileSnapshot.first
-            || fileSnapshot.second <= 0) {
-            return;
-        }
-
-        const qint64 downloadedBytes = fileSnapshot.second;
-        if (downloadedBytes <= m_lastPolledTransferBytes) {
-            return;
-        }
-
-        const double percentage = qBound(0.0, (static_cast<double>(downloadedBytes) / totalBytes) * 100.0, 100.0);
-        if (percentage <= m_lastPolledProgress + 0.1
-            || percentage + 0.25 < m_lastPrimaryProgress) {
-            m_lastPolledTransferBytes = downloadedBytes;
-            m_lastPolledProgress = qMax(m_lastPolledProgress, percentage);
-            return;
-        }
-
-        double speedBytes = 0.0;
-        if (m_fileProgressClock.isValid()) {
-            const qint64 elapsedMs = m_fileProgressClock.elapsed();
-            if (elapsedMs > 0 && m_lastPolledTransferBytes >= 0) {
-                speedBytes = (downloadedBytes - m_lastPolledTransferBytes) * 1000.0 / elapsedMs;
-            }
-        }
-        m_fileProgressClock.restart();
-        m_lastPolledTransferBytes = downloadedBytes;
-        m_lastPolledProgress = percentage;
-        updateInferredTransferStage(percentage, downloadedBytes, totalBytes);
-
-        QVariantMap progressData;
-        progressData.insert(QStringLiteral("progress"), percentage);
-        progressData.insert(QStringLiteral("status"), statusForCurrentTransfer());
-        progressData.insert(QStringLiteral("downloaded_size"), formatBytes(downloadedBytes));
-        progressData.insert(QStringLiteral("total_size"), formatBytes(totalBytes));
-        applyOverallPrimaryProgress(progressData, percentage, downloadedBytes, totalBytes);
-        progressData.insert(QStringLiteral("speed"), speedBytes > 0.0 ? tr("%1/s").arg(formatBytes(speedBytes)) : tr("Unknown"));
-        progressData.insert(QStringLiteral("speed_bytes"), speedBytes);
-        progressData.insert(QStringLiteral("eta"), formatPolledEta(totalBytes - downloadedBytes, speedBytes));
-        populateCommonData(progressData, m_videoTitle, m_thumbnailPath, m_originalDownloadedFilename,
-                           m_currentTransferTarget, m_currentTransferIsAuxiliary, m_infoJsonPath);
-        qDebug() << "[YtDlpWorker] Recovered transfer progress from temporary file:" << downloadedBytes
-                 << "/" << totalBytes << "(" << percentage << "%)";
-        emit progressUpdated(m_id, progressData);
-    });
-
-    watcher->setFuture(QtConcurrent::run([targetPath]() {
-        QFileInfo partialInfo(targetPath + QStringLiteral(".part"));
-        if (partialInfo.exists()) {
-            return qMakePair(true, partialInfo.size());
-        }
-
-        QFileInfo targetInfo(targetPath);
-        return qMakePair(targetInfo.exists(), targetInfo.size());
-    }));
 }
 double YtDlpWorker::parseSizeStringToBytes(const QString &sizeString) {
     QStringView view(sizeString);
