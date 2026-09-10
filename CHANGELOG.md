@@ -12,6 +12,9 @@ Older historical changelogs (pre-v1.1.25) can be found in [docs/CHANGELOG_ARCHIV
 - **Startup ownership compatibility:** Prevent older GUI/server instances from
   launching a second queue owner during upgrades, avoiding Local API conflicts
   and duplicate-process hangs.
+- **Non-interactive enqueue feedback:** Requests received while another
+  download is undergoing asynchronous metadata validation now emit a terminal
+  failure webhook instead of returning success and leaving the caller orphaned.
 
 ## [1.2.48] - 2026-09-09
 

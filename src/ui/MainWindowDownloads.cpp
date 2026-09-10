@@ -69,7 +69,11 @@ void MainWindow::onDownloadRequested(const QString &url, const QVariantMap &opti
 
     if (!m_pendingUrl.isEmpty()) {
         if (nonInteractive) {
-            qWarning() << "Ignoring non-interactive download request while another metadata request is pending:" << url;
+            const QString reason = tr("Another download request is already being processed.");
+            emit nonInteractiveRequestFailed(
+                options.value(QStringLiteral("id")).toString(), url, reason);
+            qWarning() << "Rejecting non-interactive download request while another metadata request is pending:"
+                       << url << "Reason:" << reason;
         } else {
             QMessageBox::warning(this, tr("Please Wait"), tr("Currently fetching info for another download."));
         }

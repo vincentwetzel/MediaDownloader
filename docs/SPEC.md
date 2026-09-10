@@ -74,7 +74,10 @@ only the sections relevant to the change.
 - Retry/resume compares the candidate with the current active snapshot before
   enqueueing. `override_archive=true` may replace only a matching restored
   stopped/failed entry; genuinely paused entries remain protected. Discord/API
-  rejection paths preserve the caller job ID and terminal diagnostic.
+  rejection paths preserve the caller job ID and terminal diagnostic. If an
+  asynchronous metadata request is already pending, a non-interactive request
+  is rejected with a terminal failure webhook rather than being reported as
+  accepted and left for the caller to time out.
 - UI enqueueing performs the archive duplicate prompt only for interactive
   requests. Configured or request-scoped `override_archive` values are carried
   into the queue manager, while non-interactive requests never open a dialog.

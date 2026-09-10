@@ -95,7 +95,9 @@ Key signals:
 - `void nonInteractiveRequestFailed(const QString &jobId, const QString &url,
   const QString &error)` reports validation, duplicate, missing-binary, runtime,
   and terminal download failures for non-interactive requests without opening
-  a modal dialog.
+  a modal dialog. This also reports requests rejected while another
+  asynchronous metadata request is pending, preserving the caller-provided
+  job ID for bridge/webhook cleanup.
 - `void queueFinished()` fires when active and queued work is complete.
 
 ### [DownloadQueueManager](../src/core/DownloadQueueManager.h)
