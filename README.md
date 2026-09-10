@@ -290,7 +290,7 @@ queue snapshot before exit.
 - **Livestream replays** - Completed livestreams are detected from yt-dlp `live_status` metadata and downloaded as archived media; active/upcoming streams keep native wait and Finish Now behavior
 - **Download History links** - Valid HTTP/HTTPS source URLs are keyboard-accessible links; malformed or incomplete values remain plain text
 - **Queue previews** - Queued rows begin loading supplied remote thumbnails immediately, newly queued interactive rows are revealed in Active Downloads, and long titles wrap within narrow windows so row actions remain reachable
-- **Single download coordinator** - GUI and server/headless/background launches share one queue, worker owner, and Active Downloads view
+- **Single download coordinator** - GUI and server/headless/background launches share one queue, worker owner, and Active Downloads view; older active releases are blocked from creating a competing owner during upgrades
 - **Playlist audio filenames** - Playlist audio downloads are prefixed with zero-padded indices by default; change `Download Options -> Prefix playlist indices` to disable this behavior
 - **Local API** - Enable a localhost-only API server from Advanced Settings -> Configuration
 - **Binary management** - Choose app-managed-first or system-first resolution and configure launch, daily, or weekly automatic updates for app-managed tools in Advanced Settings -> External Tools. Options marked **(Recommended)** install a private copy in the platform app-data `bin` folder; package-manager choices remain explicit alternatives and update through their manager. Explicit Browse selections and completed local installs remain selected regardless of preference. Windows FFmpeg updates install and retain both `ffmpeg.exe` and `ffprobe.exe` together. If startup finds missing or outdated tools, one **Set Up Required Tools** checklist distinguishes fresh installs from existing-binary upgrades and offers **Update All** for supported automatic actions.
@@ -298,6 +298,11 @@ queue snapshot before exit.
 ### Local API
 
 When enabled in the GUI, or when launched with `--server`, `--headless`, or `--background`, LzyDownloader listens only on `127.0.0.1:<local_api_port>` (default `8765`). The port is configurable from Advanced Settings → Configuration and is published in the app-local `api_port.txt` discovery file. All launch modes attach to one coordinator and use its app-local `api_token.txt`. Requests must send the token as a Bearer token.
+Opening the GUI while a Discord/headless download is active activates that
+existing coordinator instead of starting a second queue owner. During an
+upgrade, if the existing process is an older release without coordinator
+handoff support, the new process exits rather than competing for the API port,
+SQLite archive, or queue backup.
 
 Equivalent URLs are deduplicated using normalized media identity across queued, active, paused, retried, and archived states. Disk-full diagnostics are terminal failures, and explicit replacement of an existing destination preserves the old file until the new verified output is in place.
 

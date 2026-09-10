@@ -238,6 +238,11 @@ only the sections relevant to the change.
   requests, sanitized status, queue positions, parent IDs, aggregate
   `overall_progress` when available, and observable terminal
   completion/cancellation states.
+- GUI and `--server`/`--headless`/`--background` launches share one per-user
+  coordinator and queue owner. A GUI launch activates an existing
+  non-interactive owner; during upgrades, an active older release blocks a
+  second owner when it cannot receive coordinator commands, preventing Local
+  API port, SQLite, and queue-backup conflicts.
 - Browser-companion messages use protocol `1` and bounded, length-prefixed
   native-messaging frames capped at 1 MiB. The host returns the same protocol
   version and request ID on every response; unsupported request versions use

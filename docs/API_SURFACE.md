@@ -31,6 +31,10 @@ background launches on one queue owner.
 The coordinator uses a per-user `QLocalServer`. A failed client connection may
 recover only when Qt reports that no server exists; a busy owner is never
 replaced because a short notification timeout elapsed.
+The executable also retains the legacy GUI/server shared-memory ownership keys
+for upgrade compatibility. An active older release therefore blocks a second
+queue owner rather than allowing competing SQLite, queue-backup, or Local API
+state.
 
 ### [DownloadManager](../src/core/DownloadManager.h)
 

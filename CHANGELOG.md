@@ -9,7 +9,9 @@ Older historical changelogs (pre-v1.1.25) can be found in [docs/CHANGELOG_ARCHIV
 
 ## [Unreleased]
 
-No unreleased changes.
+- **Startup ownership compatibility:** Prevent older GUI/server instances from
+  launching a second queue owner during upgrades, avoiding Local API conflicts
+  and duplicate-process hangs.
 
 ## [1.2.48] - 2026-09-09
 

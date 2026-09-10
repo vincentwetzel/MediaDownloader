@@ -12,6 +12,51 @@
 #include <QStringList>
 #include <QSslSocket>
 #include <QSqlDatabase>
+#include <QSharedMemory>
+
+#include <memory>
+#include <vector>
+
+namespace {
+
+/**
+ * v1.2.47 and older releases used these shared-memory keys for single-instance
+ * ownership. Keep them alive while the new local-socket coordinator owns the
+ * process so an older still-running process cannot launch a second queue owner
+ * during an upgrade.
+ */
+class LegacyInstanceGuard final {
+public:
+    bool acquire()
+    {
+        // GUI and server launches used separate keys before RuntimeCoordinator
+        // unified their ownership. Claim both to cover either older process.
+        static const QStringList keys = {
+            QStringLiteral("LzyDownloaderSingleInstance"),
+            QStringLiteral("LzyDownloaderSingleInstance_Server")
+        };
+
+        for (const QString &key : keys) {
+            auto segment = std::make_unique<QSharedMemory>(key);
+            // A crashed process can leave the native segment behind. Attaching
+            // and detaching lets the operating system reclaim an unowned one;
+            // an active process still causes create() to fail below.
+            if (segment->attach()) {
+                segment->detach();
+            }
+            if (!segment->create(1)) {
+                return false;
+            }
+            m_segments.push_back(std::move(segment));
+        }
+        return true;
+    }
+
+private:
+    std::vector<std::unique_ptr<QSharedMemory>> m_segments;
+};
+
+} // namespace
 
 int main(int argc, char *argv[]) {
     bool startBackground = false;
@@ -71,6 +116,12 @@ int main(int argc, char *argv[]) {
     if (coordinatorResult != RuntimeCoordinator::StartResult::Owner) {
         qCritical() << "Could not create or contact the LzyDownloader coordinator.";
         return 1;
+    }
+
+    LegacyInstanceGuard legacyInstanceGuard;
+    if (!legacyInstanceGuard.acquire()) {
+        qInfo() << "An older LzyDownloader instance is already running; forwarding is unavailable. Exiting.";
+        return 0;
     }
 
     BrowserNativeHostRegistration::registerHostIfConfigured();
